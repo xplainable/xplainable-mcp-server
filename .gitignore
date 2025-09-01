@@ -169,3 +169,6 @@ logs/
 # OS files
 Thumbs.db
 desktop.ini
+
+/.claude
+/xplainable-mcp-env

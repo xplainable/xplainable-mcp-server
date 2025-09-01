@@ -14,6 +14,13 @@ from datetime import datetime
 from fastmcp import FastMCP
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
+from .response_handlers import (
+    handle_none_as_empty_list,
+    safe_model_dump_list,
+    safe_model_dump,
+    safe_list_response,
+    safe_client_call
+)
 
 # Load environment variables
 load_dotenv()
@@ -170,8 +177,12 @@ def list_team_models(team_id_override: Optional[str] = None) -> List[Dict[str, A
     """
     try:
         client = get_client()
-        models = client.models.list_team_models(team_id=team_id_override)
-        result = [m.model_dump() for m in models]
+        models = safe_client_call(
+            client.models.list_team_models,
+            "list_team_models",
+            team_id=team_id_override
+        )
+        result = safe_model_dump_list(models, "list_team_models")
         logger.info(f"Listed {len(result)} models for team: {team_id_override or config.team_id}")
         return result
     except Exception as e:
@@ -193,8 +204,11 @@ def get_model(model_id: str) -> Dict[str, Any]:
     try:
         client = get_client()
         info = client.models.get_model(model_id)
+        result = safe_model_dump(info, "get_model")
+        if result is None:
+            raise ValueError(f"Model {model_id} not found")
         logger.info(f"Retrieved model info for: {model_id}")
-        return info.model_dump()
+        return result
     except Exception as e:
         logger.error(f"Error getting model {model_id}: {e}")
         raise
@@ -214,7 +228,7 @@ def list_model_versions(model_id: str) -> List[Dict[str, Any]]:
     try:
         client = get_client()
         versions = client.models.list_model_versions(model_id)
-        result = [v.model_dump() for v in versions]
+        result = safe_model_dump_list(versions, "list_model_versions")
         logger.info(f"Listed {len(result)} versions for model: {model_id}")
         return result
     except Exception as e:
@@ -236,7 +250,7 @@ def list_deployments(team_id_override: Optional[str] = None) -> List[Dict[str, A
     try:
         client = get_client()
         deployments = client.deployments.list_deployments(team_id=team_id_override)
-        result = [d.model_dump() for d in deployments]
+        result = safe_model_dump_list(deployments, "list_deployments")
         logger.info(f"Listed {len(result)} deployments for team: {team_id_override or config.team_id}")
         return result
     except Exception as e:
@@ -279,7 +293,7 @@ def list_preprocessors(team_id_override: Optional[str] = None) -> List[Dict[str,
     try:
         client = get_client()
         results = client.preprocessing.list_preprocessors(team_id=team_id_override)
-        result = [p.model_dump() for p in results]
+        result = safe_model_dump_list(results, "list_preprocessors")
         logger.info(f"Listed {len(result)} preprocessors for team: {team_id_override or config.team_id}")
         return result
     except Exception as e:
@@ -301,8 +315,11 @@ def get_preprocessor(preprocessor_id: str) -> Dict[str, Any]:
     try:
         client = get_client()
         info = client.preprocessing.get_preprocessor(preprocessor_id)
+        result = safe_model_dump(info, "get_preprocessor")
+        if result is None:
+            raise ValueError(f"Preprocessor {preprocessor_id} not found")
         logger.info(f"Retrieved preprocessor: {preprocessor_id}")
-        return info.model_dump()
+        return result
     except Exception as e:
         logger.error(f"Error getting preprocessor {preprocessor_id}: {e}")
         raise
@@ -322,8 +339,10 @@ def get_collection_scenarios(collection_id: str) -> List[Dict[str, Any]]:
     try:
         client = get_client()
         scenarios = client.collections.get_collection_scenarios(collection_id)
-        logger.info(f"Listed {len(scenarios)} scenarios for collection: {collection_id}")
-        return scenarios
+        # This endpoint likely returns plain dicts, so use safe_list_response
+        result = safe_list_response(scenarios, "get_collection_scenarios")
+        logger.info(f"Listed {len(result)} scenarios for collection: {collection_id}")
+        return result
     except Exception as e:
         logger.error(f"Error getting collection scenarios for {collection_id}: {e}")
         raise
@@ -463,6 +482,27 @@ if config.enable_write_tools:
             return resp.model_dump()
         except Exception as e:
             logger.error(f"Error generating GPT report: {e}")
+            raise
+    
+    
+    @mcp.tool()
+    def get_deployment_payload(deployment_id: str) -> List[Dict[str, Any]]:
+        """
+        Get sample payload data for a deployment.
+        
+        Args:
+            deployment_id: The deployment ID to get payload for
+            
+        Returns:
+            List containing sample data dictionary for inference
+        """
+        try:
+            client = get_client()
+            payload = client.deployments.get_deployment_payload(deployment_id)
+            logger.info(f"Retrieved deployment payload for: {deployment_id}")
+            return payload
+        except Exception as e:
+            logger.error(f"Error getting deployment payload for {deployment_id}: {e}")
             raise
 
 

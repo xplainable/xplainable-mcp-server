@@ -41,6 +41,16 @@ xplainable-mcp-cli generate-docs --output TOOLS.md
 
 ## Quick Start
 
+### For Production Users
+
+If you just want to use this MCP server with Claude Code:
+
+1. **Get your Xplainable API key** from https://platform.xplainable.io
+2. **Add the MCP configuration** (see Claude Code Configuration above)
+3. **That's it!** Claude Code will handle installation automatically
+
+### For Developers
+
 ### 1. Set up environment variables
 
 Create a `.env` file with your Xplainable credentials:
@@ -64,21 +74,196 @@ xplainable-mcp --host 0.0.0.0 --port 8000
 
 ### 3. Connect with an MCP client
 
-#### Claude Desktop Configuration
+#### Claude Code Configuration
 
-Add to your Claude Desktop configuration:
-
+**Option 1: Install from GitHub (Recommended)**
 ```json
 {
   "mcpServers": {
     "xplainable": {
-      "command": "xplainable-mcp",
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/yourusername/xplainable-mcp-server.git", "xplainable-mcp-server"],
       "env": {
-        "XPLAINABLE_API_KEY": "your-api-key"
+        "XPLAINABLE_API_KEY": "your-api-key-here",
+        "XPLAINABLE_HOST": "https://platform.xplainable.io"
       }
     }
   }
 }
+```
+
+**Option 2: Clone and run from source**
+```json
+{
+  "mcpServers": {
+    "xplainable": {
+      "command": "python",
+      "args": ["-m", "xplainable_mcp.server"],
+      "cwd": "/path/to/cloned/xplainable-mcp-server",
+      "env": {
+        "XPLAINABLE_API_KEY": "your-api-key-here",
+        "XPLAINABLE_HOST": "https://platform.xplainable.io"
+      }
+    }
+  }
+}
+```
+
+**Option 3: Development with local backend**
+```json
+{
+  "mcpServers": {
+    "xplainable": {
+      "command": "python",
+      "args": ["-m", "xplainable_mcp.server"],
+      "cwd": "/path/to/xplainable-mcp-server",
+      "env": {
+        "XPLAINABLE_API_KEY": "your-development-key",
+        "XPLAINABLE_HOST": "http://localhost:8000",
+        "ENABLE_WRITE_TOOLS": "true"
+      }
+    }
+  }
+}
+```
+
+#### Claude Desktop Configuration
+
+Add the configuration to your Claude Desktop MCP settings file:
+
+**File Locations:**
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux:** `~/.config/Claude/claude_desktop_config.json`
+
+**Option 1: Install from GitHub (Recommended)**
+```json
+{
+  "mcpServers": {
+    "xplainable": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/yourusername/xplainable-mcp-server.git", "xplainable-mcp-server"],
+      "env": {
+        "XPLAINABLE_API_KEY": "your-api-key-here",
+        "XPLAINABLE_HOST": "https://platform.xplainable.io"
+      }
+    }
+  }
+}
+```
+
+**Option 2: Development setup (from source)**
+```json
+{
+  "mcpServers": {
+    "xplainable": {
+      "command": "python",
+      "args": ["-m", "xplainable_mcp.server"],
+      "cwd": "/path/to/xplainable-mcp-server",
+      "env": {
+        "XPLAINABLE_API_KEY": "your-api-key",
+        "XPLAINABLE_HOST": "https://platform.xplainable.io",
+        "ENABLE_WRITE_TOOLS": "true"
+      }
+    }
+  }
+}
+```
+
+**Option 3: Using conda environment**
+```json
+{
+  "mcpServers": {
+    "xplainable": {
+      "command": "conda",
+      "args": ["run", "-n", "xplainable-mcp", "python", "-m", "xplainable_mcp.server"],
+      "cwd": "/path/to/xplainable-mcp-server",
+      "env": {
+        "XPLAINABLE_API_KEY": "your-api-key",
+        "XPLAINABLE_HOST": "https://platform.xplainable.io",
+        "ENABLE_WRITE_TOOLS": "true"
+      }
+    }
+  }
+}
+```
+
+## Development Setup
+
+### For Local Development with Claude Code
+
+1. **Set up the environment:**
+```bash
+# Create conda environment
+conda create -n xplainable-mcp python=3.9
+conda activate xplainable-mcp
+
+# Install dependencies
+pip install -e .
+pip install -e /path/to/xplainable-client
+```
+
+2. **Configure environment variables:**
+```env
+# .env file for development
+XPLAINABLE_API_KEY=your-development-api-key
+XPLAINABLE_HOST=http://localhost:8000
+ENABLE_WRITE_TOOLS=true
+RATE_LIMIT_ENABLED=false
+```
+
+3. **Test the setup:**
+```bash
+# Test connection to local backend
+python -c "
+import sys
+sys.path.append('.')
+from xplainable_mcp.server import get_client
+client = get_client()
+print('Connection successful!')
+print(f'Connected to: {client.connection_info}')
+"
+```
+
+### Example Deployment Workflow
+
+Here's a complete example of deploying a model and testing inference:
+
+```bash
+# 1. List available models
+python -c "
+from xplainable_mcp.server import get_client
+client = get_client()
+models = client.models.list_team_models()
+for model in models[:3]:  # Show first 3
+    print(f'Model: {model.display_name} (ID: {model.model_id})')
+    print(f'  Version: {model.active_version}')
+    print(f'  Deployed: {model.deployed}')
+"
+
+# 2. Deploy a model version (replace with actual version_id)
+python -c "
+from xplainable_mcp.server import get_client
+client = get_client()
+deployment = client.deployments.deploy('your-version-id-here')
+print(f'Deployment ID: {deployment.deployment_id}')
+"
+
+# 3. Generate deployment key
+python -c "
+from xplainable_mcp.server import get_client
+client = get_client()
+key = client.deployments.generate_deploy_key('deployment-id', 'Test Key')
+print(f'Deploy Key: {key}')
+"
+
+# 4. Test inference (requires active deployment)
+curl -X POST https://inference.xplainable.io/v1/predict \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "deploy_key": "your-deploy-key",
+    "data": {"feature1": "value1", "feature2": 123}
+  }'
 ```
 
 ## Available Tools
@@ -97,13 +282,17 @@ Add to your Claude Desktop configuration:
 - `list_preprocessors(team_id?)` - List all preprocessors
 - `get_preprocessor(preprocessor_id)` - Get preprocessor details
 - `get_collection_scenarios(collection_id)` - List scenarios in a collection
+- `get_active_team_deploy_keys_count(team_id?)` - Get count of active deploy keys
 - `misc_get_version_info()` - Get version information
 
 ### Write Tools (Restricted)
 
-- `activate_deployment(deployment_id)` - Activate a deployment
+*Note: Write tools require `ENABLE_WRITE_TOOLS=true` in environment*
+
+- `activate_deployment(deployment_id)` - Activate a deployment  
 - `deactivate_deployment(deployment_id)` - Deactivate a deployment
 - `generate_deploy_key(deployment_id, description?, days_until_expiry?)` - Generate deployment key
+- `get_deployment_payload(deployment_id)` - Get sample payload data for deployment
 - `gpt_generate_report(model_id, version_id, ...)` - Generate GPT report
 
 ## Security
@@ -194,10 +383,6 @@ docker build -t xplainable-mcp-server .
 # Run with environment file
 docker run --env-file .env -p 8000:8000 xplainable-mcp-server
 ```
-
-### Kubernetes
-
-See `kubernetes/` directory for example manifests.
 
 ## Compatibility Matrix
 

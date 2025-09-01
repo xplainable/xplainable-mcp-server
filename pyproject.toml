@@ -37,6 +37,9 @@ xplainable-mcp-cli = "xplainable_mcp.cli:main"
 [tool.hatch.metadata]
 allow-direct-references = true
 
+[tool.hatch.build.targets.wheel]
+packages = ["xplainable_mcp"]
+
 [tool.black]
 line-length = 100
 target-version = ['py39']
