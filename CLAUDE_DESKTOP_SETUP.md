@@ -1,27 +1,69 @@
 # Xplainable MCP Server - Claude Desktop Setup
 
-This guide shows you how to add the Xplainable MCP Server to Claude Desktop.
+This guide shows you how to add the Xplainable MCP Server to Claude Desktop using a Python virtual environment for reliable dependency management.
 
-## Quick Setup (2 steps)
+## Setup Instructions
 
 ### 1. Get Your API Key
 Get your Xplainable API key from: https://platform.xplainable.io
 
-### 2. Add MCP Configuration
+### 2. Create Python Virtual Environment
+
+**Create and set up the virtual environment:**
+
+```bash
+# Navigate to your projects directory
+cd /path/to/your/projects
+
+# Clone the MCP server (if you haven't already)
+git clone https://github.com/xplainable/xplainable-mcp-server.git
+cd xplainable-mcp-server
+
+# Create Python virtual environment
+python3 -m venv xplainable-mcp-env
+
+# Activate the environment
+source xplainable-mcp-env/bin/activate
+
+# Install the MCP server and dependencies
+pip install -e .
+
+# Verify installation
+python -m xplainable_mcp.server --help
+```
+
+### 3. Configure Claude Desktop
 
 **Find your Claude Desktop config file:**
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`  
 - **Linux:** `~/.config/Claude/claude_desktop_config.json`
 
-**Add this configuration:**
+**Add this configuration (replace `/path/to/your/projects` with your actual path):**
 
 ```json
 {
   "mcpServers": {
     "xplainable": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/yourusername/xplainable-mcp-server.git", "xplainable-mcp-server"],
+      "command": "/path/to/your/projects/xplainable-mcp-server/xplainable-mcp-env/bin/python",
+      "args": ["-m", "xplainable_mcp.server"],
+      "env": {
+        "XPLAINABLE_API_KEY": "your-api-key-here",
+        "XPLAINABLE_HOST": "https://platform.xplainable.io"
+      }
+    }
+  }
+}
+```
+
+**For this specific setup, the configuration would be:**
+
+```json
+{
+  "mcpServers": {
+    "xplainable": {
+      "command": "/Users/jtuppack/projects/xplainable-mcp-server/xplainable-mcp-env/bin/python",
+      "args": ["-m", "xplainable_mcp.server"],
       "env": {
         "XPLAINABLE_API_KEY": "your-api-key-here",
         "XPLAINABLE_HOST": "https://platform.xplainable.io"
@@ -40,8 +82,8 @@ Get your Xplainable API key from: https://platform.xplainable.io
       "command": "some-command"
     },
     "xplainable": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/yourusername/xplainable-mcp-server.git", "xplainable-mcp-server"],
+      "command": "/Users/jtuppack/projects/xplainable-mcp-server/xplainable-mcp-env/bin/python",
+      "args": ["-m", "xplainable_mcp.server"],
       "env": {
         "XPLAINABLE_API_KEY": "your-api-key-here",
         "XPLAINABLE_HOST": "https://platform.xplainable.io"
@@ -51,7 +93,7 @@ Get your Xplainable API key from: https://platform.xplainable.io
 }
 ```
 
-### 3. Restart Claude Desktop
+### 4. Restart Claude Desktop
 
 Close and reopen Claude Desktop. The Xplainable tools should now be available!
 
@@ -69,9 +111,15 @@ Once configured, you can ask Claude to:
 ## Troubleshooting
 
 **"MCP server not found" error:**
-- Make sure you have `uvx` installed: `pip install uvx`
+- Verify the Python path in your config is correct
+- Make sure the virtual environment exists and has the MCP server installed
 - Check that your API key is correct
 - Restart Claude Desktop after making config changes
+
+**"Module not found" error:**
+- Activate your virtual environment: `source xplainable-mcp-env/bin/activate`
+- Reinstall the server: `pip install -e . --force-reinstall`
+- Verify installation: `python -m xplainable_mcp.server --help`
 
 **Connection errors:**
 - Verify your API key at https://platform.xplainable.io
@@ -82,12 +130,12 @@ Once configured, you can ask Claude to:
 - Some operations require special permissions in your Xplainable account
 - Contact your team admin if you can't perform certain actions
 
-## Advanced Configuration
+**Virtual environment issues:**
+- Make sure you're using Python 3.9 or later
+- Recreate the environment if needed: `rm -rf xplainable-mcp-env && python3 -m venv xplainable-mcp-env`
+- Check that all dependencies installed correctly
 
-**Use a specific branch or commit:**
-```json
-"args": ["--from", "git+https://github.com/yourusername/xplainable-mcp-server.git@main", "xplainable-mcp-server"]
-```
+## Advanced Configuration
 
 **Enable write operations (deployment, keys, etc.):**
 ```json
@@ -106,6 +154,26 @@ Once configured, you can ask Claude to:
 }
 ```
 
+**Update the MCP server:**
+```bash
+cd /path/to/your/projects/xplainable-mcp-server
+source xplainable-mcp-env/bin/activate
+git pull origin main
+pip install -e . --force-reinstall
+```
+
+**Check available tools:**
+```bash
+source xplainable-mcp-env/bin/activate
+python -c "
+from xplainable_mcp.server import list_tools
+tools = list_tools()
+print(f'Total tools: {tools[\"total_tools\"]}')
+for category, tool_list in tools['categories'].items():
+    print(f'{category}: {len(tool_list)} tools')
+"
+```
+
 ---
 
-**Need help?** Open an issue at: https://github.com/yourusername/xplainable-mcp-server/issues
+**Need help?** Open an issue at: https://github.com/xplainable/xplainable-mcp-server/issues
