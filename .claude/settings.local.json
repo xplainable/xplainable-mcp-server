@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(/Users/jtuppack/projects/xplainable-client/xplainable_client/**)",
+      "Read(/Users/jtuppack/projects/xplainable-client/xplainable_client/client/**)",
+      "Read(/Users/jtuppack/projects/xplainable-client/xplainable_client/client/**)",
+      "Bash(chmod:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

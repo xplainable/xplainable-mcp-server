@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "xplainable": {
+      "command": "python",
+      "args": ["-m", "xplainable_mcp.server"],
+      "env": {
+        "XPLAINABLE_API_KEY": "your-api-key-here",
+        "XPLAINABLE_HOST": "https://platform.xplainable.io",
+        "XPLAINABLE_ORG_ID": "your-org-id",
+        "XPLAINABLE_TEAM_ID": "your-team-id",
+        "ENABLE_WRITE_TOOLS": "false",
+        "RATE_LIMIT_ENABLED": "true"
+      }
+    }
+  }
+}

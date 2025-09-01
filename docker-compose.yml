@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  xplainable-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xplainable-mcp-server:latest
+    container_name: xplainable-mcp-server
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    environment:
+      # Override any environment variables here
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      # Mount for local development (optional)
+      - ./xplainable_mcp:/app/xplainable_mcp:ro
+    networks:
+      - mcp-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import xplainable_mcp; print('healthy')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional: Reverse proxy for TLS termination
+  nginx:
+    image: nginx:alpine
+    container_name: xplainable-mcp-proxy
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - xplainable-mcp
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge
