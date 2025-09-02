@@ -823,6 +823,103 @@ if config.enable_write_tools:
             logger.error(f"Error getting deployment payload for {deployment_id}: {e}")
             raise
 
+    
+    @mcp.tool()
+    def run_inference(
+        deploy_key: str, 
+        data: str,
+        threshold: float = 0.5,
+        show_breakdown: bool = True,
+        deployment_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Run inference against a deployed model using the Xplainable inference endpoint.
+        
+        Args:
+            deploy_key: The deployment key for authentication (passed as api_key header)
+            data: JSON string containing array of objects for inference (e.g., CSV data converted to JSON)
+            threshold: Prediction threshold (default: 0.5)
+            show_breakdown: Whether to show feature breakdown in results (default: True)
+            deployment_id: Optional deployment ID for logging/reference
+            
+        Returns:
+            Dictionary containing inference results
+            
+        Examples:
+            # Single record
+            data = '[{"City": "salinas", "Gender": "male", "Senior Citizen": "yes", ...}]'
+            
+            # Multiple records  
+            data = '[{"City": "salinas", ...}, {"City": "boston", ...}]'
+        """
+        try:
+            import json
+            import requests
+            
+            # Parse the data string to validate it's proper JSON
+            try:
+                inference_data = json.loads(data)
+                if not isinstance(inference_data, list):
+                    raise ValueError("Data must be a JSON array of objects")
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON format: {e}")
+            
+            # Prepare the request headers with api_key instead of Authorization Bearer
+            headers = {
+                'Content-Type': 'application/json',
+                'api_key': deploy_key  # Changed from Authorization Bearer to api_key
+            }
+            
+            # Build URL with query parameters
+            url = f'https://inference.xplainable.io/v1/predict?threshold={threshold}&show_breakdown={show_breakdown}'
+            
+            # Make the inference request
+            response = requests.post(
+                url,
+                headers=headers,
+                json=inference_data,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                logger.info(f"Inference successful for {len(inference_data)} records" + 
+                           (f" (deployment: {deployment_id})" if deployment_id else ""))
+                return {
+                    "success": True,
+                    "predictions": result,
+                    "records_processed": len(inference_data),
+                    "threshold": threshold,
+                    "show_breakdown": show_breakdown,
+                    "deployment_id": deployment_id
+                }
+            else:
+                error_msg = f"Inference failed with status {response.status_code}: {response.text}"
+                logger.error(error_msg)
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "status_code": response.status_code,
+                    "deployment_id": deployment_id
+                }
+                
+        except requests.RequestException as e:
+            error_msg = f"Network error during inference: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "deployment_id": deployment_id
+            }
+        except Exception as e:
+            error_msg = f"Error running inference: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg,
+                "deployment_id": deployment_id
+            }
+
 
 def main():
     """Main entry point for the server."""
