@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 """
-Automated sync workflow script for keeping MCP server in sync with xplainable-client changes.
-
-This script automates the discovery and analysis phases of the sync workflow.
+Enhanced sync workflow that detects MCP-decorated methods in xplainable-client.
 """
 
 import os
@@ -10,6 +8,7 @@ import sys
 import json
 import inspect
 import subprocess
+import importlib
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -33,28 +32,76 @@ def get_current_version() -> str:
     return "unknown"
 
 
-def get_latest_version() -> str:
-    """Get latest xplainable-client version from PyPI."""
+def discover_mcp_decorated_methods(verbose: bool = False) -> Dict[str, Any]:
+    """Discover methods decorated with @mcp_tool in xplainable-client."""
+    decorated_methods = []
+    
     try:
-        result = subprocess.run(
-            ["pip", "index", "versions", "xplainable-client"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        lines = result.stdout.strip().split('\n')
-        if lines:
-            # Format: "xplainable-client (1.2.3)"
-            latest_line = lines[0]
-            if '(' in latest_line and ')' in latest_line:
-                return latest_line.split('(')[1].split(')')[0]
-    except subprocess.CalledProcessError:
-        pass
-    return "unknown"
+        # Dynamically discover all client modules
+        import xplainable_client.client as client_package
+        import pkgutil
+        
+        modules_to_scan = []
+        
+        # Iterate through all modules in xplainable_client.client
+        for importer, modname, ispkg in pkgutil.iter_modules(client_package.__path__):
+            # Skip private modules, base modules, and the main client module
+            if modname.startswith('_') or modname in ['base', 'client', 'session', 'utils', 'exceptions', 'py_models']:
+                continue
+                
+            try:
+                # Import the module
+                module = importlib.import_module(f'xplainable_client.client.{modname}')
+                
+                # Check if it has a service-specific Client class
+                client_classes = [
+                    name for name, obj in inspect.getmembers(module, inspect.isclass)
+                    if name.endswith('Client') and name != 'BaseClient'
+                ]
+                
+                if client_classes:
+                    modules_to_scan.append((modname, module))
+                    if verbose:
+                        print(f"   Found service module: {modname}")
+            except Exception as e:
+                # Skip modules that can't be imported or don't have clients
+                pass
+        
+        for module_name, module in modules_to_scan:
+            # Find client classes
+            for class_name, class_obj in inspect.getmembers(module, inspect.isclass):
+                if class_name.endswith('Client'):
+                    # Scan methods in the client class
+                    for method_name, method in inspect.getmembers(class_obj):
+                        # Check if method has the MCP marker
+                        if hasattr(method, '_is_mcp_tool'):
+                            method_info = {
+                                'module': module_name,
+                                'class': class_name,
+                                'method': method_name,
+                                'mcp_name': f"{module_name}_{method_name}",
+                                'category': method._mcp_category.value if hasattr(method, '_mcp_category') else 'read',
+                                'signature': str(inspect.signature(method)) if callable(method) else '',
+                                'docstring': inspect.getdoc(method) or ''
+                            }
+                            decorated_methods.append(method_info)
+        
+        # Sort by module and method name
+        decorated_methods.sort(key=lambda x: (x['module'], x['method']))
+        
+    except Exception as e:
+        print(f"Error scanning for MCP decorated methods: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    return {
+        'decorated_methods': decorated_methods,
+        'total_count': len(decorated_methods)
+    }
 
 
-def discover_current_tools() -> List[str]:
-    """Discover currently implemented MCP tools."""
+def discover_current_mcp_tools() -> List[str]:
+    """Discover currently implemented MCP tools in the server."""
     try:
         import xplainable_mcp.server as server_module
         tools = []
@@ -62,7 +109,8 @@ def discover_current_tools() -> List[str]:
         for name, obj in inspect.getmembers(server_module):
             if callable(obj) and hasattr(obj, '__doc__') and not name.startswith('_'):
                 # Skip utility functions
-                if name in ['load_config', 'get_client', 'main', 'ServerConfig']:
+                if name in ['load_config', 'get_client', 'main', 'ServerConfig', 'safe_model_dump', 
+                           'safe_list_response', 'safe_client_call', 'handle_none_as_empty_list']:
                     continue
                 tools.append(name)
         
@@ -72,245 +120,398 @@ def discover_current_tools() -> List[str]:
         return []
 
 
-def analyze_client_methods() -> Dict[str, Any]:
-    """Analyze xplainable-client methods to identify potential tools."""
+def generate_tool_implementation(method_info: Dict[str, Any]) -> str:
+    """Generate MCP tool implementation code for a decorated method."""
+    
+    # Use the MCP registry to get proper parameter information
     try:
-        # Import sync utilities
-        from xplainable_mcp.sync_utils import SyncValidator
-        from xplainable_client.client.client import XplainableClient
+        from xplainable_client.client.mcp_markers import get_mcp_registry
+        registry = get_mcp_registry()
         
-        # Create client with dummy key for analysis
-        client = XplainableClient(api_key="dummy-for-analysis")
-        validator = SyncValidator(client)
+        # Find the method in the registry to get proper parameter info
+        method_key = None
+        for key, metadata in registry.items():
+            if metadata['name'] == method_info['method'] and method_info['module'] in key:
+                method_key = key
+                break
         
-        # Get current tools
-        current_tools = discover_current_tools()
-        
-        # Validate coverage
-        validation_report = validator.validate_tools(current_tools)
-        
-        # Get compatibility matrix
-        compatibility_matrix = validator.generate_compatibility_matrix()
-        
-        return {
-            "validation_report": validation_report,
-            "compatibility_matrix": compatibility_matrix,
-            "current_tools": current_tools
-        }
-        
+        if method_key and method_key in registry:
+            # Use registry parameter info
+            registry_metadata = registry[method_key]
+            params = registry_metadata['parameters']
+            
+            # Build parameter strings
+            param_strings = []
+            arg_strings = []
+            
+            for param_name, param_info in params.items():
+                # Build parameter with type hint and default
+                param_str = param_name
+                
+                # Add type hint if available
+                if param_info.get('type'):
+                    type_hint = _format_type_hint_for_tool(param_info['type'])
+                    param_str = f"{param_name}: {type_hint}"
+                
+                # Add default value if present
+                if not param_info['required']:
+                    default_repr = repr(param_info['default'])
+                    param_str = f"{param_str} = {default_repr}"
+                
+                param_strings.append(param_str)
+                arg_strings.append(param_name)
+            
+            param_str = ', '.join(param_strings)
+            arg_str = ', '.join(arg_strings)
+        else:
+            raise Exception("Method not found in registry")
+    
     except Exception as e:
-        print(f"Error analyzing client methods: {e}")
-        return {
-            "error": str(e),
-            "current_tools": discover_current_tools()
-        }
+        # Fallback to signature parsing if registry lookup fails
+        print(f"Warning: Using fallback parameter parsing for {method_info.get('method', 'unknown')}: {e}")
+        
+        # Parse the signature to extract parameters (fallback)
+        sig_str = method_info.get('signature', '()')
+        params_list = []
+        
+        # Remove 'self' and parse remaining parameters
+        if '(' in sig_str and ')' in sig_str:
+            params_part = sig_str[sig_str.index('(')+1:sig_str.index(')')]
+            if params_part:
+                # Smart split that respects brackets and parentheses
+                params = []
+                current_param = ""
+                bracket_depth = 0
+                paren_depth = 0
+                
+                for char in params_part:
+                    if char in '[':
+                        bracket_depth += 1
+                    elif char in ']':
+                        bracket_depth -= 1
+                    elif char in '(':
+                        paren_depth += 1
+                    elif char in ')':
+                        paren_depth -= 1
+                    elif char == ',' and bracket_depth == 0 and paren_depth == 0:
+                        # Found a parameter separator at top level
+                        if current_param.strip():
+                            params.append(current_param.strip())
+                        current_param = ""
+                        continue
+                    
+                    current_param += char
+                
+                # Don't forget the last parameter
+                if current_param.strip():
+                    params.append(current_param.strip())
+                
+                # Filter out 'self'
+                params = [p for p in params if not p.startswith('self')]
+                params_list = params
+        
+        # Build parameter string for function signature
+        param_str = ', '.join(params_list) if params_list else ''
+        
+        # Build argument string for method call (just parameter names)
+        arg_names = []
+        for param in params_list:
+            # Extract parameter name (before ':' or '=', but handle complex type hints)
+            param = param.strip()
+            if ':' in param:
+                # For type hints like "goal: Dict[str, Any]", find the first ':' not inside brackets
+                bracket_depth = 0
+                colon_pos = -1
+                for i, char in enumerate(param):
+                    if char in '[(':
+                        bracket_depth += 1
+                    elif char in '])':
+                        bracket_depth -= 1
+                    elif char == ':' and bracket_depth == 0:
+                        colon_pos = i
+                        break
+                
+                if colon_pos != -1:
+                    param_name = param[:colon_pos].strip()
+                else:
+                    param_name = param.split('=')[0].strip()
+            else:
+                param_name = param.split('=')[0].strip()
+            arg_names.append(param_name)
+        arg_str = ', '.join(arg_names) if arg_names else ''
+    
+    # Use full docstring, properly indented
+    docstring = method_info.get('docstring', f"Execute {method_info['method']}")
+    if docstring:
+        # Clean and indent docstring
+        docstring_lines = docstring.strip().split('\n')
+        formatted_docstring = '\n    '.join(docstring_lines)
+    else:
+        formatted_docstring = f"Execute {method_info['method']}"
+    
+    template = f'''
+@mcp.tool()
+def {method_info['mcp_name']}({param_str}):
+    """
+    {formatted_docstring}
+    
+    Category: {method_info['category']}
+    """
+    try:
+        client = get_client()
+        result = client.{method_info['module']}.{method_info['method']}({arg_str})
+        logger.info(f"Executed {method_info['module']}.{method_info['method']}")
+        
+        # Handle different return types
+        if hasattr(result, 'model_dump'):
+            return result.model_dump()
+        elif isinstance(result, list) and result and hasattr(result[0], 'model_dump'):
+            return [item.model_dump() for item in result]
+        else:
+            return result
+    except Exception as e:
+        logger.error(f"Error in {method_info['mcp_name']}: {{e}}")
+        raise
+'''
+    
+    return template
 
 
-def generate_sync_report(analysis: Dict[str, Any]) -> Dict[str, Any]:
+def _format_type_hint_for_tool(type_hint) -> str:
+    """Format a type hint for MCP tool code generation."""
+    if hasattr(type_hint, '__name__'):
+        return type_hint.__name__
+    else:
+        # Handle complex type hints
+        type_str = str(type_hint)
+        # Clean up typing module references
+        type_str = type_str.replace('typing.', '')
+        return type_str
+
+
+def generate_sync_report(decorated_methods: Dict[str, Any], current_tools: List[str]) -> Dict[str, Any]:
     """Generate a comprehensive sync report."""
     current_version = get_current_version()
-    latest_version = get_latest_version()
+    
+    # Extract MCP names from decorated methods
+    mcp_tool_names = [m['mcp_name'] for m in decorated_methods['decorated_methods']]
+    
+    # Calculate coverage
+    mcp_set = set(mcp_tool_names)
+    current_set = set(current_tools)
+    
+    missing_tools = list(mcp_set - current_set)
+    extra_tools = list(current_set - mcp_set)
+    implemented_tools = list(mcp_set & current_set)
+    
+    coverage = (len(implemented_tools) / len(mcp_set) * 100) if mcp_set else 100
     
     report = {
         "timestamp": datetime.now().isoformat(),
-        "versions": {
-            "current": current_version,
-            "latest": latest_version,
-            "update_available": current_version != latest_version
+        "version": current_version,
+        "analysis": {
+            "decorated_methods": decorated_methods['total_count'],
+            "current_tools": len(current_tools),
+            "implemented": len(implemented_tools),
+            "missing": len(missing_tools),
+            "extra": len(extra_tools),
+            "coverage_percentage": coverage
         },
-        "analysis": analysis
-    }
-    
-    # Determine if sync is needed
-    needs_sync = False
-    sync_reasons = []
-    
-    if report["versions"]["update_available"]:
-        needs_sync = True
-        sync_reasons.append(f"Client version update available: {current_version} -> {latest_version}")
-    
-    if "validation_report" in analysis:
-        validation = analysis["validation_report"]
-        if validation.get("missing"):
-            needs_sync = True
-            sync_reasons.append(f"{len(validation['missing'])} missing tools identified")
-        
-        if validation.get("coverage_percentage", 100) < 90:
-            needs_sync = True
-            sync_reasons.append(f"Low coverage: {validation.get('coverage_percentage', 0):.1f}%")
-    
-    report["sync_status"] = {
-        "needs_sync": needs_sync,
-        "reasons": sync_reasons
+        "missing_tools": missing_tools,
+        "extra_tools": extra_tools,
+        "implemented_tools": implemented_tools,
+        "sync_required": len(missing_tools) > 0,
+        "decorated_method_details": decorated_methods['decorated_methods']
     }
     
     return report
 
 
-def create_implementation_plan(report: Dict[str, Any]) -> List[Dict[str, str]]:
-    """Create an implementation plan based on the sync report."""
-    plan = []
+def sync_to_service_files(report: Dict[str, Any], force_update: bool = False) -> Dict[str, Any]:
+    """
+    Sync tools directly to service-specific files.
     
-    if not report.get("analysis", {}).get("validation_report"):
-        return plan
+    Args:
+        report: Sync report with missing tools
+        force_update: If True, update existing tools even if unchanged
+        
+    Returns:
+        Dictionary with sync results
+    """
+    from xplainable_mcp.tool_manager import ToolFileManager
+    from pathlib import Path
     
-    validation = report["analysis"]["validation_report"]
+    # Initialize tool manager
+    tools_dir = Path("xplainable_mcp/tools")
+    tool_manager = ToolFileManager(tools_dir)
     
-    # Add missing tools
-    for missing_tool in validation.get("missing", []):
-        plan.append({
-            "action": "implement",
-            "type": "new_tool",
-            "item": missing_tool,
-            "priority": "medium",
-            "description": f"Implement missing tool: {missing_tool}"
-        })
+    # If force_update is True, sync ALL decorated methods, not just missing ones
+    if force_update:
+        tools_to_sync = report['decorated_method_details']
+    else:
+        # Get missing tools that need implementation
+        missing_tools = report['missing_tools']
+        method_details = {m['mcp_name']: m for m in report['decorated_method_details']}
+        
+        # Convert to list for the tool manager
+        tools_to_sync = []
+        for tool_name in missing_tools:
+            if tool_name in method_details:
+                tools_to_sync.append(method_details[tool_name])
     
-    # Remove extra tools
-    for extra_tool in validation.get("extra", []):
-        plan.append({
-            "action": "review",
-            "type": "extra_tool", 
-            "item": extra_tool,
-            "priority": "low",
-            "description": f"Review extra tool (no client method): {extra_tool}"
-        })
+    # Sync all tools to service files
+    results = tool_manager.sync_all_tools(tools_to_sync, generate_tool_implementation, force_update)
     
-    # Version update task
-    if report["versions"]["update_available"]:
-        plan.insert(0, {
-            "action": "update",
-            "type": "dependency",
-            "item": "xplainable-client",
-            "priority": "high",
-            "description": f"Update xplainable-client to {report['versions']['latest']}"
-        })
+    # Get summary
+    sync_summary = tool_manager.get_sync_summary()
     
-    return plan
+    # Calculate totals from the new format
+    totals = {'added': 0, 'updated': 0, 'skipped': 0}
+    for service_results in results.values():
+        for action, count in service_results.items():
+            totals[action] += count
+    
+    return {
+        'results': results,
+        'summary': sync_summary,
+        'totals': totals
+    }
 
 
-def save_report(report: Dict[str, Any], output_file: Optional[str] = None) -> str:
-    """Save the sync report to a file."""
-    if output_file is None:
-        output_file = f"sync_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+def generate_implementation_file(report: Dict[str, Any], output_path: str):
+    """Generate a Python file with missing tool implementations (legacy mode)."""
     
-    output_path = Path(output_file)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    missing_tools = report['missing_tools']
+    method_details = {m['mcp_name']: m for m in report['decorated_method_details']}
     
-    with open(output_path, 'w') as f:
-        json.dump(report, f, indent=2)
-    
-    return str(output_path)
-
-
-def generate_markdown_report(report: Dict[str, Any], plan: List[Dict[str, str]]) -> str:
-    """Generate a markdown version of the sync report."""
-    md_lines = [
-        f"# Sync Report - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+    lines = [
+        "# Auto-generated MCP tool implementations",
+        f"# Generated: {datetime.now().isoformat()}",
+        f"# Missing tools: {len(missing_tools)}",
         "",
-        "## Version Status",
-        f"- **Current**: {report['versions']['current']}",
-        f"- **Latest**: {report['versions']['latest']}",
-        f"- **Update Available**: {'Yes' if report['versions']['update_available'] else 'No'}",
+        "# NOTE: This is legacy format. Tools are now organized in xplainable_mcp/tools/ directory",
+        "# This file is for reference only - actual tools are added to service-specific files",
+        "",
+        "from fastmcp import FastMCP",
+        "import logging",
+        "",
+        "logger = logging.getLogger(__name__)",
+        "",
+        "# === MISSING TOOL IMPLEMENTATIONS ===",
         ""
     ]
     
-    # Sync status
-    status = report.get("sync_status", {})
-    if status.get("needs_sync"):
+    # Group by category
+    by_category = {}
+    for tool_name in missing_tools:
+        if tool_name in method_details:
+            category = method_details[tool_name].get('category', 'read')
+            by_category.setdefault(category, []).append(tool_name)
+    
+    # Generate implementations grouped by category
+    for category in sorted(by_category.keys()):
+        lines.append(f"# Category: {category}")
+        for tool_name in sorted(by_category[category]):
+            method_info = method_details[tool_name]
+            implementation = generate_tool_implementation(method_info)
+            lines.append(implementation)
+        lines.append("")
+    
+    # Write to file
+    with open(output_path, 'w') as f:
+        f.write('\n'.join(lines))
+    
+    return output_path
+
+
+def generate_markdown_report(report: Dict[str, Any]) -> str:
+    """Generate a markdown report."""
+    md_lines = [
+        f"# MCP Sync Report - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        "",
+        f"## Client Version: {report['version']}",
+        "",
+        "## Summary",
+        f"- **Decorated Methods**: {report['analysis']['decorated_methods']}",
+        f"- **Current Tools**: {report['analysis']['current_tools']}",
+        f"- **Implemented**: {report['analysis']['implemented']}",
+        f"- **Missing**: {report['analysis']['missing']}",
+        f"- **Coverage**: {report['analysis']['coverage_percentage']:.1f}%",
+        ""
+    ]
+    
+    if report['sync_required']:
         md_lines.extend([
             "## ⚠️ Sync Required",
             "",
-            "**Reasons:**"
+            f"There are {len(report['missing_tools'])} missing tool implementations.",
+            ""
         ])
-        for reason in status.get("reasons", []):
-            md_lines.append(f"- {reason}")
-        md_lines.append("")
     else:
         md_lines.extend([
-            "## ✅ No Sync Required",
+            "## ✅ Fully Synced",
             "",
-            "The MCP server is up to date with the client.",
+            "All MCP-decorated methods are implemented.",
             ""
         ])
     
-    # Analysis results
-    if "validation_report" in report.get("analysis", {}):
-        validation = report["analysis"]["validation_report"]
+    # Missing tools section
+    if report['missing_tools']:
         md_lines.extend([
-            "## Analysis Results",
+            "## Missing Tools",
             "",
-            f"- **Total Current Tools**: {validation.get('existing_tools', 0)}",
-            f"- **Potential Tools**: {validation.get('potential_tools', 0)}",
-            f"- **Coverage**: {validation.get('coverage_percentage', 0):.1f}%",
-            f"- **Missing Tools**: {len(validation.get('missing', []))}",
-            f"- **Extra Tools**: {len(validation.get('extra', []))}",
+            "The following MCP-decorated methods need implementation:",
             ""
         ])
         
-        if validation.get("missing"):
-            md_lines.extend([
-                "### Missing Tools",
-                ""
-            ])
-            for tool in validation["missing"]:
-                md_lines.append(f"- `{tool}`")
-            md_lines.append("")
+        # Group by category
+        by_category = {}
+        method_details = {m['mcp_name']: m for m in report['decorated_method_details']}
         
-        if validation.get("extra"):
-            md_lines.extend([
-                "### Extra Tools (No Client Method)",
-                ""
-            ])
-            for tool in validation["extra"]:
-                md_lines.append(f"- `{tool}`")
+        for tool_name in report['missing_tools']:
+            if tool_name in method_details:
+                category = method_details[tool_name].get('category', 'read')
+                by_category.setdefault(category, []).append(tool_name)
+        
+        for category in sorted(by_category.keys()):
+            md_lines.append(f"### Category: {category}")
+            md_lines.append("")
+            for tool_name in sorted(by_category[category]):
+                method = method_details[tool_name]
+                md_lines.append(f"- `{tool_name}` - {method['docstring'].split('\\n')[0] if method['docstring'] else 'No description'}")
             md_lines.append("")
     
-    # Implementation plan
-    if plan:
+    # Implemented tools section
+    if report['implemented_tools']:
         md_lines.extend([
-            "## Implementation Plan",
+            "## Implemented Tools",
+            "",
+            "The following tools are already implemented:",
             ""
         ])
-        
-        # Group by priority
-        by_priority = {"high": [], "medium": [], "low": []}
-        for item in plan:
-            priority = item.get("priority", "medium")
-            by_priority.setdefault(priority, []).append(item)
-        
-        for priority in ["high", "medium", "low"]:
-            items = by_priority.get(priority, [])
-            if items:
-                md_lines.extend([
-                    f"### {priority.title()} Priority",
-                    ""
-                ])
-                for item in items:
-                    md_lines.append(f"- [ ] **{item['action'].title()}**: {item['description']}")
-                md_lines.append("")
+        for tool in sorted(report['implemented_tools']):
+            md_lines.append(f"- `{tool}`")
+        md_lines.append("")
     
-    # Next steps
-    md_lines.extend([
-        "## Next Steps",
-        "",
-        "1. Review the implementation plan above",
-        "2. Update dependencies if needed",
-        "3. Implement missing tools following the patterns in `server.py`",
-        "4. Add tests for new functionality",
-        "5. Update documentation and version numbers",
-        "6. Test thoroughly before deployment",
-        "",
-        "See `SYNC_WORKFLOW.md` for detailed instructions."
-    ])
+    # Extra tools section
+    if report['extra_tools']:
+        md_lines.extend([
+            "## Extra Tools",
+            "",
+            "The following tools exist but have no corresponding MCP decorator:",
+            ""
+        ])
+        for tool in sorted(report['extra_tools']):
+            md_lines.append(f"- `{tool}`")
+        md_lines.append("")
     
-    return "\n".join(md_lines)
+    return '\n'.join(md_lines)
 
 
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Analyze sync status between MCP server and xplainable-client"
+        description="Sync MCP server with MCP-decorated methods in xplainable-client"
     )
     parser.add_argument(
         "--output",
@@ -318,7 +519,21 @@ def main():
     )
     parser.add_argument(
         "--markdown",
-        help="Also generate markdown report at this path"
+        help="Generate markdown report at this path"
+    )
+    parser.add_argument(
+        "--generate-code",
+        help="Generate implementation code file at this path (legacy mode)"
+    )
+    parser.add_argument(
+        "--sync-files",
+        action="store_true",
+        help="Sync tools directly to service-specific files (recommended)"
+    )
+    parser.add_argument(
+        "--force-update",
+        action="store_true",
+        help="Force update existing tools even if unchanged"
     )
     parser.add_argument(
         "--quiet",
@@ -329,67 +544,96 @@ def main():
     args = parser.parse_args()
     
     if not args.quiet:
-        print("🔍 Analyzing sync status...")
+        print("🔍 Scanning for MCP-decorated methods...")
     
-    # Run analysis
-    analysis = analyze_client_methods()
+    # Discover decorated methods (verbose mode if not quiet)
+    decorated_methods = discover_mcp_decorated_methods(verbose=not args.quiet)
+    
+    if not args.quiet:
+        print(f"   Found {decorated_methods['total_count']} decorated methods")
+    
+    # Discover current tools
+    current_tools = discover_current_mcp_tools()
+    
+    if not args.quiet:
+        print(f"   Found {len(current_tools)} current MCP tools")
     
     # Generate report
-    report = generate_sync_report(analysis)
-    
-    # Create implementation plan
-    plan = create_implementation_plan(report)
+    report = generate_sync_report(decorated_methods, current_tools)
     
     # Save JSON report
-    json_path = save_report(report, args.output)
-    if not args.quiet:
-        print(f"📄 JSON report saved to: {json_path}")
+    output_file = args.output or f"mcp_sync_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    with open(output_file, 'w') as f:
+        json.dump(report, f, indent=2)
     
-    # Save markdown report if requested
+    if not args.quiet:
+        print(f"📄 JSON report saved to: {output_file}")
+    
+    # Generate markdown report if requested
     if args.markdown:
-        md_content = generate_markdown_report(report, plan)
-        md_path = Path(args.markdown)
-        md_path.parent.mkdir(parents=True, exist_ok=True)
-        md_path.write_text(md_content)
+        md_content = generate_markdown_report(report)
+        with open(args.markdown, 'w') as f:
+            f.write(md_content)
         if not args.quiet:
             print(f"📝 Markdown report saved to: {args.markdown}")
     
-    # Print summary to console
+    # Sync to service files if requested
+    if args.sync_files and (report['missing_tools'] or args.force_update):
+        if not args.quiet:
+            action = "Updating" if args.force_update else "Syncing"
+            print(f"📁 {action} tools to service files...")
+        
+        sync_results = sync_to_service_files(report, args.force_update)
+        
+        if not args.quiet:
+            totals = sync_results['totals']
+            total_changes = totals['added'] + totals['updated']
+            
+            if total_changes > 0:
+                print(f"   {total_changes} tools processed:")
+                if totals['added'] > 0:
+                    print(f"   • Added: {totals['added']}")
+                if totals['updated'] > 0:
+                    print(f"   • Updated: {totals['updated']}")
+                if totals['skipped'] > 0:
+                    print(f"   • Skipped: {totals['skipped']}")
+                
+                # Show breakdown by service
+                for service, results in sync_results['results'].items():
+                    service_total = results['added'] + results['updated']
+                    if service_total > 0:
+                        breakdown = []
+                        if results['added']: breakdown.append(f"{results['added']} added")
+                        if results['updated']: breakdown.append(f"{results['updated']} updated")
+                        print(f"   • {service}: {', '.join(breakdown)}")
+            else:
+                print("   No changes needed - all tools up to date")
+    
+    # Generate implementation code if requested (legacy mode)
+    if args.generate_code and report['missing_tools']:
+        code_file = generate_implementation_file(report, args.generate_code)
+        if not args.quiet:
+            print(f"💻 Implementation code saved to: {code_file}")
+    
+    # Print summary
     if not args.quiet:
         print("\n" + "="*60)
         print("SYNC ANALYSIS SUMMARY")
         print("="*60)
+        print(f"Version: {report['version']}")
+        print(f"Coverage: {report['analysis']['coverage_percentage']:.1f}%")
+        print(f"Missing: {report['analysis']['missing']}")
+        print(f"Implemented: {report['analysis']['implemented']}")
         
-        versions = report["versions"]
-        print(f"Current version: {versions['current']}")
-        print(f"Latest version:  {versions['latest']}")
-        
-        status = report.get("sync_status", {})
-        if status.get("needs_sync"):
+        if report['sync_required']:
             print("\n⚠️  SYNC REQUIRED")
-            for reason in status.get("reasons", []):
-                print(f"   • {reason}")
-            
-            if plan:
-                print(f"\n📋 Implementation plan created with {len(plan)} tasks")
-                high_priority = [p for p in plan if p.get("priority") == "high"]
-                if high_priority:
-                    print(f"   • {len(high_priority)} high priority tasks")
+            print(f"   {len(report['missing_tools'])} tools need implementation")
+            if args.sync_files:
+                print("   🎉 Tools have been automatically synced to service files!")
         else:
-            print("\n✅ NO SYNC REQUIRED")
-            print("   MCP server is up to date")
-        
-        print(f"\n📊 Analysis Details:")
-        if "validation_report" in analysis:
-            val = analysis["validation_report"]
-            print(f"   • Coverage: {val.get('coverage_percentage', 0):.1f}%")
-            print(f"   • Missing tools: {len(val.get('missing', []))}")
-            print(f"   • Extra tools: {len(val.get('extra', []))}")
-        
-        print("\nRun with --markdown FILENAME.md to generate detailed report")
+            print("\n✅ FULLY SYNCED")
     
-    # Exit with appropriate code
-    sys.exit(1 if report.get("sync_status", {}).get("needs_sync") else 0)
+    sys.exit(1 if report['sync_required'] else 0)
 
 
 if __name__ == "__main__":

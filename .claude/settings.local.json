@@ -6,7 +6,9 @@
       "Read(/Users/jtuppack/projects/xplainable-client/xplainable_client/client/**)",
       "Bash(chmod:*)",
       "Bash(source:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Read(//Users/jtuppack/projects/xplainable-client/xplainable_client/client/**)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []
