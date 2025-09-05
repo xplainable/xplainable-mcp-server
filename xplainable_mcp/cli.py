@@ -18,41 +18,49 @@ from pathlib import Path
 def cmd_list_tools(args):
     """List all available tools."""
     try:
-        # Set dummy env var if not present to allow import
-        if not os.getenv("XPLAINABLE_API_KEY"):
-            os.environ["XPLAINABLE_API_KEY"] = "dummy-for-listing"
+        from xplainable_mcp.tool_discovery import get_modular_tools_registry
         
-        from xplainable_mcp.tool_registry import get_registry
-        
-        registry = get_registry()
+        discovery = get_modular_tools_registry()
+        tools = discovery.discovered_tools
         
         if args.format == "json":
-            print(json.dumps(registry.to_dict(), indent=2))
+            # Create JSON-serializable data
+            tools_data = {
+                "summary": discovery.get_summary(),
+                "tools": {name: {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "category": tool.category,
+                    "module": tool.module,
+                    "parameters": tool.parameters,
+                    "enabled": tool.enabled
+                } for name, tool in tools.items()}
+            }
+            print(json.dumps(tools_data, indent=2))
         elif args.format == "markdown":
-            print(registry.generate_markdown_docs())
+            print(discovery.generate_markdown_docs())
         else:  # table format
-            tools_dict = registry.to_dict()
+            summary = discovery.get_summary()
+            tools_by_category = discovery.get_tools_by_category()
+            
             print(f"\nXplainable MCP Server - Available Tools")
             print(f"=" * 60)
-            print(f"Server Version: {tools_dict['server_version']}")
-            print(f"Total Tools: {tools_dict['total_tools']}")
-            print(f"Enabled Tools: {tools_dict['enabled_tools']}")
+            print(f"Total Tools: {summary['total_tools']}")
+            print(f"Enabled Tools: {summary['enabled_tools']}")
+            print(f"Services: {', '.join(summary['services'])}")
             print(f"\nTools by Category:")
             print(f"-" * 60)
             
-            for category, tools in tools_dict['categories'].items():
-                if tools:
-                    print(f"\n{category.upper()} ({len(tools)} tools):")
-                    for tool in tools:
-                        enabled = "✓" if tool.get('enabled', True) else "✗"
-                        print(f"  [{enabled}] {tool['name']}: {tool['description']}")
+            for category, category_tools in tools_by_category.items():
+                print(f"\n{category.upper()} ({len(category_tools)} tools):")
+                for tool in sorted(category_tools, key=lambda t: t.name):
+                    enabled = "✓" if tool.enabled else "✗"
+                    print(f"  [{enabled}] {tool.name} ({tool.module}): {tool.description}")
             
             print(f"\n" + "=" * 60)
-            summary = tools_dict['summary']
-            print(f"Summary:")
-            print(f"  Discovery: {summary['discovery_tools']}")
-            print(f"  Read: {summary['read_tools']}")
-            print(f"  Write: {summary['write_tools']} (Enabled: {summary['write_tools_enabled']})")
+            print(f"Category Summary:")
+            for category, count in summary['categories'].items():
+                print(f"  {category.title()}: {count}")
             
     except Exception as e:
         print(f"Error listing tools: {e}", file=sys.stderr)
@@ -172,14 +180,10 @@ def cmd_test_connection(args):
 def cmd_generate_docs(args):
     """Generate documentation."""
     try:
-        from xplainable_mcp.tool_registry import get_registry
+        from xplainable_mcp.tool_discovery import get_modular_tools_registry
         
-        # Set dummy env var if not present
-        if not os.getenv("XPLAINABLE_API_KEY"):
-            os.environ["XPLAINABLE_API_KEY"] = "dummy-for-docs"
-        
-        registry = get_registry()
-        docs = registry.generate_markdown_docs()
+        discovery = get_modular_tools_registry()
+        docs = discovery.generate_markdown_docs()
         
         if args.output:
             output_path = Path(args.output)

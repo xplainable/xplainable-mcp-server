@@ -72,37 +72,14 @@ def load_config() -> ServerConfig:
 # Initialize configuration
 config = load_config()
 
-# Initialize FastMCP server
-mcp = FastMCP(
-    name="xplainable-mcp",
-    version="0.1.0"
-)
+# Import the shared MCP instance
+from .mcp_instance import mcp
 
-# Lazy initialization of Xplainable client
-_client = None
+# Import get_client from client_manager
+from .client_manager import get_client
 
-def get_client():
-    """Get or create the Xplainable client instance."""
-    global _client
-    if _client is None:
-        # Import here to avoid issues if xplainable-client is not installed during testing
-        try:
-            from xplainable_client.client.client import XplainableClient
-            _client = XplainableClient(
-                api_key=config.api_key,
-                hostname=config.hostname,
-                org_id=config.org_id,
-                team_id=config.team_id
-            )
-            logger.info("Xplainable client initialized successfully")
-        except ImportError as e:
-            logger.error(f"Failed to import xplainable_client: {e}")
-            logger.error("Please install xplainable-client: pip install xplainable-client")
-            sys.exit(1)
-        except Exception as e:
-            logger.error(f"Failed to initialize Xplainable client: {e}")
-            sys.exit(1)
-    return _client
+# Import all modular tools - they self-register with @mcp.tool() decorator
+from . import tools
 
 
 # ============================================================================
@@ -352,22 +329,33 @@ def list_tools() -> Dict[str, Any]:
         Dictionary containing tool information organized by category
     """
     try:
-        # Use dynamic tool discovery from sync_utils
-        available_tools = _discover_available_tools()
+        # Use modular tool discovery system
+        from .tool_discovery import get_modular_tools_registry
+        discovery = get_modular_tools_registry()
+        available_tools = discovery.get_tools_by_category()
         
         # Filter tools based on configuration
-        tools_dict = {"discovery": [], "read": [], "write": [], "admin": []}
+        tools_dict = {"discovery": [], "read": [], "write": [], "admin": [], "inference": [], "analysis": []}
         
-        for tool in available_tools:
-            category = tool["category"]
-            
-            # Skip write tools if not enabled
-            if category == "write" and not config.enable_write_tools:
-                continue
+        for category, tools in available_tools.items():
+            for tool in tools:
+                # Skip write tools if not enabled
+                if category == "write" and not config.enable_write_tools:
+                    continue
                 
-            # Add enabled flag
-            tool["enabled"] = True
-            tools_dict[category].append(tool)
+                # Convert ToolInfo to dict format expected by rest of function
+                tool_dict = {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "category": tool.category,
+                    "module": tool.module,
+                    "parameters": tool.parameters,
+                    "enabled": tool.enabled
+                }
+                
+                if category not in tools_dict:
+                    tools_dict[category] = []
+                tools_dict[category].append(tool_dict)
         
         # Remove empty categories
         tools_dict = {k: v for k, v in tools_dict.items() if v}
@@ -378,6 +366,8 @@ def list_tools() -> Dict[str, Any]:
             "read_tools": len(tools_dict.get("read", [])),
             "write_tools": len(tools_dict.get("write", [])),
             "admin_tools": len(tools_dict.get("admin", [])),
+            "inference_tools": len(tools_dict.get("inference", [])),
+            "analysis_tools": len(tools_dict.get("analysis", [])),
             "write_tools_enabled": config.enable_write_tools
         }
         
@@ -407,518 +397,268 @@ def list_tools() -> Dict[str, Any]:
 
 
 # ============================================================================
-# READ-ONLY TOOLS
+# READ-ONLY TOOLS (LEGACY - NOW REPLACED BY MODULAR TOOLS)
 # ============================================================================
 
-@mcp.tool()
-def get_connection_info() -> Dict[str, Any]:
-    """
-    Return connection and user info for diagnostics (no secrets).
-    
-    Returns:
-        Dictionary containing connection information
-    """
-    try:
-        client = get_client()
-        info = client.connection_info
-        # Remove sensitive information
-        safe_info = {
-            "hostname": info.get("hostname"),
-            "username": info.get("username"),
-            "api_key_expires": info.get("api_key_expires"),
-            "xplainable_version": info.get("xplainable_version"),
-            "python_version": info.get("python_version"),
-            "org_id": info.get("org_id"),
-            "team_id": info.get("team_id"),
-        }
-        logger.info(f"Connection info retrieved for user: {safe_info.get('username')}")
-        return safe_info
-    except Exception as e:
-        logger.error(f"Error getting connection info: {e}")
-        raise
+# OLD HARDCODED TOOLS - REPLACED BY MODULAR AUTO-GENERATED TOOLS
+# These tools are now available in the modular tools/ directory
+
+# @mcp.tool()
+# def get_connection_info() -> Dict[str, Any]:
+#     \"\"\"
+#     Return connection and user info for diagnostics (no secrets).
+#     
+#     Returns:
+#         Dictionary containing connection information
+#     \"\"\"
+#     try:
+#         client = get_client()
+#         info = client.connection_info
+#         # Remove sensitive information
+#         safe_info = {
+#             "hostname": info.get("hostname"),
+#             "username": info.get("username"),
+#             "api_key_expires": info.get("api_key_expires"),
+#             "xplainable_version": info.get("xplainable_version"),
+#             "python_version": info.get("python_version"),
+#             "org_id": info.get("org_id"),
+#             "team_id": info.get("team_id"),
+#         }
+#         logger.info(f"Connection info retrieved for user: {safe_info.get('username')}")
+#         return safe_info
+#     except Exception as e:
+#         logger.error(f"Error getting connection info: {e}")
+#         raise
 
 
-@mcp.tool()
-def list_team_models(team_id_override: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    List models for the current team or a provided team_id.
-    
-    Args:
-        team_id_override: Optional team ID to override the default
-        
-    Returns:
-        List of model information dictionaries
-    """
-    try:
-        client = get_client()
-        # Only pass team_id if it's provided
-        if team_id_override:
-            models = safe_client_call(
-                client.models.list_team_models,
-                "list_team_models",
-                team_id_override=team_id_override
-            )
-        else:
-            models = safe_client_call(
-                client.models.list_team_models,
-                "list_team_models"
-            )
-        result = safe_model_dump_list(models, "list_team_models")
-        logger.info(f"Listed {len(result)} models for team: {team_id_override or config.team_id}")
-        return result
-    except Exception as e:
-        logger.error(f"Error listing team models: {e}")
-        raise
+# @mcp.tool()
+# def list_team_models(team_id_override: Optional[str] = None) -> List[Dict[str, Any]]:
+#     \"\"\"
+#     List models for the current team or a provided team_id.
+#     
+#     Args:
+#         team_id_override: Optional team ID to override the default
+#         
+#     Returns:
+#         List of model information dictionaries
+#     \"\"\"
+#     try:
+#         client = get_client()
+#         # Only pass team_id if it's provided
+#         if team_id_override:
+#             models = safe_client_call(
+#                 client.models.list_team_models,
+#                 "list_team_models",
+#                 team_id_override=team_id_override
+#             )
+#         else:
+#             models = safe_client_call(
+#                 client.models.list_team_models,
+#                 "list_team_models"
+#             )
+#         result = safe_model_dump_list(models, "list_team_models")
+#         logger.info(f"Listed {len(result)} models for team: {team_id_override or config.team_id}")
+#         return result
+#     except Exception as e:
+#         logger.error(f"Error listing team models: {e}")
+#         raise
 
 
-@mcp.tool()
-def get_model(model_id: str) -> Dict[str, Any]:
-    """
-    Get detailed information about a model by id.
-    
-    Args:
-        model_id: The model ID to retrieve
-        
-    Returns:
-        Dictionary containing model information
-    """
-    try:
-        client = get_client()
-        info = client.models.get_model(model_id)
-        result = safe_model_dump(info, "get_model")
-        if result is None:
-            raise ValueError(f"Model {model_id} not found")
-        logger.info(f"Retrieved model info for: {model_id}")
-        return result
-    except Exception as e:
-        logger.error(f"Error getting model {model_id}: {e}")
-        raise
+# ALL OLD TOOLS BELOW ARE COMMENTED OUT - REPLACED BY MODULAR AUTO-GENERATED TOOLS
+# @mcp.tool()
+# def get_model(model_id: str) -> Dict[str, Any]:
+#     \"\"\"
+#     Get detailed information about a model by id.
+#     
+#     Args:
+#         model_id: The model ID to retrieve
+#         
+#     Returns:
+#         Dictionary containing model information
+#     \"\"\"
+#     try:
+#         client = get_client()
+#         info = client.models.get_model(model_id)
+#         result = safe_model_dump(info, "get_model")
+#         if result is None:
+#             raise ValueError(f"Model {model_id} not found")
+#         logger.info(f"Retrieved model info for: {model_id}")
+#         return result
+#     except Exception as e:
+#         logger.error(f"Error getting model {model_id}: {e}")
+#         raise
 
 
-@mcp.tool()
-def list_model_versions(model_id: str) -> List[Dict[str, Any]]:
-    """
-    List all versions for a model.
-    
-    Args:
-        model_id: The model ID to list versions for
-        
-    Returns:
-        List of version information dictionaries
-    """
-    try:
-        client = get_client()
-        versions = client.models.list_model_versions(model_id)
-        result = safe_model_dump_list(versions, "list_model_versions")
-        logger.info(f"Listed {len(result)} versions for model: {model_id}")
-        return result
-    except Exception as e:
-        logger.error(f"Error listing model versions for {model_id}: {e}")
-        raise
+# @mcp.tool()
+# def list_model_versions(model_id: str) -> List[Dict[str, Any]]:
+#     \"\"\"
+#     List all versions for a model.
+#     
+#     Args:
+#         model_id: The model ID to list versions for
+#         
+#     Returns:
+#         List of version information dictionaries
+#     \"\"\"
+#     try:
+#         client = get_client()
+#         versions = client.models.list_model_versions(model_id)
+#         result = safe_model_dump_list(versions, "list_model_versions")
+#         logger.info(f"Listed {len(result)} versions for model: {model_id}")
+#         return result
+#     except Exception as e:
+#         logger.error(f"Error listing model versions for {model_id}: {e}")
+#         raise
 
 
-@mcp.tool()
-def list_deployments(team_id_override: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    List deployments for the team.
-    
-    Args:
-        team_id_override: Optional team ID to override the default
-        
-    Returns:
-        List of deployment information dictionaries
-    """
-    try:
-        client = get_client()
-        # Only pass team_id if it's provided
-        if team_id_override:
-            deployments = client.deployments.list_deployments(team_id=team_id_override)
-        else:
-            deployments = client.deployments.list_deployments()
-        result = safe_model_dump_list(deployments, "list_deployments")
-        logger.info(f"Listed {len(result)} deployments for team: {team_id_override or config.team_id}")
-        return result
-    except Exception as e:
-        logger.error(f"Error listing deployments: {e}")
-        raise
+# @mcp.tool()
+# def list_deployments(team_id_override: Optional[str] = None) -> List[Dict[str, Any]]:
+#     \"\"\"
+#     List deployments for the team.
+#     
+#     Args:
+#         team_id_override: Optional team ID to override the default
+#         
+#     Returns:
+#         List of deployment information dictionaries
+#     \"\"\"
+#     try:
+#         client = get_client()
+#         # Only pass team_id if it's provided
+#         if team_id_override:
+#             deployments = client.deployments.list_deployments(team_id=team_id_override)
+#         else:
+#             deployments = client.deployments.list_deployments()
+#         result = safe_model_dump_list(deployments, "list_deployments")
+#         logger.info(f"Listed {len(result)} deployments for team: {team_id_override or config.team_id}")
+#         return result
+#     except Exception as e:
+#         logger.error(f"Error listing deployments: {e}")
+#         raise
 
 
-@mcp.tool()
-def get_active_team_deploy_keys_count(team_id_override: Optional[str] = None) -> int:
-    """
-    Return the count of active deploy keys for a team.
-    
-    Args:
-        team_id_override: Optional team ID to override the default
-        
-    Returns:
-        Count of active deploy keys
-    """
-    try:
-        client = get_client()
-        # Only pass team_id if it's provided
-        if team_id_override:
-            count = client.deployments.get_active_team_deploy_keys_count(team_id=team_id_override)
-        else:
-            count = client.deployments.get_active_team_deploy_keys_count()
-        logger.info(f"Active deploy keys count for team {team_id_override or config.team_id}: {count}")
-        return count
-    except Exception as e:
-        logger.error(f"Error getting deploy keys count: {e}")
-        raise
+# @mcp.tool()
+# def get_active_team_deploy_keys_count(team_id_override: Optional[str] = None) -> int:
+#     \"\"\"
+#     Return the count of active deploy keys for a team.
+#     
+#     Args:
+#         team_id_override: Optional team ID to override the default
+#         
+#     Returns:
+#         Count of active deploy keys
+#     \"\"\"
+#     try:
+#         client = get_client()
+#         # Only pass team_id if it's provided
+#         if team_id_override:
+#             count = client.deployments.get_active_team_deploy_keys_count(team_id=team_id_override)
+#         else:
+#             count = client.deployments.get_active_team_deploy_keys_count()
+#         logger.info(f"Active deploy keys count for team {team_id_override or config.team_id}: {count}")
+#         return count
+#     except Exception as e:
+#         logger.error(f"Error getting deploy keys count: {e}")
+#         raise
 
 
-@mcp.tool()
-def list_preprocessors(team_id_override: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    List preprocessors for the team.
-    
-    Args:
-        team_id_override: Optional team ID to override the default
-        
-    Returns:
-        List of preprocessor information dictionaries
-    """
-    try:
-        client = get_client()
-        # Only pass team_id if it's provided
-        if team_id_override:
-            results = client.preprocessing.list_preprocessors(team_id=team_id_override)
-        else:
-            results = client.preprocessing.list_preprocessors()
-        result = safe_model_dump_list(results, "list_preprocessors")
-        logger.info(f"Listed {len(result)} preprocessors for team: {team_id_override or config.team_id}")
-        return result
-    except Exception as e:
-        logger.error(f"Error listing preprocessors: {e}")
-        raise
+# @mcp.tool()
+# def list_preprocessors(team_id_override: Optional[str] = None) -> List[Dict[str, Any]]:
+#     \"\"\"
+#     List preprocessors for the team.
+#     
+#     Args:
+#         team_id_override: Optional team ID to override the default
+#         
+#     Returns:
+#         List of preprocessor information dictionaries
+#     \"\"\"
+#     try:
+#         client = get_client()
+#         # Only pass team_id if it's provided
+#         if team_id_override:
+#             results = client.preprocessing.list_preprocessors(team_id=team_id_override)
+#         else:
+#             results = client.preprocessing.list_preprocessors()
+#         result = safe_model_dump_list(results, "list_preprocessors")
+#         logger.info(f"Listed {len(result)} preprocessors for team: {team_id_override or config.team_id}")
+#         return result
+#     except Exception as e:
+#         logger.error(f"Error listing preprocessors: {e}")
+#         raise
 
 
-@mcp.tool()
-def get_preprocessor(preprocessor_id: str) -> Dict[str, Any]:
-    """
-    Get a preprocessor by id.
-    
-    Args:
-        preprocessor_id: The preprocessor ID to retrieve
-        
-    Returns:
-        Dictionary containing preprocessor information
-    """
-    try:
-        client = get_client()
-        info = client.preprocessing.get_preprocessor(preprocessor_id)
-        result = safe_model_dump(info, "get_preprocessor")
-        if result is None:
-            raise ValueError(f"Preprocessor {preprocessor_id} not found")
-        logger.info(f"Retrieved preprocessor: {preprocessor_id}")
-        return result
-    except Exception as e:
-        logger.error(f"Error getting preprocessor {preprocessor_id}: {e}")
-        raise
+# @mcp.tool()
+# def get_preprocessor(preprocessor_id: str) -> Dict[str, Any]:
+#     \"\"\"
+#     Get a preprocessor by id.
+#     
+#     Args:
+#         preprocessor_id: The preprocessor ID to retrieve
+#         
+#     Returns:
+#         Dictionary containing preprocessor information
+#     \"\"\"
+#     try:
+#         client = get_client()
+#         info = client.preprocessing.get_preprocessor(preprocessor_id)
+#         result = safe_model_dump(info, "get_preprocessor")
+#         if result is None:
+#             raise ValueError(f"Preprocessor {preprocessor_id} not found")
+#         logger.info(f"Retrieved preprocessor: {preprocessor_id}")
+#         return result
+#     except Exception as e:
+#         logger.error(f"Error getting preprocessor {preprocessor_id}: {e}")
+#         raise
 
 
-@mcp.tool()
-def get_collection_scenarios(collection_id: str) -> List[Dict[str, Any]]:
-    """
-    List scenarios for a collection.
-    
-    Args:
-        collection_id: The collection ID to list scenarios for
-        
-    Returns:
-        List of scenario dictionaries
-    """
-    try:
-        client = get_client()
-        scenarios = client.collections.get_collection_scenarios(collection_id)
-        # This endpoint likely returns plain dicts, so use safe_list_response
-        result = safe_list_response(scenarios, "get_collection_scenarios")
-        logger.info(f"Listed {len(result)} scenarios for collection: {collection_id}")
-        return result
-    except Exception as e:
-        logger.error(f"Error getting collection scenarios for {collection_id}: {e}")
-        raise
+# @mcp.tool()
+# def get_collection_scenarios(collection_id: str) -> List[Dict[str, Any]]:
+#     \"\"\"
+#     List scenarios for a collection.
+#     
+#     Args:
+#         collection_id: The collection ID to list scenarios for
+#         
+#     Returns:
+#         List of scenario dictionaries
+#     \"\"\"
+#     try:
+#         client = get_client()
+#         scenarios = client.collections.get_collection_scenarios(collection_id)
+#         # This endpoint likely returns plain dicts, so use safe_list_response
+#         result = safe_list_response(scenarios, "get_collection_scenarios")
+#         logger.info(f"Listed {len(result)} scenarios for collection: {collection_id}")
+#         return result
+#     except Exception as e:
+#         logger.error(f"Error getting collection scenarios for {collection_id}: {e}")
+#         raise
 
 
-@mcp.tool()
-def misc_get_version_info() -> Dict[str, Any]:
-    """
-    Return Xplainable client/server version info.
-    
-    Returns:
-        Dictionary containing version information
-    """
-    try:
-        client = get_client()
-        info = client.misc.get_version_info()
-        logger.info("Retrieved version information")
-        return info.model_dump()
-    except Exception as e:
-        logger.error(f"Error getting version info: {e}")
-        raise
+# @mcp.tool()
+# def misc_get_version_info() -> Dict[str, Any]:
+#     \"\"\"
+#     Return Xplainable client/server version info.
+#     
+#     Returns:
+#         Dictionary containing version information
+#     \"\"\"
+#     try:
+#         client = get_client()
+#         info = client.misc.get_version_info()
+#         logger.info("Retrieved version information")
+#         return info.model_dump()
+#     except Exception as e:
+#         logger.error(f"Error getting version info: {e}")
+#         raise
 
 
 # ============================================================================
-# WRITE TOOLS (RESTRICTED)
+# WRITE TOOLS (RESTRICTED) - LEGACY, NOW REPLACED BY MODULAR TOOLS
 # ============================================================================
 
-if config.enable_write_tools:
-    
-    @mcp.tool()
-    def generate_deploy_key(
-        deployment_id: str, 
-        description: str = "", 
-        days_until_expiry: int = 90
-    ) -> str:
-        """
-        Generate a deploy key for a deployment and return the UUID string.
-        
-        Args:
-            deployment_id: The deployment ID
-            description: Optional description for the key
-            days_until_expiry: Days until the key expires (default: 90)
-            
-        Returns:
-            UUID string of the generated deploy key
-        """
-        try:
-            client = get_client()
-            key = client.deployments.generate_deploy_key(
-                deployment_id, 
-                description, 
-                days_until_expiry
-            )
-            logger.info(f"Generated deploy key for deployment: {deployment_id}")
-            return str(key)
-        except Exception as e:
-            logger.error(f"Error generating deploy key for {deployment_id}: {e}")
-            raise
-    
-    
-    @mcp.tool()
-    def deploy(model_version_id: str) -> Dict[str, Any]:
-        """
-        Deploy a model version.
-        
-        Args:
-            model_version_id: ID of the model version to deploy
-            
-        Returns:
-            Dictionary containing deployment information including deployment_id
-        """
-        try:
-            client = get_client()
-            result = client.deployments.deploy(model_version_id)
-            # Use safe_model_dump to handle the CreateDeploymentResponse object
-            deployment_info = safe_model_dump(result, "deploy")
-            if deployment_info is None:
-                raise ValueError(f"Failed to deploy model version {model_version_id}")
-            logger.info(f"Deployed model version: {model_version_id}")
-            return deployment_info
-        except Exception as e:
-            logger.error(f"Error deploying model version {model_version_id}: {e}")
-            raise
-    
-    
-    @mcp.tool()
-    def activate_deployment(deployment_id: str) -> Dict[str, Any]:
-        """
-        Activate a deployment.
-        
-        Args:
-            deployment_id: The deployment ID to activate
-            
-        Returns:
-            Dictionary with activation result
-        """
-        try:
-            client = get_client()
-            result = client.deployments.activate_deployment(deployment_id)
-            logger.info(f"Activated deployment: {deployment_id}")
-            return result
-        except Exception as e:
-            logger.error(f"Error activating deployment {deployment_id}: {e}")
-            raise
-    
-    
-    @mcp.tool()
-    def deactivate_deployment(deployment_id: str) -> Dict[str, Any]:
-        """
-        Deactivate a deployment.
-        
-        Args:
-            deployment_id: The deployment ID to deactivate
-            
-        Returns:
-            Dictionary with deactivation result
-        """
-        try:
-            client = get_client()
-            result = client.deployments.deactivate_deployment(deployment_id)
-            logger.info(f"Deactivated deployment: {deployment_id}")
-            return result
-        except Exception as e:
-            logger.error(f"Error deactivating deployment {deployment_id}: {e}")
-            raise
-    
-    
-    @mcp.tool()
-    def gpt_generate_report(
-        model_id: str,
-        version_id: str,
-        target_description: str = "text",
-        project_objective: str = "text",
-        max_features: int = 15,
-        temperature: float = 0.7
-    ) -> Dict[str, Any]:
-        """
-        Generate a GPT report for a model version.
-        
-        Args:
-            model_id: The model ID
-            version_id: The version ID
-            target_description: Description of the target variable
-            project_objective: Description of the project objective
-            max_features: Maximum number of features to include
-            temperature: GPT temperature parameter
-            
-        Returns:
-            Dictionary containing the GPT report
-        """
-        try:
-            client = get_client()
-            resp = client.gpt.generate_report(
-                model_id,
-                version_id,
-                target_description,
-                project_objective,
-                max_features,
-                temperature
-            )
-            logger.info(f"Generated GPT report for model {model_id} version {version_id}")
-            return resp.model_dump()
-        except Exception as e:
-            logger.error(f"Error generating GPT report: {e}")
-            raise
-    
-    
-    @mcp.tool()
-    def get_deployment_payload(deployment_id: str) -> List[Dict[str, Any]]:
-        """
-        Get sample payload data for a deployment.
-        
-        Args:
-            deployment_id: The deployment ID to get payload for
-            
-        Returns:
-            List containing sample data dictionary for inference
-        """
-        try:
-            client = get_client()
-            payload = client.deployments.get_deployment_payload(deployment_id)
-            logger.info(f"Retrieved deployment payload for: {deployment_id}")
-            return payload
-        except Exception as e:
-            logger.error(f"Error getting deployment payload for {deployment_id}: {e}")
-            raise
-
-    
-    @mcp.tool()
-    def run_inference(
-        deploy_key: str, 
-        data: str,
-        threshold: float = 0.5,
-        show_breakdown: bool = True,
-        deployment_id: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Run inference against a deployed model using the Xplainable inference endpoint.
-        
-        Args:
-            deploy_key: The deployment key for authentication (passed as api_key header)
-            data: JSON string containing array of objects for inference (e.g., CSV data converted to JSON)
-            threshold: Prediction threshold (default: 0.5)
-            show_breakdown: Whether to show feature breakdown in results (default: True)
-            deployment_id: Optional deployment ID for logging/reference
-            
-        Returns:
-            Dictionary containing inference results
-            
-        Examples:
-            # Single record
-            data = '[{"City": "salinas", "Gender": "male", "Senior Citizen": "yes", ...}]'
-            
-            # Multiple records  
-            data = '[{"City": "salinas", ...}, {"City": "boston", ...}]'
-        """
-        try:
-            import json
-            import requests
-            
-            # Parse the data string to validate it's proper JSON
-            try:
-                inference_data = json.loads(data)
-                if not isinstance(inference_data, list):
-                    raise ValueError("Data must be a JSON array of objects")
-            except json.JSONDecodeError as e:
-                raise ValueError(f"Invalid JSON format: {e}")
-            
-            # Prepare the request headers with api_key instead of Authorization Bearer
-            headers = {
-                'Content-Type': 'application/json',
-                'api_key': deploy_key  # Changed from Authorization Bearer to api_key
-            }
-            
-            # Build URL with query parameters
-            url = f'https://inference.xplainable.io/v1/predict?threshold={threshold}&show_breakdown={show_breakdown}'
-            
-            # Make the inference request
-            response = requests.post(
-                url,
-                headers=headers,
-                json=inference_data,
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                logger.info(f"Inference successful for {len(inference_data)} records" + 
-                           (f" (deployment: {deployment_id})" if deployment_id else ""))
-                return {
-                    "success": True,
-                    "predictions": result,
-                    "records_processed": len(inference_data),
-                    "threshold": threshold,
-                    "show_breakdown": show_breakdown,
-                    "deployment_id": deployment_id
-                }
-            else:
-                error_msg = f"Inference failed with status {response.status_code}: {response.text}"
-                logger.error(error_msg)
-                return {
-                    "success": False,
-                    "error": error_msg,
-                    "status_code": response.status_code,
-                    "deployment_id": deployment_id
-                }
-                
-        except requests.RequestException as e:
-            error_msg = f"Network error during inference: {str(e)}"
-            logger.error(error_msg)
-            return {
-                "success": False,
-                "error": error_msg,
-                "deployment_id": deployment_id
-            }
-        except Exception as e:
-            error_msg = f"Error running inference: {str(e)}"
-            logger.error(error_msg)
-            return {
-                "success": False,
-                "error": error_msg,
-                "deployment_id": deployment_id
-            }
+# OLD WRITE TOOLS REMOVED - REPLACED BY MODULAR AUTO-GENERATED TOOLS
+# All write tools are now available in the modular tools/ directory files
 
 
 def main():
@@ -929,9 +669,8 @@ def main():
         logger.info(f"Write tools enabled: {config.enable_write_tools}")
         logger.info(f"Rate limiting enabled: {config.rate_limit_enabled}")
         
-        # Initialize the client to verify connection
-        client = get_client()
-        logger.info("Successfully connected to Xplainable API")
+        # Don't initialize client at startup - let it happen lazily when tools are called
+        # This prevents the server from crashing if API key is invalid
         
         # Run the MCP server
         mcp.run()
