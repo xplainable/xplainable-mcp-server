@@ -218,3 +218,76 @@ def analytics_get_events(
     except Exception as e:
         logger.error(f"Error in analytics_get_events: {e}")
         raise
+
+
+@mcp.tool()
+def analytics_get_deployment_health(
+    deployment_id: str,
+    hours: int = 24,
+):
+    """
+    Get a single-call health summary for a deployment.
+
+    Returns total requests, success rate, average latency, error count,
+    status code breakdown, and recent error messages — everything needed
+    to assess deployment health in one call.
+
+    Args:
+        deployment_id: The deployment to check
+        hours: Lookback window in hours (default 24)
+
+    Returns:
+        Health summary dict
+
+    Category: read
+    """
+    try:
+        client = get_client()
+        result = client.analytics.get_deployment_health(
+            deployment_id=deployment_id,
+            hours=hours,
+        )
+        logger.info("Executed analytics.get_deployment_health")
+        return result
+    except Exception as e:
+        logger.error(f"Error in analytics_get_deployment_health: {e}")
+        raise
+
+
+@mcp.tool()
+def analytics_get_recent_errors(
+    deployment_id: str,
+    limit: int = 10,
+    hours: int = 24,
+    status_codes: Optional[str] = None,
+):
+    """
+    Get recent error events for a deployment.
+
+    Returns the most recent errors with timestamps, status codes,
+    error messages, and error types for debugging.
+
+    Args:
+        deployment_id: The deployment to check
+        limit: Max number of errors to return (default 10)
+        hours: Lookback window in hours (default 24)
+        status_codes: Comma-separated status codes to filter (e.g. '500,422')
+
+    Returns:
+        List of error event dicts
+
+    Category: read
+    """
+    try:
+        client = get_client()
+        result = client.analytics.get_recent_errors(
+            deployment_id=deployment_id,
+            limit=limit,
+            hours=hours,
+            status_codes=status_codes,
+        )
+        logger.info("Executed analytics.get_recent_errors")
+        return result
+    except Exception as e:
+        logger.error(f"Error in analytics_get_recent_errors: {e}")
+        raise
