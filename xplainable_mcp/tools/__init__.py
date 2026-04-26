@@ -5,6 +5,7 @@ This module auto-imports all service-specific tool modules.
 """
 
 # Import all service tools
+from . import analytics
 from . import autotrain
 from . import collections
 from . import datasets
