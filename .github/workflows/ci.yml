@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+
+    - name: Check syntax (all Python files)
+      run: |
+        python -m py_compile xplainable_mcp/server.py
+        python -m py_compile xplainable_mcp/tool_manager.py
+        python -m py_compile xplainable_mcp/tool_discovery.py
+        python -m py_compile xplainable_mcp/client_manager.py
+        python -m py_compile xplainable_mcp/mcp_instance.py
+        python -m py_compile scripts/sync_workflow.py
+
+    - name: Validate tool imports
+      env:
+        XPLAINABLE_API_KEY: "ci-test-key"
+      run: |
+        python -c "
+        from xplainable_mcp.tools import (
+            autotrain, collections, datasets, deployments,
+            gpt, inference, misc, models, preprocessing,
+            reports, runs,
+        )
+        print('All tool modules imported successfully')
+        "
+
+    - name: Validate get_workflows tool
+      env:
+        XPLAINABLE_API_KEY: "ci-test-key"
+      run: |
+        python -c "
+        from xplainable_mcp.server import get_workflows
+        result = get_workflows()
+        assert 'services' in result, 'get_workflows missing services key'
+        assert len(result['services']) > 0, 'No services found'
+        print(f'get_workflows OK: {result[\"total_services\"]} services')
+        "
+
+    - name: Validate tool discovery matches tool files
+      env:
+        XPLAINABLE_API_KEY: "ci-test-key"
+      run: |
+        python -c "
+        from xplainable_mcp.tool_discovery import ModularToolDiscovery
+        discovery = ModularToolDiscovery()
+        tools = discovery.discover_all_tools()
+        assert len(tools) > 0, 'No tools discovered'
+        print(f'Tool discovery OK: {len(tools)} tools found')
+        "
