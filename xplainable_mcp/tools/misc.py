@@ -18,8 +18,7 @@ from ..server import get_client
 # ============================================
 
 
-@mcp.tool()
-def misc_load_classifier(model_id: str, version_id: str, model=None):
+def misc_load_classifier(model_id: str, version_id: str, model = None):
     """
     Load a binary classification model.
     
@@ -34,7 +33,7 @@ def misc_load_classifier(model_id: str, version_id: str, model=None):
     Raises:
         ValueError: If model is not a classification model
         XplainableAPIError: If loading fails
-    
+
     Category: read
     """
     try:
@@ -67,7 +66,7 @@ def misc_ping_gateway(hostname: Optional[str] = None):
         
     Raises:
         XplainableAPIError: If ping fails
-    
+
     Category: admin
     """
     try:
@@ -86,8 +85,6 @@ def misc_ping_gateway(hostname: Optional[str] = None):
         logger.error(f"Error in misc_ping_gateway: {e}")
         raise
 
-
-@mcp.tool()
 def misc_health_check(check_database: bool = True, check_storage: bool = True, check_compute: bool = True):
     """
     Perform a comprehensive health check.
@@ -102,7 +99,7 @@ def misc_health_check(check_database: bool = True, check_storage: bool = True, c
         
     Raises:
         XplainableAPIError: If health check fails
-    
+
     Category: admin
     """
     try:
@@ -121,8 +118,6 @@ def misc_health_check(check_database: bool = True, check_storage: bool = True, c
         logger.error(f"Error in misc_health_check: {e}")
         raise
 
-
-@mcp.tool()
 def misc_get_model_info(model_id: str, version_id: str):
     """
     Get information about a model without loading it.
@@ -136,7 +131,7 @@ def misc_get_model_info(model_id: str, version_id: str):
         
     Raises:
         XplainableAPIError: If retrieval fails
-    
+
     Category: read
     """
     try:
@@ -169,7 +164,7 @@ def misc_ping_server(hostname: Optional[str] = None):
         
     Raises:
         XplainableAPIError: If ping fails
-    
+
     Category: admin
     """
     try:
@@ -188,15 +183,13 @@ def misc_ping_server(hostname: Optional[str] = None):
         logger.error(f"Error in misc_ping_server: {e}")
         raise
 
-
-@mcp.tool()
 def misc_get_version_info():
     """
     Get comprehensive version information.
     
     Returns:
         Version information for all components
-    
+
     Category: read
     """
     try:
@@ -217,7 +210,7 @@ def misc_get_version_info():
 
 
 @mcp.tool()
-def misc_load_regressor(model_id: str, version_id: str, model=None):
+def misc_load_regressor(model_id: str, version_id: str, model = None):
     """
     Load a regression model.
     
@@ -232,7 +225,7 @@ def misc_load_regressor(model_id: str, version_id: str, model=None):
     Raises:
         ValueError: If model is not a regression model
         XplainableAPIError: If loading fails
-    
+
     Category: read
     """
     try:
@@ -250,4 +243,3 @@ def misc_load_regressor(model_id: str, version_id: str, model=None):
     except Exception as e:
         logger.error(f"Error in misc_load_regressor: {e}")
         raise
-

@@ -18,6 +18,10 @@ from ..server import get_client
 # ============================================
 
 
+
+
+
+
 @mcp.tool()
 def models_link_preprocessor(model_version_id: str, preprocessor_version_id: str):
     """
@@ -29,7 +33,7 @@ def models_link_preprocessor(model_version_id: str, preprocessor_version_id: str
         
     Raises:
         XplainableAPIError: If linking fails
-    
+
     Category: write
     """
     try:
@@ -62,7 +66,7 @@ def models_list_model_versions(model_id: str):
         
     Raises:
         XplainableAPIError: If listing fails
-    
+
     Category: read
     """
     try:
@@ -81,8 +85,6 @@ def models_list_model_versions(model_id: str):
         logger.error(f"Error in models_list_model_versions: {e}")
         raise
 
-
-@mcp.tool()
 def models_get_model(model_id: str):
     """
     Get detailed information about a model.
@@ -95,7 +97,7 @@ def models_get_model(model_id: str):
         
     Raises:
         XplainableAPIError: If retrieval fails
-    
+
     Category: read
     """
     try:
@@ -128,7 +130,7 @@ def models_list_model_version_partitions(version_id: str):
         
     Raises:
         XplainableAPIError: If listing fails
-    
+
     Category: read
     """
     try:
@@ -161,7 +163,7 @@ def models_list_team_models():
         
     Raises:
         XplainableAPIError: If listing fails
-    
+
     Category: read
     """
     try:
@@ -179,4 +181,3 @@ def models_list_team_models():
     except Exception as e:
         logger.error(f"Error in models_list_team_models: {e}")
         raise
-

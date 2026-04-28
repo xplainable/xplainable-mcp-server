@@ -18,6 +18,10 @@ from ..server import get_client
 # ============================================
 
 
+
+
+
+
 @mcp.tool()
 def deployments_get_deployment_payload(deployment_id: str):
     """
@@ -31,8 +35,9 @@ def deployments_get_deployment_payload(deployment_id: str):
         
     Raises:
         XplainableAPIError: If payload generation fails
-    
+
     Category: read
+    Workflow: Step 3 of deployments. Run after: deployments_deploy.
     """
     try:
         client = get_client()
@@ -64,8 +69,9 @@ def deployments_list_deployments(team_id: Optional[str] = None):
         
     Raises:
         XplainableAPIError: If listing fails
-    
+
     Category: read
+    Workflow: Step 1 of deployments.
     """
     try:
         client = get_client()
@@ -83,8 +89,6 @@ def deployments_list_deployments(team_id: Optional[str] = None):
         logger.error(f"Error in deployments_list_deployments: {e}")
         raise
 
-
-@mcp.tool()
 def deployments_activate_deployment(deployment_id: str):
     """
     Activate a deployment.
@@ -97,8 +101,9 @@ def deployments_activate_deployment(deployment_id: str):
         
     Raises:
         XplainableAPIError: If activation fails
-    
+
     Category: write
+    Workflow: Step 3 of deployments. Run after: deployments_deploy.
     """
     try:
         client = get_client()
@@ -130,8 +135,9 @@ def deployments_deploy(model_version_id: str):
         
     Raises:
         XplainableAPIError: If deployment fails
-    
+
     Category: write
+    Workflow: Step 2 of deployments.
     """
     try:
         client = get_client()
@@ -149,8 +155,6 @@ def deployments_deploy(model_version_id: str):
         logger.error(f"Error in deployments_deploy: {e}")
         raise
 
-
-@mcp.tool()
 def deployments_deactivate_deployment(deployment_id: str):
     """
     Deactivate a deployment.
@@ -163,8 +167,9 @@ def deployments_deactivate_deployment(deployment_id: str):
         
     Raises:
         XplainableAPIError: If deactivation fails
-    
+
     Category: write
+    Workflow: Step 3 of deployments. Run after: deployments_deploy.
     """
     try:
         client = get_client()
@@ -198,8 +203,9 @@ def deployments_generate_deploy_key(deployment_id: str, description: str = '', d
         
     Raises:
         XplainableAPIError: If key generation fails
-    
+
     Category: write
+    Workflow: Step 4 of deployments. Run after: deployments_deploy.
     """
     try:
         client = get_client()
@@ -231,7 +237,7 @@ def deployments_get_active_team_deploy_keys_count(team_id: Optional[str] = None)
         
     Raises:
         XplainableAPIError: If request fails
-    
+
     Category: read
     """
     try:
@@ -249,4 +255,3 @@ def deployments_get_active_team_deploy_keys_count(team_id: Optional[str] = None)
     except Exception as e:
         logger.error(f"Error in deployments_get_active_team_deploy_keys_count: {e}")
         raise
-

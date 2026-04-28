@@ -18,8 +18,12 @@ from ..server import get_client
 # ============================================
 
 
+
+
+
+
 @mcp.tool()
-def inference_predict(filename: str, model_id: str, version_id: str, threshold: float = 0.5, delimiter: str = ', '):
+def inference_predict(filename: str, model_id: str, version_id: str, threshold: float = 0.5, delimiter: str = ','):
     """
     Predicts the target column of a dataset.
     
@@ -32,7 +36,7 @@ def inference_predict(filename: str, model_id: str, version_id: str, threshold: 
         
     Returns:
         dict: The prediction results.
-    
+
     Category: inference
     """
     try:
@@ -53,7 +57,7 @@ def inference_predict(filename: str, model_id: str, version_id: str, threshold: 
 
 
 @mcp.tool()
-def inference_stream_predictions(filename: str, model_id: str, version_id: str, threshold: float = 0.5, delimiter: str = ', ', batch_size: int = 1000):
+def inference_stream_predictions(filename: str, model_id: str, version_id: str, threshold: float = 0.5, delimiter: str = ',', batch_size: int = 1000):
     """
     Stream predictions for large datasets by processing in batches.
     
@@ -67,7 +71,7 @@ def inference_stream_predictions(filename: str, model_id: str, version_id: str, 
         
     Yields:
         Batch prediction results
-    
+
     Category: inference
     """
     try:
@@ -85,4 +89,3 @@ def inference_stream_predictions(filename: str, model_id: str, version_id: str, 
     except Exception as e:
         logger.error(f"Error in inference_stream_predictions: {e}")
         raise
-

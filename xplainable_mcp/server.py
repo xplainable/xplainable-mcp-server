@@ -395,270 +395,130 @@ def list_tools() -> Dict[str, Any]:
             "summary": {"error": str(e)}
         }
 
+@mcp.tool()
+def get_workflows() -> Dict[str, Any]:
+    """
+    Get available tool workflows grouped by service with execution order.
 
-# ============================================================================
-# READ-ONLY TOOLS (LEGACY - NOW REPLACED BY MODULAR TOOLS)
-# ============================================================================
+    Use this tool first to understand which tools are available and what
+    order to call them in. Tools with a 'step' are part of a sequential
+    workflow. Tools listed under 'depends_on' must be called before the
+    current tool.
 
-# OLD HARDCODED TOOLS - REPLACED BY MODULAR AUTO-GENERATED TOOLS
-# These tools are now available in the modular tools/ directory
+    Returns:
+        Dictionary of services, each containing ordered steps and
+        standalone tools.
+    """
+    try:
+        from .tool_discovery import ModularToolDiscovery
+        discovery = ModularToolDiscovery()
+        all_tools = discovery.discover_all_tools()
 
-# @mcp.tool()
-# def get_connection_info() -> Dict[str, Any]:
-#     \"\"\"
-#     Return connection and user info for diagnostics (no secrets).
-#     
-#     Returns:
-#         Dictionary containing connection information
-#     \"\"\"
-#     try:
-#         client = get_client()
-#         info = client.connection_info
-#         # Remove sensitive information
-#         safe_info = {
-#             "hostname": info.get("hostname"),
-#             "username": info.get("username"),
-#             "api_key_expires": info.get("api_key_expires"),
-#             "xplainable_version": info.get("xplainable_version"),
-#             "python_version": info.get("python_version"),
-#             "org_id": info.get("org_id"),
-#             "team_id": info.get("team_id"),
-#         }
-#         logger.info(f"Connection info retrieved for user: {safe_info.get('username')}")
-#         return safe_info
-#     except Exception as e:
-#         logger.error(f"Error getting connection info: {e}")
-#         raise
+        # Group tools by service module
+        services: Dict[str, Dict[str, Any]] = {}
+        for tool_name, tool_info in all_tools.items():
+            service = tool_info.module
+            if service not in services:
+                services[service] = {"steps": [], "tools": []}
 
+            # Parse workflow metadata from docstring
+            step_num = 0
+            depends_on_list = []
+            if tool_info.description:
+                for line in (tool_info.description + "\n").splitlines():
+                    pass  # description is first line only
 
-# @mcp.tool()
-# def list_team_models(team_id_override: Optional[str] = None) -> List[Dict[str, Any]]:
-#     \"\"\"
-#     List models for the current team or a provided team_id.
-#     
-#     Args:
-#         team_id_override: Optional team ID to override the default
-#         
-#     Returns:
-#         List of model information dictionaries
-#     \"\"\"
-#     try:
-#         client = get_client()
-#         # Only pass team_id if it's provided
-#         if team_id_override:
-#             models = safe_client_call(
-#                 client.models.list_team_models,
-#                 "list_team_models",
-#                 team_id_override=team_id_override
-#             )
-#         else:
-#             models = safe_client_call(
-#                 client.models.list_team_models,
-#                 "list_team_models"
-#             )
-#         result = safe_model_dump_list(models, "list_team_models")
-#         logger.info(f"Listed {len(result)} models for team: {team_id_override or config.team_id}")
-#         return result
-#     except Exception as e:
-#         logger.error(f"Error listing team models: {e}")
-#         raise
+            # Parse full docstring from the tool file for Workflow: line
+            doc_lines = _get_tool_docstring(service, tool_name)
+            for line in doc_lines:
+                stripped = line.strip()
+                if stripped.startswith("Workflow:"):
+                    workflow_text = stripped[len("Workflow:"):].strip()
+                    # Parse "Step N of service"
+                    import re
+                    step_match = re.search(r'Step (\d+)', workflow_text)
+                    if step_match:
+                        step_num = int(step_match.group(1))
+                    # Parse "Run after: tool1, tool2"
+                    after_match = re.search(r'Run after: (.+?)\.', workflow_text)
+                    if after_match:
+                        depends_on_list = [
+                            t.strip() for t in after_match.group(1).split(',')
+                        ]
 
+            entry = {
+                "tool": tool_name,
+                "description": tool_info.description,
+                "category": tool_info.category,
+                "parameters": [p["name"] for p in tool_info.parameters],
+            }
 
-# ALL OLD TOOLS BELOW ARE COMMENTED OUT - REPLACED BY MODULAR AUTO-GENERATED TOOLS
-# @mcp.tool()
-# def get_model(model_id: str) -> Dict[str, Any]:
-#     \"\"\"
-#     Get detailed information about a model by id.
-#     
-#     Args:
-#         model_id: The model ID to retrieve
-#         
-#     Returns:
-#         Dictionary containing model information
-#     \"\"\"
-#     try:
-#         client = get_client()
-#         info = client.models.get_model(model_id)
-#         result = safe_model_dump(info, "get_model")
-#         if result is None:
-#             raise ValueError(f"Model {model_id} not found")
-#         logger.info(f"Retrieved model info for: {model_id}")
-#         return result
-#     except Exception as e:
-#         logger.error(f"Error getting model {model_id}: {e}")
-#         raise
+            if step_num:
+                entry["step"] = step_num
+            if depends_on_list:
+                entry["depends_on"] = depends_on_list
 
+            if step_num:
+                services[service]["steps"].append(entry)
+            else:
+                services[service]["tools"].append(entry)
 
-# @mcp.tool()
-# def list_model_versions(model_id: str) -> List[Dict[str, Any]]:
-#     \"\"\"
-#     List all versions for a model.
-#     
-#     Args:
-#         model_id: The model ID to list versions for
-#         
-#     Returns:
-#         List of version information dictionaries
-#     \"\"\"
-#     try:
-#         client = get_client()
-#         versions = client.models.list_model_versions(model_id)
-#         result = safe_model_dump_list(versions, "list_model_versions")
-#         logger.info(f"Listed {len(result)} versions for model: {model_id}")
-#         return result
-#     except Exception as e:
-#         logger.error(f"Error listing model versions for {model_id}: {e}")
-#         raise
+        # Sort steps within each service
+        for service_data in services.values():
+            service_data["steps"].sort(key=lambda x: x.get("step", 0))
+            # Remove empty sections
+            if not service_data["steps"]:
+                del service_data["steps"]
+            if not service_data["tools"]:
+                del service_data["tools"]
+
+        # Filter disabled write tools
+        if not config.enable_write_tools:
+            for service_data in services.values():
+                for section in ["steps", "tools"]:
+                    if section in service_data:
+                        service_data[section] = [
+                            t for t in service_data[section]
+                            if t["category"] != "write"
+                        ]
+                        if not service_data[section]:
+                            del service_data[section]
+
+        # Remove empty services
+        services = {k: v for k, v in services.items() if v}
+
+        return {
+            "total_services": len(services),
+            "services": services,
+            "hint": "Call tools in step order within each service. "
+                    "Tools with depends_on require those tools to be called first.",
+        }
+
+    except Exception as e:
+        logger.error(f"Error building workflows: {e}")
+        return {"error": str(e)}
 
 
-# @mcp.tool()
-# def list_deployments(team_id_override: Optional[str] = None) -> List[Dict[str, Any]]:
-#     \"\"\"
-#     List deployments for the team.
-#     
-#     Args:
-#         team_id_override: Optional team ID to override the default
-#         
-#     Returns:
-#         List of deployment information dictionaries
-#     \"\"\"
-#     try:
-#         client = get_client()
-#         # Only pass team_id if it's provided
-#         if team_id_override:
-#             deployments = client.deployments.list_deployments(team_id=team_id_override)
-#         else:
-#             deployments = client.deployments.list_deployments()
-#         result = safe_model_dump_list(deployments, "list_deployments")
-#         logger.info(f"Listed {len(result)} deployments for team: {team_id_override or config.team_id}")
-#         return result
-#     except Exception as e:
-#         logger.error(f"Error listing deployments: {e}")
-#         raise
+def _get_tool_docstring(service: str, tool_name: str) -> List[str]:
+    """Read the full docstring of a tool from its service file."""
+    import ast
+    from pathlib import Path
 
+    tools_dir = Path(__file__).parent / "tools"
+    file_path = tools_dir / f"{service}.py"
+    if not file_path.exists():
+        return []
 
-# @mcp.tool()
-# def get_active_team_deploy_keys_count(team_id_override: Optional[str] = None) -> int:
-#     \"\"\"
-#     Return the count of active deploy keys for a team.
-#     
-#     Args:
-#         team_id_override: Optional team ID to override the default
-#         
-#     Returns:
-#         Count of active deploy keys
-#     \"\"\"
-#     try:
-#         client = get_client()
-#         # Only pass team_id if it's provided
-#         if team_id_override:
-#             count = client.deployments.get_active_team_deploy_keys_count(team_id=team_id_override)
-#         else:
-#             count = client.deployments.get_active_team_deploy_keys_count()
-#         logger.info(f"Active deploy keys count for team {team_id_override or config.team_id}: {count}")
-#         return count
-#     except Exception as e:
-#         logger.error(f"Error getting deploy keys count: {e}")
-#         raise
-
-
-# @mcp.tool()
-# def list_preprocessors(team_id_override: Optional[str] = None) -> List[Dict[str, Any]]:
-#     \"\"\"
-#     List preprocessors for the team.
-#     
-#     Args:
-#         team_id_override: Optional team ID to override the default
-#         
-#     Returns:
-#         List of preprocessor information dictionaries
-#     \"\"\"
-#     try:
-#         client = get_client()
-#         # Only pass team_id if it's provided
-#         if team_id_override:
-#             results = client.preprocessing.list_preprocessors(team_id=team_id_override)
-#         else:
-#             results = client.preprocessing.list_preprocessors()
-#         result = safe_model_dump_list(results, "list_preprocessors")
-#         logger.info(f"Listed {len(result)} preprocessors for team: {team_id_override or config.team_id}")
-#         return result
-#     except Exception as e:
-#         logger.error(f"Error listing preprocessors: {e}")
-#         raise
-
-
-# @mcp.tool()
-# def get_preprocessor(preprocessor_id: str) -> Dict[str, Any]:
-#     \"\"\"
-#     Get a preprocessor by id.
-#     
-#     Args:
-#         preprocessor_id: The preprocessor ID to retrieve
-#         
-#     Returns:
-#         Dictionary containing preprocessor information
-#     \"\"\"
-#     try:
-#         client = get_client()
-#         info = client.preprocessing.get_preprocessor(preprocessor_id)
-#         result = safe_model_dump(info, "get_preprocessor")
-#         if result is None:
-#             raise ValueError(f"Preprocessor {preprocessor_id} not found")
-#         logger.info(f"Retrieved preprocessor: {preprocessor_id}")
-#         return result
-#     except Exception as e:
-#         logger.error(f"Error getting preprocessor {preprocessor_id}: {e}")
-#         raise
-
-
-# @mcp.tool()
-# def get_collection_scenarios(collection_id: str) -> List[Dict[str, Any]]:
-#     \"\"\"
-#     List scenarios for a collection.
-#     
-#     Args:
-#         collection_id: The collection ID to list scenarios for
-#         
-#     Returns:
-#         List of scenario dictionaries
-#     \"\"\"
-#     try:
-#         client = get_client()
-#         scenarios = client.collections.get_collection_scenarios(collection_id)
-#         # This endpoint likely returns plain dicts, so use safe_list_response
-#         result = safe_list_response(scenarios, "get_collection_scenarios")
-#         logger.info(f"Listed {len(result)} scenarios for collection: {collection_id}")
-#         return result
-#     except Exception as e:
-#         logger.error(f"Error getting collection scenarios for {collection_id}: {e}")
-#         raise
-
-
-# @mcp.tool()
-# def misc_get_version_info() -> Dict[str, Any]:
-#     \"\"\"
-#     Return Xplainable client/server version info.
-#     
-#     Returns:
-#         Dictionary containing version information
-#     \"\"\"
-#     try:
-#         client = get_client()
-#         info = client.misc.get_version_info()
-#         logger.info("Retrieved version information")
-#         return info.model_dump()
-#     except Exception as e:
-#         logger.error(f"Error getting version info: {e}")
-#         raise
-
-
-# ============================================================================
-# WRITE TOOLS (RESTRICTED) - LEGACY, NOW REPLACED BY MODULAR TOOLS
-# ============================================================================
-
-# OLD WRITE TOOLS REMOVED - REPLACED BY MODULAR AUTO-GENERATED TOOLS
-# All write tools are now available in the modular tools/ directory files
+    try:
+        tree = ast.parse(file_path.read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == tool_name:
+                if (node.body and isinstance(node.body[0], ast.Expr)
+                        and isinstance(node.body[0].value, ast.Constant)):
+                    return node.body[0].value.value.splitlines()
+    except Exception:
+        pass
+    return []
 
 
 def main():

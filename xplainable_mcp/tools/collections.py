@@ -18,6 +18,10 @@ from ..server import get_client
 # ============================================
 
 
+
+
+
+
 @mcp.tool()
 def collections_get_model_collections(model_id: str):
     """
@@ -31,7 +35,7 @@ def collections_get_model_collections(model_id: str):
         
     Raises:
         XplainableAPIError: If retrieval fails
-    
+
     Category: read
     """
     try:
@@ -66,7 +70,7 @@ def collections_update_collection_name(model_id: str, collection_id: str, name: 
         
     Raises:
         XplainableAPIError: If update fails
-    
+
     Category: write
     """
     try:
@@ -85,8 +89,6 @@ def collections_update_collection_name(model_id: str, collection_id: str, name: 
         logger.error(f"Error in collections_update_collection_name: {e}")
         raise
 
-
-@mcp.tool()
 def collections_create_collection(model_id: str, name: str, description: str):
     """
     Create a new collection for a model.
@@ -101,7 +103,7 @@ def collections_create_collection(model_id: str, name: str, description: str):
         
     Raises:
         XplainableAPIError: If collection creation fails
-    
+
     Category: write
     """
     try:
@@ -122,7 +124,7 @@ def collections_create_collection(model_id: str, name: str, description: str):
 
 
 @mcp.tool()
-def collections_create_scenarios(collection_id: str, scenarios: list[dict]):
+def collections_create_scenarios(collection_id: str, scenarios: List[dict]):
     """
     Create scenarios for a collection.
     
@@ -135,7 +137,7 @@ def collections_create_scenarios(collection_id: str, scenarios: list[dict]):
         
     Raises:
         XplainableAPIError: If creation fails
-    
+
     Category: write
     """
     try:
@@ -165,7 +167,7 @@ def collections_get_team_collections():
         
     Raises:
         XplainableAPIError: If retrieval fails
-    
+
     Category: read
     """
     try:
@@ -184,8 +186,6 @@ def collections_get_team_collections():
         logger.error(f"Error in collections_get_team_collections: {e}")
         raise
 
-
-@mcp.tool()
 def collections_delete_collection(model_id: str, collection_id: str):
     """
     Delete a collection.
@@ -199,7 +199,7 @@ def collections_delete_collection(model_id: str, collection_id: str):
         
     Raises:
         XplainableAPIError: If deletion fails
-    
+
     Category: write
     """
     try:
@@ -232,7 +232,7 @@ def collections_get_collection_scenarios(collection_id: str):
         
     Raises:
         XplainableAPIError: If retrieval fails
-    
+
     Category: read
     """
     try:
@@ -267,7 +267,7 @@ def collections_update_collection_description(model_id: str, collection_id: str,
         
     Raises:
         XplainableAPIError: If update fails
-    
+
     Category: write
     """
     try:
@@ -285,4 +285,3 @@ def collections_update_collection_description(model_id: str, collection_id: str,
     except Exception as e:
         logger.error(f"Error in collections_update_collection_description: {e}")
         raise
-

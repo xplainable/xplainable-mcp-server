@@ -253,6 +253,112 @@ This module auto-imports all service-specific tool modules.
         
         return summary
     
+    def remove_tool_from_service(self, service_name: str, tool_name: str) -> bool:
+        """
+        Remove a tool from a service file.
+
+        Args:
+            service_name: Service name (e.g., 'models')
+            tool_name: Name of the tool function to remove
+
+        Returns:
+            True if the tool was found and removed, False otherwise
+        """
+        file_path = self.get_service_file_path(service_name)
+
+        if not file_path.exists():
+            return False
+
+        content = file_path.read_text()
+
+        if f"def {tool_name}(" not in content:
+            return False
+
+        # Reuse _replace_tool_in_content with empty replacement
+        # by removing decorator + function entirely
+        cleaned = self._remove_tool_from_content(content, tool_name)
+        file_path.write_text(cleaned)
+        logger.info(f"Removed tool {tool_name} from {service_name}.py")
+        return True
+
+    def _remove_tool_from_content(self, content: str, tool_name: str) -> str:
+        """
+        Remove all instances of a tool (decorator + function body) from file content.
+
+        Args:
+            content: Current file content
+            tool_name: Name of the tool function
+
+        Returns:
+            Updated file content with the tool removed
+        """
+        lines = content.split('\n')
+        new_lines = []
+        skip_empty_after = False
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+
+            # Check for @mcp.tool() decorator followed by our function
+            if line.strip() == "@mcp.tool()":
+                found_function = False
+                for j in range(i + 1, min(i + 5, len(lines))):
+                    if j < len(lines) and f"def {tool_name}(" in lines[j]:
+                        found_function = True
+                        # Skip decorator + entire function
+                        func_indent = len(lines[j]) - len(lines[j].lstrip())
+                        k = i
+                        while k < len(lines):
+                            if k > j and lines[k].strip():
+                                current_indent = len(lines[k]) - len(lines[k].lstrip())
+                                if current_indent <= func_indent and not lines[k].lstrip().startswith(('@', '"""', "'''", '#')):
+                                    break
+                            k += 1
+                        i = k - 1
+                        skip_empty_after = True
+                        break
+
+                if not found_function:
+                    new_lines.append(line)
+
+            # Check for function definition without decorator
+            elif f"def {tool_name}(" in line:
+                func_indent = len(line) - len(line.lstrip())
+                j = i + 1
+                while j < len(lines):
+                    if lines[j].strip():
+                        current_indent = len(lines[j]) - len(lines[j].lstrip())
+                        if current_indent <= func_indent and not lines[j].lstrip().startswith(('@', '"""', "'''", '#')):
+                            break
+                    j += 1
+                i = j - 1
+                skip_empty_after = True
+
+            else:
+                # Collapse excessive blank lines after removal
+                if skip_empty_after and not line.strip():
+                    # Count consecutive empty lines
+                    empty_count = 0
+                    temp_i = i
+                    while temp_i < len(lines) and not lines[temp_i].strip():
+                        empty_count += 1
+                        temp_i += 1
+                    if empty_count > 2:
+                        i += empty_count - 2 - 1
+                    else:
+                        new_lines.append(line)
+                    if temp_i < len(lines) and lines[temp_i].strip():
+                        skip_empty_after = False
+                else:
+                    new_lines.append(line)
+                    if line.strip():
+                        skip_empty_after = False
+
+            i += 1
+
+        return '\n'.join(new_lines)
+
     def _tool_content_unchanged(self, current_content: str, new_tool_code: str, tool_name: str) -> bool:
         """
         Check if a tool's content has changed by comparing implementations.

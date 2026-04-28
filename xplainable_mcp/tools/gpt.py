@@ -18,6 +18,10 @@ from ..server import get_client
 # ============================================
 
 
+
+
+
+
 @mcp.tool()
 def gpt_explain_model(model_id: str, version_id: str, language: str = 'en', detail_level: str = 'medium'):
     """
@@ -34,7 +38,7 @@ def gpt_explain_model(model_id: str, version_id: str, language: str = 'en', deta
         
     Raises:
         XplainableAPIError: If explanation generation fails
-    
+
     Category: analysis
     """
     try:
@@ -71,7 +75,7 @@ def gpt_generate_documentation(model_id: str, version_id: str, include_technical
         
     Raises:
         XplainableAPIError: If documentation generation fails
-    
+
     Category: analysis
     """
     try:
@@ -109,7 +113,7 @@ def gpt_generate_report(model_id: str, version_id: str, target_description: str 
         
     Raises:
         XplainableAPIError: If report generation fails
-    
+
     Category: analysis
     """
     try:
@@ -127,4 +131,3 @@ def gpt_generate_report(model_id: str, version_id: str, target_description: str 
     except Exception as e:
         logger.error(f"Error in gpt_generate_report: {e}")
         raise
-

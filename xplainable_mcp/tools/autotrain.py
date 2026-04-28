@@ -19,8 +19,12 @@ from ..server import get_client
 # ============================================
 
 
+
+
+
+
 @mcp.tool()
-def autotrain_generate_labels(summary: xplainable_client.client.py_models.autotrain.DatasetSummary, team_id: Optional[str] = None, textgen_config: Optional[xplainable_client.client.py_models.autotrain.TextGenConfig] = None):
+def autotrain_generate_labels(summary: dict, team_id: Optional[str] = None, textgen_config: Optional[dict] = None):
     """
     Generate label recommendations for training.
     
@@ -34,8 +38,9 @@ def autotrain_generate_labels(summary: xplainable_client.client.py_models.autotr
         
     Raises:
         XplainableAPIError: If label generation fails
-    
+
     Category: analysis
+    Workflow: Step 2 of autotrain. Run after: autotrain_summarize_dataset.
     """
     try:
         client = get_client()
@@ -55,7 +60,7 @@ def autotrain_generate_labels(summary: xplainable_client.client.py_models.autotr
 
 
 @mcp.tool()
-def autotrain_start_autotrain(model_name: str, model_description: str, summary: xplainable_client.client.py_models.autotrain.DatasetSummary, team_id: Optional[str] = None, textgen_config: Optional[xplainable_client.client.py_models.autotrain.TextGenConfig] = None):
+def autotrain_start_autotrain(model_name: str, model_description: str, summary: dict, team_id: Optional[str] = None, textgen_config: Optional[dict] = None):
     """
     Start the autotrain process.
     
@@ -71,8 +76,9 @@ def autotrain_start_autotrain(model_name: str, model_description: str, summary: 
         
     Raises:
         XplainableAPIError: If autotrain fails to start
-    
+
     Category: write
+    Workflow: Step 3 of autotrain. Run after: autotrain_summarize_dataset.
     """
     try:
         client = get_client()
@@ -92,7 +98,7 @@ def autotrain_start_autotrain(model_name: str, model_description: str, summary: 
 
 
 @mcp.tool()
-def autotrain_summarize_dataset(file_path: str, team_id: Optional[str] = None, textgen_config: Optional[xplainable_client.client.py_models.autotrain.TextGenConfig] = None):
+def autotrain_summarize_dataset(file_path: str, team_id: Optional[str] = None, textgen_config: Optional[dict] = None):
     """
     Summarize a dataset by uploading a file.
     
@@ -107,8 +113,9 @@ def autotrain_summarize_dataset(file_path: str, team_id: Optional[str] = None, t
     Raises:
         FileNotFoundError: If file doesn't exist
         XplainableAPIError: If summarization fails
-    
+
     Category: analysis
+    Workflow: Step 1 of autotrain.
     """
     try:
         client = get_client()
@@ -126,9 +133,7 @@ def autotrain_summarize_dataset(file_path: str, team_id: Optional[str] = None, t
         logger.error(f"Error in autotrain_summarize_dataset: {e}")
         raise
 
-
-@mcp.tool()
-def autotrain_generate_feature_engineering(summary: xplainable_client.client.py_models.autotrain.DatasetSummary, team_id: Optional[str] = None, n: int = 5, textgen_config: Optional[xplainable_client.client.py_models.autotrain.TextGenConfig] = None):
+def autotrain_generate_feature_engineering(summary: dict, team_id: Optional[str] = None, n: int = 5, textgen_config: Optional[dict] = None):
     """
     Generate feature engineering recommendations.
     
@@ -143,8 +148,9 @@ def autotrain_generate_feature_engineering(summary: xplainable_client.client.py_
         
     Raises:
         XplainableAPIError: If generation fails
-    
+
     Category: analysis
+    Workflow: Step 2 of autotrain. Run after: autotrain_summarize_dataset.
     """
     try:
         client = get_client()
@@ -164,7 +170,7 @@ def autotrain_generate_feature_engineering(summary: xplainable_client.client.py_
 
 
 @mcp.tool()
-def autotrain_generate_goals(summary: xplainable_client.client.py_models.autotrain.DatasetSummary, team_id: Optional[str] = None, n: int = 5, textgen_config: Optional[xplainable_client.client.py_models.autotrain.TextGenConfig] = None):
+def autotrain_generate_goals(summary: dict, team_id: Optional[str] = None, n: int = 5, textgen_config: Optional[dict] = None):
     """
     Generate training goals based on dataset summary.
     
@@ -179,8 +185,9 @@ def autotrain_generate_goals(summary: xplainable_client.client.py_models.autotra
         
     Raises:
         XplainableAPIError: If goal generation fails
-    
+
     Category: analysis
+    Workflow: Step 2 of autotrain. Run after: autotrain_summarize_dataset.
     """
     try:
         client = get_client()
@@ -198,8 +205,6 @@ def autotrain_generate_goals(summary: xplainable_client.client.py_models.autotra
         logger.error(f"Error in autotrain_generate_goals: {e}")
         raise
 
-
-@mcp.tool()
 def autotrain_check_training_status(training_id: str, team_id: Optional[str] = None):
     """
     Check the status of a training job.
@@ -213,8 +218,9 @@ def autotrain_check_training_status(training_id: str, team_id: Optional[str] = N
         
     Raises:
         XplainableAPIError: If status check fails
-    
+
     Category: read
+    Workflow: Step 4 of autotrain. Run after: autotrain_start_autotrain, autotrain_train_manual.
     """
     try:
         client = get_client()
@@ -234,7 +240,7 @@ def autotrain_check_training_status(training_id: str, team_id: Optional[str] = N
 
 
 @mcp.tool()
-def autotrain_generate_insights(goal: Dict[str, Any], summary: xplainable_client.client.py_models.autotrain.DatasetSummary, team_id: Optional[str] = None, textgen_config: Optional[xplainable_client.client.py_models.autotrain.TextGenConfig] = None):
+def autotrain_generate_insights(goal: Dict[str, Any], summary: dict, team_id: Optional[str] = None, textgen_config: Optional[dict] = None):
     """
     Generate insights about the dataset.
     
@@ -249,8 +255,9 @@ def autotrain_generate_insights(goal: Dict[str, Any], summary: xplainable_client
         
     Raises:
         XplainableAPIError: If insight generation fails
-    
+
     Category: analysis
+    Workflow: Step 3 of autotrain. Run after: autotrain_summarize_dataset, autotrain_generate_goals.
     """
     try:
         client = get_client()
@@ -270,7 +277,7 @@ def autotrain_generate_insights(goal: Dict[str, Any], summary: xplainable_client
 
 
 @mcp.tool()
-def autotrain_visualize_data(summary: xplainable_client.client.py_models.autotrain.DatasetSummary, goal: Dict[str, Any], team_id: Optional[str] = None, library: str = 'plotly', textgen_config: Optional[xplainable_client.client.py_models.autotrain.TextGenConfig] = None):
+def autotrain_visualize_data(summary: dict, goal: Dict[str, Any], team_id: Optional[str] = None, library: str = 'plotly', textgen_config: Optional[dict] = None):
     """
     Generate data visualizations.
     
@@ -286,8 +293,9 @@ def autotrain_visualize_data(summary: xplainable_client.client.py_models.autotra
         
     Raises:
         XplainableAPIError: If visualization generation fails
-    
+
     Category: analysis
+    Workflow: Step 3 of autotrain. Run after: autotrain_summarize_dataset, autotrain_generate_goals.
     """
     try:
         client = get_client()
@@ -305,8 +313,6 @@ def autotrain_visualize_data(summary: xplainable_client.client.py_models.autotra
         logger.error(f"Error in autotrain_visualize_data: {e}")
         raise
 
-
-@mcp.tool()
 def autotrain_train_manual(label: str, model_name: str, model_description: str, preprocessor_id: str, version_id: str, team_id: Optional[str] = None, drop_columns: Optional[List[str]] = None):
     """
     Train a model manually with specific parameters.
@@ -325,8 +331,9 @@ def autotrain_train_manual(label: str, model_name: str, model_description: str, 
         
     Raises:
         XplainableAPIError: If training fails to start
-    
+
     Category: write
+    Workflow: Step 3 of autotrain. Run after: autotrain_summarize_dataset.
     """
     try:
         client = get_client()
@@ -343,4 +350,3 @@ def autotrain_train_manual(label: str, model_name: str, model_description: str, 
     except Exception as e:
         logger.error(f"Error in autotrain_train_manual: {e}")
         raise
-

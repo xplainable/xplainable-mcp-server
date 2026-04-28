@@ -14,5 +14,7 @@ from . import inference
 from . import misc
 from . import models
 from . import preprocessing
+from . import reports
+from . import runs
 
 # All tools are automatically registered via the @mcp.tool() decorators

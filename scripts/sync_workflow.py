@@ -82,7 +82,9 @@ def discover_mcp_decorated_methods(verbose: bool = False) -> Dict[str, Any]:
                                 'mcp_name': f"{module_name}_{method_name}",
                                 'category': method._mcp_category.value if hasattr(method, '_mcp_category') else 'read',
                                 'signature': str(inspect.signature(method)) if callable(method) else '',
-                                'docstring': inspect.getdoc(method) or ''
+                                'docstring': inspect.getdoc(method) or '',
+                                'step': getattr(method, '_mcp_step', 0),
+                                'depends_on': getattr(method, '_mcp_depends_on', []),
                             }
                             decorated_methods.append(method_info)
         
@@ -103,18 +105,10 @@ def discover_mcp_decorated_methods(verbose: bool = False) -> Dict[str, Any]:
 def discover_current_mcp_tools() -> List[str]:
     """Discover currently implemented MCP tools in the server."""
     try:
-        import xplainable_mcp.server as server_module
-        tools = []
-        
-        for name, obj in inspect.getmembers(server_module):
-            if callable(obj) and hasattr(obj, '__doc__') and not name.startswith('_'):
-                # Skip utility functions
-                if name in ['load_config', 'get_client', 'main', 'ServerConfig', 'safe_model_dump', 
-                           'safe_list_response', 'safe_client_call', 'handle_none_as_empty_list']:
-                    continue
-                tools.append(name)
-        
-        return tools
+        from xplainable_mcp.tool_discovery import ModularToolDiscovery
+        discovery = ModularToolDiscovery()
+        tools = discovery.discover_all_tools()
+        return list(tools.keys())
     except Exception as e:
         print(f"Error discovering current tools: {e}")
         return []
@@ -125,7 +119,7 @@ def generate_tool_implementation(method_info: Dict[str, Any]) -> str:
     
     # Use the MCP registry to get proper parameter information
     try:
-        from xplainable_client.client.mcp_markers import get_mcp_registry
+        from xplainable_client.client.utils.mcp_markers import get_mcp_registry
         registry = get_mcp_registry()
         
         # Find the method in the registry to get proper parameter info
@@ -248,14 +242,30 @@ def generate_tool_implementation(method_info: Dict[str, Any]) -> str:
         formatted_docstring = '\n    '.join(docstring_lines)
     else:
         formatted_docstring = f"Execute {method_info['method']}"
-    
+
+    # Build workflow hint
+    workflow_parts = []
+    step = method_info.get('step', 0)
+    depends_on = method_info.get('depends_on', [])
+    module = method_info.get('module', '')
+
+    if step:
+        workflow_parts.append(f"Step {step} of {module}")
+    if depends_on:
+        prefixed = [f"{module}_{d}" for d in depends_on]
+        workflow_parts.append(f"Run after: {', '.join(prefixed)}")
+
+    workflow_line = ""
+    if workflow_parts:
+        workflow_line = f"\n    Workflow: {'. '.join(workflow_parts)}."
+
     template = f'''
 @mcp.tool()
 def {method_info['mcp_name']}({param_str}):
     """
     {formatted_docstring}
-    
-    Category: {method_info['category']}
+
+    Category: {method_info['category']}{workflow_line}
     """
     try:
         client = get_client()
@@ -278,15 +288,64 @@ def {method_info['mcp_name']}({param_str}):
 
 
 def _format_type_hint_for_tool(type_hint) -> str:
-    """Format a type hint for MCP tool code generation."""
+    """Format a type hint for MCP tool code generation.
+
+    Maps Pydantic BaseModel subclasses to dict and resolves
+    Optional/Union types to JSON-schema-friendly primitives.
+    """
+    import typing
+
+    # Check for Pydantic BaseModel subclasses -> dict
+    try:
+        from pydantic import BaseModel
+        if isinstance(type_hint, type) and issubclass(type_hint, BaseModel):
+            return 'dict'
+    except ImportError:
+        pass
+
+    # Handle generic types (Optional, List, Dict, Union, etc.)
+    if hasattr(type_hint, '__origin__') and hasattr(type_hint, '__args__') and type_hint.__args__:
+        origin = type_hint.__origin__
+        args = type_hint.__args__
+
+        # Optional[X] = Union[X, None]
+        if origin is typing.Union:
+            non_none_args = [a for a in args if a is not type(None)]
+            if len(non_none_args) == 1:
+                inner = _format_type_hint_for_tool(non_none_args[0])
+                return f"Optional[{inner}]"
+            else:
+                formatted = [_format_type_hint_for_tool(a) for a in non_none_args]
+                return f"Union[{', '.join(formatted)}]"
+
+        type_mapping = {dict: 'Dict', list: 'List', tuple: 'Tuple', set: 'Set'}
+        if origin in type_mapping:
+            origin_name = type_mapping[origin]
+        elif hasattr(origin, '__name__'):
+            origin_name = origin.__name__
+        else:
+            origin_name = str(origin).replace('typing.', '')
+
+        formatted_args = []
+        for arg in args:
+            if arg is type(None):
+                formatted_args.append('None')
+            else:
+                formatted_args.append(_format_type_hint_for_tool(arg))
+        return f"{origin_name}[{', '.join(formatted_args)}]"
+
+    # Handle bare Optional (no args) -> Optional[dict]
+    if type_hint is typing.Optional:
+        return 'Optional[dict]'
+
+    # Simple types with __name__ (str, int, float, bool, dict, list)
     if hasattr(type_hint, '__name__'):
         return type_hint.__name__
-    else:
-        # Handle complex type hints
-        type_str = str(type_hint)
-        # Clean up typing module references
-        type_str = type_str.replace('typing.', '')
-        return type_str
+
+    # Fallback
+    type_str = str(type_hint)
+    type_str = type_str.replace('typing.', '')
+    return type_str
 
 
 def generate_sync_report(decorated_methods: Dict[str, Any], current_tools: List[str]) -> Dict[str, Any]:
@@ -320,7 +379,7 @@ def generate_sync_report(decorated_methods: Dict[str, Any], current_tools: List[
         "missing_tools": missing_tools,
         "extra_tools": extra_tools,
         "implemented_tools": implemented_tools,
-        "sync_required": len(missing_tools) > 0,
+        "sync_required": len(missing_tools) > 0 or len(extra_tools) > 0,
         "decorated_method_details": decorated_methods['decorated_methods']
     }
     
@@ -361,20 +420,38 @@ def sync_to_service_files(report: Dict[str, Any], force_update: bool = False) ->
     
     # Sync all tools to service files
     results = tool_manager.sync_all_tools(tools_to_sync, generate_tool_implementation, force_update)
-    
+
+    # Remove extra tools (exist in MCP server but no longer decorated in client)
+    removed_count = 0
+    extra_tools = report.get('extra_tools', [])
+    for tool_name in extra_tools:
+        # Determine which service file this tool belongs to
+        # Tool names follow the pattern: {service}_{method_name}
+        parts = tool_name.split('_', 1)
+        if len(parts) == 2:
+            service_name = parts[0]
+            if tool_manager.remove_tool_from_service(service_name, tool_name):
+                removed_count += 1
+
+    # Update __init__.py after removals
+    if removed_count > 0:
+        tool_manager.update_tools_init()
+
     # Get summary
     sync_summary = tool_manager.get_sync_summary()
-    
+
     # Calculate totals from the new format
-    totals = {'added': 0, 'updated': 0, 'skipped': 0}
+    totals = {'added': 0, 'updated': 0, 'skipped': 0, 'removed': removed_count}
     for service_results in results.values():
         for action, count in service_results.items():
-            totals[action] += count
-    
+            if action in totals:
+                totals[action] += count
+
     return {
         'results': results,
         'summary': sync_summary,
-        'totals': totals
+        'totals': totals,
+        'removed_tools': extra_tools if removed_count > 0 else [],
     }
 
 
@@ -478,7 +555,8 @@ def generate_markdown_report(report: Dict[str, Any]) -> str:
             md_lines.append("")
             for tool_name in sorted(by_category[category]):
                 method = method_details[tool_name]
-                md_lines.append(f"- `{tool_name}` - {method['docstring'].split('\\n')[0] if method['docstring'] else 'No description'}")
+                first_line = method['docstring'].split('\n')[0] if method['docstring'] else 'No description'
+                md_lines.append(f"- `{tool_name}` - {first_line}")
             md_lines.append("")
     
     # Implemented tools section
@@ -578,26 +656,30 @@ def main():
             print(f"📝 Markdown report saved to: {args.markdown}")
     
     # Sync to service files if requested
-    if args.sync_files and (report['missing_tools'] or args.force_update):
+    if args.sync_files and (report['missing_tools'] or report['extra_tools'] or args.force_update):
         if not args.quiet:
             action = "Updating" if args.force_update else "Syncing"
             print(f"📁 {action} tools to service files...")
-        
+
         sync_results = sync_to_service_files(report, args.force_update)
-        
+
         if not args.quiet:
             totals = sync_results['totals']
-            total_changes = totals['added'] + totals['updated']
-            
+            total_changes = totals['added'] + totals['updated'] + totals['removed']
+
             if total_changes > 0:
                 print(f"   {total_changes} tools processed:")
                 if totals['added'] > 0:
                     print(f"   • Added: {totals['added']}")
                 if totals['updated'] > 0:
                     print(f"   • Updated: {totals['updated']}")
+                if totals['removed'] > 0:
+                    print(f"   • Removed: {totals['removed']}")
+                    for tool_name in sync_results.get('removed_tools', []):
+                        print(f"     - {tool_name}")
                 if totals['skipped'] > 0:
                     print(f"   • Skipped: {totals['skipped']}")
-                
+
                 # Show breakdown by service
                 for service, results in sync_results['results'].items():
                     service_total = results['added'] + results['updated']

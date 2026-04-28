@@ -18,6 +18,10 @@ from ..server import get_client
 # ============================================
 
 
+
+
+
+
 @mcp.tool()
 def datasets_load_dataset(name: str):
     """
@@ -32,7 +36,7 @@ def datasets_load_dataset(name: str):
     Raises:
         ValueError: If dataset doesn't exist
         XplainableAPIError: If loading fails
-    
+
     Category: read
     """
     try:
@@ -51,8 +55,6 @@ def datasets_load_dataset(name: str):
         logger.error(f"Error in datasets_load_dataset: {e}")
         raise
 
-
-@mcp.tool()
 def datasets_list_datasets():
     """
     List all available public datasets.
@@ -62,7 +64,7 @@ def datasets_list_datasets():
         
     Raises:
         XplainableAPIError: If listing fails
-    
+
     Category: read
     """
     try:
@@ -95,7 +97,7 @@ def datasets_list_team_datasets(team_id: Optional[str] = None):
         
     Raises:
         XplainableAPIError: If listing fails
-    
+
     Category: read
     """
     try:
@@ -113,4 +115,3 @@ def datasets_list_team_datasets(team_id: Optional[str] = None):
     except Exception as e:
         logger.error(f"Error in datasets_list_team_datasets: {e}")
         raise
-

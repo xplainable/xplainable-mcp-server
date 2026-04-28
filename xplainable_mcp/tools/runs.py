@@ -1,5 +1,5 @@
 """
-Preprocessing service MCP tools.
+Runs service MCP tools.
 
 Auto-generated and maintained by the xplainable-client sync workflow.
 """
@@ -14,31 +14,38 @@ logger = logging.getLogger(__name__)
 from ..server import get_client
 
 
-# Preprocessing Tools
+# Runs Tools
 # ============================================
 
 
 
 
 
-
 @mcp.tool()
-def preprocessing_list_preprocessors(team_id: Optional[str] = None):
+def runs_create_run(team_id: str, user_id: str, run_id: Optional[str] = None, model_id: Optional[str] = None, name: Optional[str] = None, metadata: Optional[Dict] = None):
     """
-    List all preprocessors for a team.
+    Create a new training run.
     
     Args:
-        team_id: Optional team ID (uses session team_id if not provided)
+        team_id: Team ID for the run
+        user_id: User ID who owns the run
+        run_id: Optional run ID (will be generated if not provided)
+        model_id: Optional associated model ID
+        name: Optional run name
+        metadata: Optional metadata dictionary
     
     Returns:
-        List of preprocessor information
+        The run ID (either provided or newly generated)
+    
+    Raises:
+        XplainableAPIError: If run creation fails
 
-    Category: read
+    Category: write
     """
     try:
         client = get_client()
-        result = client.preprocessing.list_preprocessors(team_id)
-        logger.info(f"Executed preprocessing.list_preprocessors")
+        result = client.runs.create_run(team_id, user_id, run_id, model_id, name, metadata)
+        logger.info(f"Executed runs.create_run")
         
         # Handle different return types
         if hasattr(result, 'model_dump'):
@@ -48,25 +55,30 @@ def preprocessing_list_preprocessors(team_id: Optional[str] = None):
         else:
             return result
     except Exception as e:
-        logger.error(f"Error in preprocessing_list_preprocessors: {e}")
+        logger.error(f"Error in runs_create_run: {e}")
         raise
 
-def preprocessing_get_preprocessor(preprocessor_id: str):
+
+@mcp.tool()
+def runs_get_run(run_id: str):
     """
-    Get detailed information about a preprocessor.
+    Get run details by ID.
     
     Args:
-        preprocessor_id: ID of the preprocessor
+        run_id: The run ID
     
     Returns:
-        Preprocessor information
+        Run details dictionary
+    
+    Raises:
+        XplainableAPIError: If run retrieval fails
 
     Category: read
     """
     try:
         client = get_client()
-        result = client.preprocessing.get_preprocessor(preprocessor_id)
-        logger.info(f"Executed preprocessing.get_preprocessor")
+        result = client.runs.get_run(run_id)
+        logger.info(f"Executed runs.get_run")
         
         # Handle different return types
         if hasattr(result, 'model_dump'):
@@ -76,5 +88,5 @@ def preprocessing_get_preprocessor(preprocessor_id: str):
         else:
             return result
     except Exception as e:
-        logger.error(f"Error in preprocessing_get_preprocessor: {e}")
+        logger.error(f"Error in runs_get_run: {e}")
         raise
