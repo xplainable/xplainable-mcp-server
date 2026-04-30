@@ -1,0 +1,530 @@
+{
+  "timestamp": "2026-04-28T16:02:29.794076",
+  "version": "1.4.2",
+  "analysis": {
+    "decorated_methods": 51,
+    "current_tools": 46,
+    "implemented": 46,
+    "missing": 5,
+    "extra": 0,
+    "coverage_percentage": 90.19607843137256
+  },
+  "missing_tools": [
+    "runs_create_run",
+    "runs_get_run",
+    "reports_create_report_sync",
+    "reports_available_widgets",
+    "reports_create_report"
+  ],
+  "extra_tools": [],
+  "implemented_tools": [
+    "gpt_generate_report",
+    "collections_get_collection_scenarios",
+    "models_get_model",
+    "misc_ping_gateway",
+    "datasets_list_team_datasets",
+    "collections_create_collection",
+    "autotrain_start_autotrain",
+    "datasets_list_datasets",
+    "autotrain_generate_goals",
+    "autotrain_check_training_status",
+    "deployments_get_deployment_payload",
+    "deployments_generate_deploy_key",
+    "preprocessing_list_preprocessors",
+    "collections_delete_collection",
+    "models_list_model_versions",
+    "misc_health_check",
+    "collections_get_model_collections",
+    "deployments_deactivate_deployment",
+    "misc_load_regressor",
+    "autotrain_train_manual",
+    "preprocessing_get_preprocessor",
+    "deployments_get_active_team_deploy_keys_count",
+    "inference_predict",
+    "misc_get_model_info",
+    "misc_ping_server",
+    "collections_get_team_collections",
+    "inference_stream_predictions",
+    "misc_get_version_info",
+    "collections_create_scenarios",
+    "models_list_team_models",
+    "deployments_activate_deployment",
+    "autotrain_summarize_dataset",
+    "deployments_deploy",
+    "models_list_model_version_partitions",
+    "autotrain_generate_labels",
+    "gpt_generate_documentation",
+    "collections_update_collection_description",
+    "misc_load_classifier",
+    "autotrain_generate_feature_engineering",
+    "datasets_load_dataset",
+    "autotrain_visualize_data",
+    "deployments_list_deployments",
+    "gpt_explain_model",
+    "models_link_preprocessor",
+    "collections_update_collection_name",
+    "autotrain_generate_insights"
+  ],
+  "sync_required": true,
+  "decorated_method_details": [
+    {
+      "module": "autotrain",
+      "class": "AutotrainClient",
+      "method": "check_training_status",
+      "mcp_name": "autotrain_check_training_status",
+      "category": "read",
+      "signature": "(self, training_id: str, team_id: Optional[str] = None) -> xplainable_client.client.py_models.autotrain.TrainingStatus",
+      "docstring": "Check the status of a training job.\n\nArgs:\n    training_id: Training job ID from start_autotrain\n    team_id: Team ID (uses session team_id if not provided)\n    \nReturns:\n    Training status and progress information\n    \nRaises:\n    XplainableAPIError: If status check fails"
+    },
+    {
+      "module": "autotrain",
+      "class": "AutotrainClient",
+      "method": "generate_feature_engineering",
+      "mcp_name": "autotrain_generate_feature_engineering",
+      "category": "analysis",
+      "signature": "(self, summary: xplainable_client.client.py_models.autotrain.DatasetSummary, team_id: Optional[str] = None, n: int = 5, textgen_config: Optional[xplainable_client.client.py_models.autotrain.TextGenConfig] = None) -> List[xplainable_client.client.py_models.autotrain.FeatureEngineeringRecommendation]",
+      "docstring": "Generate feature engineering recommendations.\n\nArgs:\n    summary: Dataset summary from summarize_dataset\n    team_id: Team ID (uses session team_id if not provided)\n    n: Number of recommendations to generate\n    textgen_config: Text generation configuration\n    \nReturns:\n    List of feature engineering recommendations\n    \nRaises:\n    XplainableAPIError: If generation fails"
+    },
+    {
+      "module": "autotrain",
+      "class": "AutotrainClient",
+      "method": "generate_goals",
+      "mcp_name": "autotrain_generate_goals",
+      "category": "analysis",
+      "signature": "(self, summary: xplainable_client.client.py_models.autotrain.DatasetSummary, team_id: Optional[str] = None, n: int = 5, textgen_config: Optional[xplainable_client.client.py_models.autotrain.TextGenConfig] = None) -> List[xplainable_client.client.py_models.autotrain.TrainingGoal]",
+      "docstring": "Generate training goals based on dataset summary.\n\nArgs:\n    summary: Dataset summary from summarize_dataset\n    team_id: Team ID (uses session team_id if not provided)\n    n: Number of goals to generate\n    textgen_config: Text generation configuration\n    \nReturns:\n    List of training goals\n    \nRaises:\n    XplainableAPIError: If goal generation fails"
+    },
+    {
+      "module": "autotrain",
+      "class": "AutotrainClient",
+      "method": "generate_insights",
+      "mcp_name": "autotrain_generate_insights",
+      "category": "analysis",
+      "signature": "(self, goal: Dict[str, Any], summary: xplainable_client.client.py_models.autotrain.DatasetSummary, team_id: Optional[str] = None, textgen_config: Optional[xplainable_client.client.py_models.autotrain.TextGenConfig] = None) -> Dict[str, Any]",
+      "docstring": "Generate insights about the dataset.\n\nArgs:\n    goal: Analysis goal\n    summary: Dataset summary\n    team_id: Team ID (uses session team_id if not provided)\n    textgen_config: Text generation configuration\n    \nReturns:\n    Generated insights and analysis\n    \nRaises:\n    XplainableAPIError: If insight generation fails"
+    },
+    {
+      "module": "autotrain",
+      "class": "AutotrainClient",
+      "method": "generate_labels",
+      "mcp_name": "autotrain_generate_labels",
+      "category": "analysis",
+      "signature": "(self, summary: xplainable_client.client.py_models.autotrain.DatasetSummary, team_id: Optional[str] = None, textgen_config: Optional[xplainable_client.client.py_models.autotrain.TextGenConfig] = None) -> List[xplainable_client.client.py_models.autotrain.LabelRecommendation]",
+      "docstring": "Generate label recommendations for training.\n\nArgs:\n    summary: Dataset summary from summarize_dataset\n    team_id: Team ID (uses session team_id if not provided)\n    textgen_config: Text generation configuration\n    \nReturns:\n    List of label recommendations\n    \nRaises:\n    XplainableAPIError: If label generation fails"
+    },
+    {
+      "module": "autotrain",
+      "class": "AutotrainClient",
+      "method": "start_autotrain",
+      "mcp_name": "autotrain_start_autotrain",
+      "category": "write",
+      "signature": "(self, model_name: str, model_description: str, summary: xplainable_client.client.py_models.autotrain.DatasetSummary, team_id: Optional[str] = None, textgen_config: Optional[xplainable_client.client.py_models.autotrain.TextGenConfig] = None) -> xplainable_client.client.py_models.autotrain.AutotrainResponse",
+      "docstring": "Start the autotrain process.\n\nArgs:\n    model_name: Name for the model\n    model_description: Description of the model\n    summary: Dataset summary from summarize_dataset\n    team_id: Team ID (uses session team_id if not provided)\n    textgen_config: Text generation configuration\n    \nReturns:\n    Training job information\n    \nRaises:\n    XplainableAPIError: If autotrain fails to start"
+    },
+    {
+      "module": "autotrain",
+      "class": "AutotrainClient",
+      "method": "summarize_dataset",
+      "mcp_name": "autotrain_summarize_dataset",
+      "category": "analysis",
+      "signature": "(self, file_path: str, team_id: Optional[str] = None, textgen_config: Optional[xplainable_client.client.py_models.autotrain.TextGenConfig] = None) -> xplainable_client.client.py_models.autotrain.DatasetSummary",
+      "docstring": "Summarize a dataset by uploading a file.\n\nArgs:\n    file_path: Path to the dataset file\n    team_id: Team ID (uses session team_id if not provided)\n    textgen_config: Text generation configuration\n    \nReturns:\n    Dataset summary and metadata\n    \nRaises:\n    FileNotFoundError: If file doesn't exist\n    XplainableAPIError: If summarization fails"
+    },
+    {
+      "module": "autotrain",
+      "class": "AutotrainClient",
+      "method": "train_manual",
+      "mcp_name": "autotrain_train_manual",
+      "category": "write",
+      "signature": "(self, label: str, model_name: str, model_description: str, preprocessor_id: str, version_id: str, team_id: Optional[str] = None, drop_columns: Optional[List[str]] = None) -> xplainable_client.client.py_models.autotrain.AutotrainResponse",
+      "docstring": "Train a model manually with specific parameters.\n\nArgs:\n    label: Target label column\n    model_name: Name for the model\n    model_description: Description of the model\n    preprocessor_id: Preprocessor ID\n    version_id: Preprocessor version ID\n    team_id: Team ID (uses session team_id if not provided)\n    drop_columns: Columns to drop\n    \nReturns:\n    Training job information\n    \nRaises:\n    XplainableAPIError: If training fails to start"
+    },
+    {
+      "module": "autotrain",
+      "class": "AutotrainClient",
+      "method": "visualize_data",
+      "mcp_name": "autotrain_visualize_data",
+      "category": "analysis",
+      "signature": "(self, summary: xplainable_client.client.py_models.autotrain.DatasetSummary, goal: Dict[str, Any], team_id: Optional[str] = None, library: str = 'plotly', textgen_config: Optional[xplainable_client.client.py_models.autotrain.TextGenConfig] = None) -> xplainable_client.client.py_models.autotrain.VisualizationResponse",
+      "docstring": "Generate data visualizations.\n\nArgs:\n    summary: Dataset summary\n    goal: Visualization goal\n    team_id: Team ID (uses session team_id if not provided)\n    library: Visualization library (plotly, matplotlib, seaborn)\n    textgen_config: Text generation configuration\n    \nReturns:\n    Visualization code and metadata\n    \nRaises:\n    XplainableAPIError: If visualization generation fails"
+    },
+    {
+      "module": "collections",
+      "class": "CollectionsClient",
+      "method": "create_collection",
+      "mcp_name": "collections_create_collection",
+      "category": "write",
+      "signature": "(self, model_id: str, name: str, description: str) -> str",
+      "docstring": "Create a new collection for a model.\n\nArgs:\n    model_id: ID of the model\n    name: Name of the collection\n    description: Description of the collection\n    \nReturns:\n    The collection ID\n    \nRaises:\n    XplainableAPIError: If collection creation fails"
+    },
+    {
+      "module": "collections",
+      "class": "CollectionsClient",
+      "method": "create_scenarios",
+      "mcp_name": "collections_create_scenarios",
+      "category": "write",
+      "signature": "(self, collection_id: str, scenarios: list[dict]) -> List[dict]",
+      "docstring": "Create scenarios for a collection.\n\nArgs:\n    collection_id: ID of the collection\n    scenarios: List of scenario data\n    \nReturns:\n    List of created scenarios\n    \nRaises:\n    XplainableAPIError: If creation fails"
+    },
+    {
+      "module": "collections",
+      "class": "CollectionsClient",
+      "method": "delete_collection",
+      "mcp_name": "collections_delete_collection",
+      "category": "write",
+      "signature": "(self, model_id: str, collection_id: str) -> Dict[str, str]",
+      "docstring": "Delete a collection.\n\nArgs:\n    model_id: ID of the model\n    collection_id: ID of the collection to delete\n    \nReturns:\n    Success message\n    \nRaises:\n    XplainableAPIError: If deletion fails"
+    },
+    {
+      "module": "collections",
+      "class": "CollectionsClient",
+      "method": "get_collection_scenarios",
+      "mcp_name": "collections_get_collection_scenarios",
+      "category": "read",
+      "signature": "(self, collection_id: str) -> List[dict]",
+      "docstring": "Get all scenarios for a collection.\n\nArgs:\n    collection_id: ID of the collection\n    \nReturns:\n    List of scenarios\n    \nRaises:\n    XplainableAPIError: If retrieval fails"
+    },
+    {
+      "module": "collections",
+      "class": "CollectionsClient",
+      "method": "get_model_collections",
+      "mcp_name": "collections_get_model_collections",
+      "category": "read",
+      "signature": "(self, model_id: str) -> List[xplainable_client.client.py_models.collections.CollectionInfo]",
+      "docstring": "Get all collections for a specific model.\n\nArgs:\n    model_id: ID of the model\n    \nReturns:\n    List of collection information\n    \nRaises:\n    XplainableAPIError: If retrieval fails"
+    },
+    {
+      "module": "collections",
+      "class": "CollectionsClient",
+      "method": "get_team_collections",
+      "mcp_name": "collections_get_team_collections",
+      "category": "read",
+      "signature": "(self) -> List[dict]",
+      "docstring": "Get all collections for the team.\n\nReturns:\n    List of collection information\n    \nRaises:\n    XplainableAPIError: If retrieval fails"
+    },
+    {
+      "module": "collections",
+      "class": "CollectionsClient",
+      "method": "update_collection_description",
+      "mcp_name": "collections_update_collection_description",
+      "category": "write",
+      "signature": "(self, model_id: str, collection_id: str, description: str) -> Dict[str, str]",
+      "docstring": "Update the description of a collection.\n\nArgs:\n    model_id: ID of the model\n    collection_id: ID of the collection\n    description: New description for the collection\n    \nReturns:\n    Success message\n    \nRaises:\n    XplainableAPIError: If update fails"
+    },
+    {
+      "module": "collections",
+      "class": "CollectionsClient",
+      "method": "update_collection_name",
+      "mcp_name": "collections_update_collection_name",
+      "category": "write",
+      "signature": "(self, model_id: str, collection_id: str, name: str) -> Dict[str, str]",
+      "docstring": "Update the name of a collection.\n\nArgs:\n    model_id: ID of the model\n    collection_id: ID of the collection\n    name: New name for the collection\n    \nReturns:\n    Success message\n    \nRaises:\n    XplainableAPIError: If update fails"
+    },
+    {
+      "module": "datasets",
+      "class": "DatasetsClient",
+      "method": "list_datasets",
+      "mcp_name": "datasets_list_datasets",
+      "category": "read",
+      "signature": "(self) -> List[str]",
+      "docstring": "List all available public datasets.\n\nReturns:\n    List of dataset names\n    \nRaises:\n    XplainableAPIError: If listing fails"
+    },
+    {
+      "module": "datasets",
+      "class": "DatasetsClient",
+      "method": "list_team_datasets",
+      "mcp_name": "datasets_list_team_datasets",
+      "category": "read",
+      "signature": "(self, team_id: Optional[str] = None) -> List[xplainable_client.client.py_models.datasets.DatasetInfo]",
+      "docstring": "List all datasets for a team.\n\nArgs:\n    team_id: Optional team ID (uses session team_id if not provided)\n    \nReturns:\n    List of dataset information\n    \nRaises:\n    XplainableAPIError: If listing fails"
+    },
+    {
+      "module": "datasets",
+      "class": "DatasetsClient",
+      "method": "load_dataset",
+      "mcp_name": "datasets_load_dataset",
+      "category": "read",
+      "signature": "(self, name: str) -> pandas.DataFrame",
+      "docstring": "Load a public dataset by name.\n\nArgs:\n    name: Name of the dataset to load\n    \nReturns:\n    DataFrame containing the dataset\n    \nRaises:\n    ValueError: If dataset doesn't exist\n    XplainableAPIError: If loading fails"
+    },
+    {
+      "module": "deployments",
+      "class": "DeploymentsClient",
+      "method": "activate_deployment",
+      "mcp_name": "deployments_activate_deployment",
+      "category": "write",
+      "signature": "(self, deployment_id: str) -> Dict[str, str]",
+      "docstring": "Activate a deployment.\n\nArgs:\n    deployment_id: ID of the deployment to activate\n    \nReturns:\n    Success message\n    \nRaises:\n    XplainableAPIError: If activation fails"
+    },
+    {
+      "module": "deployments",
+      "class": "DeploymentsClient",
+      "method": "deactivate_deployment",
+      "mcp_name": "deployments_deactivate_deployment",
+      "category": "write",
+      "signature": "(self, deployment_id: str) -> Dict[str, str]",
+      "docstring": "Deactivate a deployment.\n\nArgs:\n    deployment_id: ID of the deployment to deactivate\n    \nReturns:\n    Success message\n    \nRaises:\n    XplainableAPIError: If deactivation fails"
+    },
+    {
+      "module": "deployments",
+      "class": "DeploymentsClient",
+      "method": "deploy",
+      "mcp_name": "deployments_deploy",
+      "category": "write",
+      "signature": "(self, model_version_id: str) -> xplainable_client.client.py_models.deployments.CreateDeploymentResponse",
+      "docstring": "Deploy a model version.\n\nArgs:\n    model_version_id: ID of the model version to deploy\n    \nReturns:\n    CreateDeploymentResponse containing the deployment_id\n    \nRaises:\n    XplainableAPIError: If deployment fails"
+    },
+    {
+      "module": "deployments",
+      "class": "DeploymentsClient",
+      "method": "generate_deploy_key",
+      "mcp_name": "deployments_generate_deploy_key",
+      "category": "write",
+      "signature": "(self, deployment_id: str, description: str = '', days_until_expiry: int = 90) -> uuid.UUID",
+      "docstring": "Generate a deploy key for a deployment.\n\nArgs:\n    deployment_id: ID of the deployment\n    description: Description of the deploy key use case\n    days_until_expiry: Number of days until the key expires\n    \nReturns:\n    The deploy key UUID\n    \nRaises:\n    XplainableAPIError: If key generation fails"
+    },
+    {
+      "module": "deployments",
+      "class": "DeploymentsClient",
+      "method": "get_active_team_deploy_keys_count",
+      "mcp_name": "deployments_get_active_team_deploy_keys_count",
+      "category": "read",
+      "signature": "(self, team_id: Optional[str] = None) -> int",
+      "docstring": "Get count of active deploy keys for a team.\n\nArgs:\n    team_id: Optional team ID (uses session team_id if not provided)\n    \nReturns:\n    Count of active deploy keys\n    \nRaises:\n    XplainableAPIError: If request fails"
+    },
+    {
+      "module": "deployments",
+      "class": "DeploymentsClient",
+      "method": "get_deployment_payload",
+      "mcp_name": "deployments_get_deployment_payload",
+      "category": "read",
+      "signature": "(self, deployment_id: str) -> List[Dict]",
+      "docstring": "Get sample payload data for a deployment.\n\nArgs:\n    deployment_id: ID of the deployment\n    \nReturns:\n    List containing sample data dictionary for inference\n    \nRaises:\n    XplainableAPIError: If payload generation fails"
+    },
+    {
+      "module": "deployments",
+      "class": "DeploymentsClient",
+      "method": "list_deployments",
+      "mcp_name": "deployments_list_deployments",
+      "category": "read",
+      "signature": "(self, team_id: Optional[str] = None) -> List[xplainable_client.client.py_models.deployments.DeploymentInfo]",
+      "docstring": "List all deployments for a team.\n\nArgs:\n    team_id: Optional team ID (uses session team_id if not provided)\n    \nReturns:\n    List of deployment information\n    \nRaises:\n    XplainableAPIError: If listing fails"
+    },
+    {
+      "module": "gpt",
+      "class": "GPTClient",
+      "method": "explain_model",
+      "mcp_name": "gpt_explain_model",
+      "category": "analysis",
+      "signature": "(self, model_id: str, version_id: str, language: str = 'en', detail_level: str = 'medium') -> xplainable_client.client.py_models.gpt.ModelExplanationResponse",
+      "docstring": "Get a natural language explanation of the model.\n\nArgs:\n    model_id: ID of the model\n    version_id: ID of the model version\n    language: Language for the explanation (e.g., \"en\", \"es\", \"fr\")\n    detail_level: Level of detail (\"low\", \"medium\", \"high\")\n    \nReturns:\n    Natural language explanation of the model\n    \nRaises:\n    XplainableAPIError: If explanation generation fails"
+    },
+    {
+      "module": "gpt",
+      "class": "GPTClient",
+      "method": "generate_documentation",
+      "mcp_name": "gpt_generate_documentation",
+      "category": "analysis",
+      "signature": "(self, model_id: str, version_id: str, include_technical: bool = True, include_business: bool = True, format: str = 'markdown') -> str",
+      "docstring": "Generate comprehensive documentation for a model.\n\nArgs:\n    model_id: ID of the model\n    version_id: ID of the model version\n    include_technical: Include technical details\n    include_business: Include business context\n    format: Output format (\"markdown\", \"html\", \"pdf\")\n    \nReturns:\n    Generated documentation\n    \nRaises:\n    XplainableAPIError: If documentation generation fails"
+    },
+    {
+      "module": "gpt",
+      "class": "GPTClient",
+      "method": "generate_report",
+      "mcp_name": "gpt_generate_report",
+      "category": "analysis",
+      "signature": "(self, model_id: str, version_id: str, target_description: str = 'text', project_objective: str = 'text', max_features: int = 15, temperature: float = 0.7) -> xplainable_client.client.py_models.gpt.GPTReportResponse",
+      "docstring": "Generate a GPT-powered report for a model.\n\nArgs:\n    model_id: ID of the model\n    version_id: ID of the model version\n    target_description: Description of the target variable\n    project_objective: Objective of the project/model\n    max_features: Maximum number of features to include in report\n    temperature: GPT temperature parameter (0-2, higher = more creative)\n    \nReturns:\n    Generated report with insights\n    \nRaises:\n    XplainableAPIError: If report generation fails"
+    },
+    {
+      "module": "inference",
+      "class": "InferenceClient",
+      "method": "predict",
+      "mcp_name": "inference_predict",
+      "category": "inference",
+      "signature": "(self, filename: str, model_id: str, version_id: str, threshold: float = 0.5, delimiter: str = ',')",
+      "docstring": "Predicts the target column of a dataset.\n\nArgs:\n    filename (str): The name of the file.\n    model_id (str): The model id.\n    version_id (str): The version id.\n    threshold (float): The threshold for classification models.\n    delimiter (str): The delimiter of the file.\n    \nReturns:\n    dict: The prediction results."
+    },
+    {
+      "module": "inference",
+      "class": "InferenceClient",
+      "method": "stream_predictions",
+      "mcp_name": "inference_stream_predictions",
+      "category": "inference",
+      "signature": "(self, filename: str, model_id: str, version_id: str, threshold: float = 0.5, delimiter: str = ',', batch_size: int = 1000)",
+      "docstring": "Stream predictions for large datasets by processing in batches.\n\nArgs:\n    filename: Path to CSV file to stream\n    model_id: ID of the model\n    version_id: ID of the model version\n    threshold: Classification threshold\n    delimiter: CSV delimiter\n    batch_size: Size of each batch to process\n    \nYields:\n    Batch prediction results"
+    },
+    {
+      "module": "misc",
+      "class": "MiscClient",
+      "method": "get_model_info",
+      "mcp_name": "misc_get_model_info",
+      "category": "read",
+      "signature": "(self, model_id: str, version_id: str) -> xplainable_client.client.py_models.misc.LoadedModelInfo",
+      "docstring": "Get information about a model without loading it.\n\nArgs:\n    model_id: Model ID\n    version_id: Version ID\n    \nReturns:\n    Model information\n    \nRaises:\n    XplainableAPIError: If retrieval fails"
+    },
+    {
+      "module": "misc",
+      "class": "MiscClient",
+      "method": "get_version_info",
+      "mcp_name": "misc_get_version_info",
+      "category": "read",
+      "signature": "(self) -> xplainable_client.client.py_models.misc.VersionInfo",
+      "docstring": "Get comprehensive version information.\n\nReturns:\n    Version information for all components"
+    },
+    {
+      "module": "misc",
+      "class": "MiscClient",
+      "method": "health_check",
+      "mcp_name": "misc_health_check",
+      "category": "admin",
+      "signature": "(self, check_database: bool = True, check_storage: bool = True, check_compute: bool = True) -> xplainable_client.client.py_models.misc.HealthCheckResponse",
+      "docstring": "Perform a comprehensive health check.\n\nArgs:\n    check_database: Whether to check database connectivity\n    check_storage: Whether to check storage systems\n    check_compute: Whether to check compute resources\n    \nReturns:\n    Health check results\n    \nRaises:\n    XplainableAPIError: If health check fails"
+    },
+    {
+      "module": "misc",
+      "class": "MiscClient",
+      "method": "load_classifier",
+      "mcp_name": "misc_load_classifier",
+      "category": "read",
+      "signature": "(self, model_id: str, version_id: str, model=None)",
+      "docstring": "Load a binary classification model.\n\nArgs:\n    model_id: Model ID\n    version_id: Version ID\n    model: Existing model to add partitions to\n    \nReturns:\n    Loaded xplainable classifier\n    \nRaises:\n    ValueError: If model is not a classification model\n    XplainableAPIError: If loading fails"
+    },
+    {
+      "module": "misc",
+      "class": "MiscClient",
+      "method": "load_regressor",
+      "mcp_name": "misc_load_regressor",
+      "category": "read",
+      "signature": "(self, model_id: str, version_id: str, model=None)",
+      "docstring": "Load a regression model.\n\nArgs:\n    model_id: Model ID\n    version_id: Version ID\n    model: Existing model to add partitions to\n    \nReturns:\n    Loaded xplainable regressor\n    \nRaises:\n    ValueError: If model is not a regression model\n    XplainableAPIError: If loading fails"
+    },
+    {
+      "module": "misc",
+      "class": "MiscClient",
+      "method": "ping_gateway",
+      "mcp_name": "misc_ping_gateway",
+      "category": "admin",
+      "signature": "(self, hostname: Optional[str] = None) -> xplainable_client.client.py_models.misc.PingResponse",
+      "docstring": "Ping the API gateway to check connectivity.\n\nArgs:\n    hostname: Optional hostname to ping (uses session hostname if not provided)\n    \nReturns:\n    Ping response with success status\n    \nRaises:\n    XplainableAPIError: If ping fails"
+    },
+    {
+      "module": "misc",
+      "class": "MiscClient",
+      "method": "ping_server",
+      "mcp_name": "misc_ping_server",
+      "category": "admin",
+      "signature": "(self, hostname: Optional[str] = None) -> xplainable_client.client.py_models.misc.PingResponse",
+      "docstring": "Ping the compute server to check connectivity.\n\nArgs:\n    hostname: Optional hostname to ping (uses session hostname if not provided)\n    \nReturns:\n    Ping response with success status\n    \nRaises:\n    XplainableAPIError: If ping fails"
+    },
+    {
+      "module": "models",
+      "class": "ModelsClient",
+      "method": "get_model",
+      "mcp_name": "models_get_model",
+      "category": "read",
+      "signature": "(self, model_id: str) -> xplainable_client.client.py_models.models.ModelInfo",
+      "docstring": "Get detailed information about a model.\n\nArgs:\n    model_id: ID of the model\n    \nReturns:\n    Model information\n    \nRaises:\n    XplainableAPIError: If retrieval fails"
+    },
+    {
+      "module": "models",
+      "class": "ModelsClient",
+      "method": "link_preprocessor",
+      "mcp_name": "models_link_preprocessor",
+      "category": "write",
+      "signature": "(self, model_version_id: str, preprocessor_version_id: str) -> None",
+      "docstring": "Link a model version to a preprocessor version.\n\nArgs:\n    model_version_id: The model version ID\n    preprocessor_version_id: The preprocessor version ID\n    \nRaises:\n    XplainableAPIError: If linking fails"
+    },
+    {
+      "module": "models",
+      "class": "ModelsClient",
+      "method": "list_model_version_partitions",
+      "mcp_name": "models_list_model_version_partitions",
+      "category": "read",
+      "signature": "(self, version_id: str) -> Dict[str, Any]",
+      "docstring": "List all partitions for a model version.\n\nArgs:\n    version_id: ID of the model version (or \"latest\")\n    \nReturns:\n    Dictionary containing partition information\n    \nRaises:\n    XplainableAPIError: If listing fails"
+    },
+    {
+      "module": "models",
+      "class": "ModelsClient",
+      "method": "list_model_versions",
+      "mcp_name": "models_list_model_versions",
+      "category": "read",
+      "signature": "(self, model_id: str) -> List[xplainable_client.client.py_models.models.ModelVersion]",
+      "docstring": "List all versions of a model.\n\nArgs:\n    model_id: ID of the model\n    \nReturns:\n    List of model versions\n    \nRaises:\n    XplainableAPIError: If listing fails"
+    },
+    {
+      "module": "models",
+      "class": "ModelsClient",
+      "method": "list_team_models",
+      "mcp_name": "models_list_team_models",
+      "category": "read",
+      "signature": "(self) -> List[xplainable_client.client.py_models.models.ModelInfo]",
+      "docstring": "List all models for the current team (based on API key).\n\nThis method returns comprehensive information about all models\naccessible to the authenticated user's team.\n\nReturns:\n    List of model information including names, descriptions, and metadata\n    \nRaises:\n    XplainableAPIError: If listing fails"
+    },
+    {
+      "module": "preprocessing",
+      "class": "PreprocessingClient",
+      "method": "get_preprocessor",
+      "mcp_name": "preprocessing_get_preprocessor",
+      "category": "read",
+      "signature": "(self, preprocessor_id: str) -> xplainable_client.client.py_models.preprocessing.PreprocessorInfo",
+      "docstring": "Get detailed information about a preprocessor.\n\nArgs:\n    preprocessor_id: ID of the preprocessor\n\nReturns:\n    Preprocessor information"
+    },
+    {
+      "module": "preprocessing",
+      "class": "PreprocessingClient",
+      "method": "list_preprocessors",
+      "mcp_name": "preprocessing_list_preprocessors",
+      "category": "read",
+      "signature": "(self, team_id: Optional[str] = None) -> List[xplainable_client.client.py_models.preprocessing.PreprocessorInfo]",
+      "docstring": "List all preprocessors for a team.\n\nArgs:\n    team_id: Optional team ID (uses session team_id if not provided)\n\nReturns:\n    List of preprocessor information"
+    },
+    {
+      "module": "reports",
+      "class": "ReportsClient",
+      "method": "available_widgets",
+      "mcp_name": "reports_available_widgets",
+      "category": "analysis",
+      "signature": "() -> Dict[str, str]",
+      "docstring": "Return the available widget tags and their descriptions.\n\nVisual widgets (baseValue, confusionMatrix, etc.) should be used\nat most once per report. Text widgets (h2, p, divider) can repeat."
+    },
+    {
+      "module": "reports",
+      "class": "ReportsClient",
+      "method": "create_report",
+      "mcp_name": "reports_create_report",
+      "category": "write",
+      "signature": "(self, run_id: str, report_name: str, report_description: str = '', is_public: bool = False, widgets: Optional[List[str]] = None, mode: str = 'dynamic', max_features: int = 40, constraints: Optional[Dict] = None, audience: Optional[Dict] = None) -> Dict[str, Any]",
+      "docstring": "Start async report generation via the wizard.\n\nReturns:\n    Dict with job_id and status (\"accepted\")"
+    },
+    {
+      "module": "reports",
+      "class": "ReportsClient",
+      "method": "create_report_sync",
+      "mcp_name": "reports_create_report_sync",
+      "category": "write",
+      "signature": "(self, run_id: str, report_name: str, report_description: str = '', is_public: bool = False, widgets: Optional[List[str]] = None, mode: str = 'dynamic', max_features: int = 40, constraints: Optional[Dict] = None, audience: Optional[Dict] = None, timeout: int = 120, poll_interval: float = 2.0) -> Dict[str, Any]",
+      "docstring": "Create a report synchronously (polls until complete or timeout).\n\nReturns:\n    Dict with status, report_id, version_id"
+    },
+    {
+      "module": "runs",
+      "class": "RunsClient",
+      "method": "create_run",
+      "mcp_name": "runs_create_run",
+      "category": "write",
+      "signature": "(self, team_id: str, user_id: str, run_id: Optional[str] = None, model_id: Optional[str] = None, name: Optional[str] = None, metadata: Optional[Dict] = None) -> str",
+      "docstring": "Create a new training run.\n\nArgs:\n    team_id: Team ID for the run\n    user_id: User ID who owns the run\n    run_id: Optional run ID (will be generated if not provided)\n    model_id: Optional associated model ID\n    name: Optional run name\n    metadata: Optional metadata dictionary\n\nReturns:\n    The run ID (either provided or newly generated)\n\nRaises:\n    XplainableAPIError: If run creation fails"
+    },
+    {
+      "module": "runs",
+      "class": "RunsClient",
+      "method": "get_run",
+      "mcp_name": "runs_get_run",
+      "category": "read",
+      "signature": "(self, run_id: str) -> Dict",
+      "docstring": "Get run details by ID.\n\nArgs:\n    run_id: The run ID\n\nReturns:\n    Run details dictionary\n\nRaises:\n    XplainableAPIError: If run retrieval fails"
+    }
+  ]
+}
