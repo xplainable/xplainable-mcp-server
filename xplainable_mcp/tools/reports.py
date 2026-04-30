@@ -22,6 +22,7 @@ from ..server import get_client
 
 
 
+
 @mcp.tool()
 def reports_available_widgets():
     """
