@@ -60,7 +60,6 @@ def runs_create_run(team_id: str, user_id: str, run_id: Optional[str] = None, mo
         logger.error(f"Error in runs_create_run: {e}")
         raise
 
-
 @mcp.tool()
 def runs_get_run(run_id: str):
     """

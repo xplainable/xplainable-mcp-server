@@ -50,7 +50,6 @@ def reports_available_widgets():
         logger.error(f"Error in reports_available_widgets: {e}")
         raise
 
-
 @mcp.tool()
 def reports_create_report(run_id: str, report_name: str, report_description: str = '', is_public: bool = False, widgets: Optional[List[str]] = None, mode: str = 'dynamic', max_features: int = 40, constraints: Optional[Dict] = None, audience: Optional[Dict] = None):
     """
@@ -77,7 +76,6 @@ def reports_create_report(run_id: str, report_name: str, report_description: str
     except Exception as e:
         logger.error(f"Error in reports_create_report: {e}")
         raise
-
 
 @mcp.tool()
 def reports_create_report_sync(run_id: str, report_name: str, report_description: str = '', is_public: bool = False, widgets: Optional[List[str]] = None, mode: str = 'dynamic', max_features: int = 40, constraints: Optional[Dict] = None, audience: Optional[Dict] = None, timeout: int = 120, poll_interval: float = 2.0):

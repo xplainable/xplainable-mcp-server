@@ -56,7 +56,6 @@ def collections_get_model_collections(model_id: str):
         logger.error(f"Error in collections_get_model_collections: {e}")
         raise
 
-
 @mcp.tool()
 def collections_update_collection_name(model_id: str, collection_id: str, name: str):
     """
@@ -124,7 +123,6 @@ def collections_create_collection(model_id: str, name: str, description: str):
         logger.error(f"Error in collections_create_collection: {e}")
         raise
 
-
 @mcp.tool()
 def collections_create_scenarios(collection_id: str, scenarios: List[dict]):
     """
@@ -157,7 +155,6 @@ def collections_create_scenarios(collection_id: str, scenarios: List[dict]):
     except Exception as e:
         logger.error(f"Error in collections_create_scenarios: {e}")
         raise
-
 
 @mcp.tool()
 def collections_get_team_collections():
@@ -220,7 +217,6 @@ def collections_delete_collection(model_id: str, collection_id: str):
         logger.error(f"Error in collections_delete_collection: {e}")
         raise
 
-
 @mcp.tool()
 def collections_get_collection_scenarios(collection_id: str):
     """
@@ -252,7 +248,6 @@ def collections_get_collection_scenarios(collection_id: str):
     except Exception as e:
         logger.error(f"Error in collections_get_collection_scenarios: {e}")
         raise
-
 
 @mcp.tool()
 def collections_update_collection_description(model_id: str, collection_id: str, description: str):

@@ -54,7 +54,6 @@ def models_link_preprocessor(model_version_id: str, preprocessor_version_id: str
         logger.error(f"Error in models_link_preprocessor: {e}")
         raise
 
-
 @mcp.tool()
 def models_list_model_versions(model_id: str):
     """
@@ -118,7 +117,6 @@ def models_get_model(model_id: str):
         logger.error(f"Error in models_get_model: {e}")
         raise
 
-
 @mcp.tool()
 def models_list_model_version_partitions(version_id: str):
     """
@@ -150,7 +148,6 @@ def models_list_model_version_partitions(version_id: str):
     except Exception as e:
         logger.error(f"Error in models_list_model_version_partitions: {e}")
         raise
-
 
 @mcp.tool()
 def models_list_team_models():

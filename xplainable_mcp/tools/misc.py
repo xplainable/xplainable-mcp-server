@@ -55,7 +55,6 @@ def misc_load_classifier(model_id: str, version_id: str, model = None):
         logger.error(f"Error in misc_load_classifier: {e}")
         raise
 
-
 @mcp.tool()
 def misc_ping_gateway(hostname: Optional[str] = None):
     """
@@ -153,7 +152,6 @@ def misc_get_model_info(model_id: str, version_id: str):
         logger.error(f"Error in misc_get_model_info: {e}")
         raise
 
-
 @mcp.tool()
 def misc_ping_server(hostname: Optional[str] = None):
     """
@@ -210,7 +208,6 @@ def misc_get_version_info():
     except Exception as e:
         logger.error(f"Error in misc_get_version_info: {e}")
         raise
-
 
 @mcp.tool()
 def misc_load_regressor(model_id: str, version_id: str, model = None):

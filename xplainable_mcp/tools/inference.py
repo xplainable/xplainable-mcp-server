@@ -57,7 +57,6 @@ def inference_predict(filename: str, model_id: str, version_id: str, threshold: 
         logger.error(f"Error in inference_predict: {e}")
         raise
 
-
 @mcp.tool()
 def inference_stream_predictions(filename: str, model_id: str, version_id: str, threshold: float = 0.5, delimiter: str = ',', batch_size: int = 1000):
     """
