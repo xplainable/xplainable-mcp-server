@@ -81,32 +81,44 @@ def _get_current_user_id():
 def set_active_team(team_id: str):
     """Set the active team for the current user's session.
 
-    Recreates the user's client with the new team_id so all subsequent
+    Updates the user's cached client session headers so all subsequent
     tool calls are scoped to that team.
     """
     user_id, token = _get_current_user_id()
 
     if user_id and token:
-        # HTTP mode: recreate per-user client with new team_id
         with _clients_lock:
+            if user_id in _clients:
+                # Update team_id on existing client's session headers
+                client = _clients[user_id]
+                client.session.team_id = team_id
+                client.session._session.headers['team_id'] = team_id
+                logger.info(f"Updated team_id to {team_id} for user {user_id[:12]}...")
+            else:
+                # Create new client with team_id
+                from xplainable_client.client.client import XplainableClient
+                _clients[user_id] = XplainableClient(
+                    bearer_token=token,
+                    hostname=config.hostname,
+                    team_id=team_id,
+                )
+                logger.info(f"Created client with team {team_id} for user {user_id[:12]}...")
+    else:
+        # Stdio mode: update or recreate static client
+        global _static_client
+        if _static_client is not None:
+            _static_client.session.team_id = team_id
+            _static_client.session._session.headers['team_id'] = team_id
+            logger.info(f"Updated static client team_id to {team_id}")
+        else:
             from xplainable_client.client.client import XplainableClient
-            _clients[user_id] = XplainableClient(
-                bearer_token=token,
+            _static_client = XplainableClient(
+                api_key=config.api_key,
                 hostname=config.hostname,
+                org_id=config.org_id,
                 team_id=team_id,
             )
-            logger.info(f"Switched user {user_id[:12]}... to team {team_id}")
-    else:
-        # Stdio mode: recreate static client with new team_id
-        global _static_client
-        from xplainable_client.client.client import XplainableClient
-        _static_client = XplainableClient(
-            api_key=config.api_key,
-            hostname=config.hostname,
-            org_id=config.org_id,
-            team_id=team_id,
-        )
-        logger.info(f"Switched static client to team {team_id}")
+            logger.info(f"Created static client with team {team_id}")
 
 
 def get_client():
@@ -121,7 +133,9 @@ def get_client():
     user_id, token = _get_current_user_id()
 
     if user_id and token:
-        return _get_user_client(user_id, token)
+        client = _get_user_client(user_id, token)
+        logger.debug(f"get_client: user={user_id[:12]}... team_id={client.session.team_id} cached_users={list(_clients.keys())}")
+        return client
 
     # Fallback to static client (stdio mode or no auth context)
     return _get_static_client()
