@@ -1,0 +1,48 @@
+name: Deploy MCP Server
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Only deploy if CI passes (ci.yml runs on the same trigger)
+    needs: []
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+    - name: Log in to DO Container Registry
+      run: doctl registry login --expiry-seconds 600
+
+    - name: Build Docker image
+      run: |
+        docker build \
+          -t registry.digitalocean.com/${{ secrets.DO_REGISTRY_NAME }}/mcp-server:${{ github.sha }} \
+          -t registry.digitalocean.com/${{ secrets.DO_REGISTRY_NAME }}/mcp-server:latest \
+          .
+
+    - name: Push to Container Registry
+      run: |
+        docker push registry.digitalocean.com/${{ secrets.DO_REGISTRY_NAME }}/mcp-server:${{ github.sha }}
+        docker push registry.digitalocean.com/${{ secrets.DO_REGISTRY_NAME }}/mcp-server:latest
+
+    - name: Trigger App Platform deployment
+      run: |
+        doctl apps create-deployment ${{ secrets.DO_APP_ID }} --wait
+
+    - name: Create deployment summary
+      if: always()
+      run: |
+        echo "## MCP Server Deployment" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Image:** registry.digitalocean.com/${{ secrets.DO_REGISTRY_NAME }}/mcp-server:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
