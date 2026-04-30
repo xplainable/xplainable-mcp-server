@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 class ServerConfig(BaseModel):
     """Server configuration model."""
-    api_key: str = Field(..., description="Xplainable API key")
+    api_key: str = Field(default="", description="Xplainable API key (optional if using OAuth)")
     hostname: str = Field(
         default="https://platform.xplainable.io",
         description="Xplainable API hostname"
@@ -54,11 +54,11 @@ class ServerConfig(BaseModel):
 
 def load_config() -> ServerConfig:
     """Load configuration from environment variables."""
-    api_key = os.environ.get("XPLAINABLE_API_KEY")
-    if not api_key:
-        logger.error("XPLAINABLE_API_KEY environment variable not set")
+    api_key = os.environ.get("XPLAINABLE_API_KEY", "")
+    if not api_key and not os.environ.get("AUTH0_DOMAIN"):
+        logger.error("Either XPLAINABLE_API_KEY or AUTH0_DOMAIN must be set")
         sys.exit(1)
-    
+
     return ServerConfig(
         api_key=api_key,
         hostname=os.getenv("XPLAINABLE_HOST", "https://platform.xplainable.io"),
