@@ -11,7 +11,8 @@ import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-from fastmcp import FastMCP
+from fastmcp import FastMCP, Context
+from fastmcp.server.elicitation import AcceptedElicitation
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from .response_handlers import (
@@ -87,24 +88,29 @@ from . import tools
 # ============================================================================
 
 
+def _fetch_user_teams() -> List[Dict[str, Any]]:
+    """Fetch the authenticated user's teams from the API."""
+    client = get_client()
+    response = client.session._session.get(
+        url=f"{client.session.hostname}/v1/client/teams",
+    )
+    return client.session.get_response_content(response)
+
+
 @mcp.tool()
 def list_user_teams() -> List[Dict[str, Any]]:
     """
     List all teams the authenticated user belongs to.
 
     Call this first to see which teams are available, then use
-    set_active_team to select one before calling other tools.
+    select_team to pick one before calling other tools.
 
     Returns:
         List of teams with team_id, team_name, organisation_id,
         and organisation_name.
     """
     try:
-        client = get_client()
-        response = client.session._session.get(
-            url=f"{client.session.hostname}/v1/client/teams",
-        )
-        result = client.session.get_response_content(response)
+        result = _fetch_user_teams()
         logger.info(f"Listed {len(result)} teams for user")
         return result
     except Exception as e:
@@ -133,6 +139,68 @@ def set_active_team(team_id: str) -> Dict[str, str]:
         return {"status": "ok", "active_team_id": team_id}
     except Exception as e:
         logger.error(f"Error setting active team: {e}")
+        raise
+
+
+@mcp.tool()
+async def select_team(ctx: Context) -> Dict[str, str]:
+    """
+    Interactively select the active team for this session.
+
+    Presents a dropdown UI to the user with their available teams.
+    All subsequent tool calls will be scoped to the selected team.
+    Call this before using any other tools.
+
+    Returns:
+        Confirmation with the active team_id and team_name.
+    """
+    from typing import Literal
+    from .client_manager import set_active_team as _set_active_team
+
+    try:
+        teams = _fetch_user_teams()
+
+        if not teams:
+            return {"error": "No teams found for this user"}
+
+        if len(teams) == 1:
+            # Only one team — auto-select it
+            _set_active_team(teams[0]["team_id"])
+            logger.info(f"Auto-selected only team: {teams[0]['team_name']}")
+            return {
+                "status": "ok",
+                "active_team_id": teams[0]["team_id"],
+                "active_team_name": teams[0]["team_name"],
+            }
+
+        # Build team name → id mapping
+        team_map = {t["team_name"]: t["team_id"] for t in teams}
+        team_names = list(team_map.keys())
+
+        # Present dropdown to user via elicitation
+        TeamChoice = Literal[tuple(team_names)]  # type: ignore[valid-type]
+        result = await ctx.elicit(
+            message="Select your team to continue:",
+            response_type=TeamChoice,
+            response_title="Team",
+        )
+
+        if not isinstance(result, AcceptedElicitation):
+            return {"error": "Team selection was cancelled"}
+
+        selected_name = result.data
+        selected_id = team_map[selected_name]
+        _set_active_team(selected_id)
+        logger.info(f"User selected team: {selected_name} ({selected_id})")
+
+        return {
+            "status": "ok",
+            "active_team_id": selected_id,
+            "active_team_name": selected_name,
+        }
+
+    except Exception as e:
+        logger.error(f"Error in select_team: {e}")
         raise
 
 
@@ -544,9 +612,9 @@ def get_workflows() -> Dict[str, Any]:
         return {
             "total_services": len(services),
             "services": services,
-            "hint": "Start by calling list_user_teams and set_active_team to "
-                    "select a team. Then call tools in step order within each "
-                    "service. Tools with depends_on require those tools first.",
+            "hint": "Start by calling select_team to pick a team. "
+                    "Then call tools in step order within each service. "
+                    "Tools with depends_on require those tools first.",
         }
 
     except Exception as e:
