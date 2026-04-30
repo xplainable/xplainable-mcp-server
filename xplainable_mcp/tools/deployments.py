@@ -57,7 +57,6 @@ def deployments_get_deployment_payload(deployment_id: str):
         logger.error(f"Error in deployments_get_deployment_payload: {e}")
         raise
 
-
 @mcp.tool()
 def deployments_list_deployments(team_id: Optional[str] = None):
     """
@@ -122,7 +121,6 @@ def deployments_activate_deployment(deployment_id: str):
     except Exception as e:
         logger.error(f"Error in deployments_activate_deployment: {e}")
         raise
-
 
 @mcp.tool()
 def deployments_deploy(model_version_id: str):
@@ -189,7 +187,6 @@ def deployments_deactivate_deployment(deployment_id: str):
         logger.error(f"Error in deployments_deactivate_deployment: {e}")
         raise
 
-
 @mcp.tool()
 def deployments_generate_deploy_key(deployment_id: str, description: str = '', days_until_expiry: int = 90):
     """
@@ -224,7 +221,6 @@ def deployments_generate_deploy_key(deployment_id: str, description: str = '', d
     except Exception as e:
         logger.error(f"Error in deployments_generate_deploy_key: {e}")
         raise
-
 
 @mcp.tool()
 def deployments_get_active_team_deploy_keys_count(team_id: Optional[str] = None):

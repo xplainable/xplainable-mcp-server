@@ -59,7 +59,6 @@ def gpt_explain_model(model_id: str, version_id: str, language: str = 'en', deta
         logger.error(f"Error in gpt_explain_model: {e}")
         raise
 
-
 @mcp.tool()
 def gpt_generate_documentation(model_id: str, version_id: str, include_technical: bool = True, include_business: bool = True, format: str = 'markdown'):
     """
@@ -95,7 +94,6 @@ def gpt_generate_documentation(model_id: str, version_id: str, include_technical
     except Exception as e:
         logger.error(f"Error in gpt_generate_documentation: {e}")
         raise
-
 
 @mcp.tool()
 def gpt_generate_report(model_id: str, version_id: str, target_description: str = 'text', project_objective: str = 'text', max_features: int = 15, temperature: float = 0.7):
