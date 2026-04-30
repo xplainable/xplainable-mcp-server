@@ -42,12 +42,15 @@ ENV PATH="/opt/venv/bin:$PATH" \
 # Switch to non-root user
 USER mcp
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import xplainable_mcp; print('healthy')" || exit 1
+# Health check (uses /health endpoint in HTTP mode)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD python -c "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()" || exit 1
 
-# Expose port (for HTTP transport mode)
+# Expose port
 EXPOSE 8000
 
-# Run the server
-CMD ["python", "-m", "xplainable_mcp.server"]
+# Default to HTTP transport via ASGI
+ENV MCP_TRANSPORT="streamable-http"
+
+# Run with uvicorn for production
+CMD ["uvicorn", "xplainable_mcp.asgi:app", "--host", "0.0.0.0", "--port", "8000"]

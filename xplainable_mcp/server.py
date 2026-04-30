@@ -83,6 +83,60 @@ from . import tools
 
 
 # ============================================================================
+# SESSION TOOLS (team selection)
+# ============================================================================
+
+
+@mcp.tool()
+def list_user_teams() -> List[Dict[str, Any]]:
+    """
+    List all teams the authenticated user belongs to.
+
+    Call this first to see which teams are available, then use
+    set_active_team to select one before calling other tools.
+
+    Returns:
+        List of teams with team_id, team_name, organisation_id,
+        and organisation_name.
+    """
+    try:
+        client = get_client()
+        response = client.session._session.get(
+            url=f"{client.session.hostname}/v1/client/teams",
+        )
+        result = client.session.get_response_content(response)
+        logger.info(f"Listed {len(result)} teams for user")
+        return result
+    except Exception as e:
+        logger.error(f"Error listing user teams: {e}")
+        raise
+
+
+@mcp.tool()
+def set_active_team(team_id: str) -> Dict[str, str]:
+    """
+    Set the active team for this session.
+
+    All subsequent tool calls will be scoped to this team.
+    Call list_user_teams first to see available teams.
+
+    Args:
+        team_id: The team ID to switch to (from list_user_teams).
+
+    Returns:
+        Confirmation with the active team_id.
+    """
+    try:
+        from .client_manager import set_active_team as _set_active_team
+        _set_active_team(team_id)
+        logger.info(f"Active team set to {team_id}")
+        return {"status": "ok", "active_team_id": team_id}
+    except Exception as e:
+        logger.error(f"Error setting active team: {e}")
+        raise
+
+
+# ============================================================================
 # DISCOVERY/METADATA TOOLS
 # ============================================================================
 
@@ -490,8 +544,9 @@ def get_workflows() -> Dict[str, Any]:
         return {
             "total_services": len(services),
             "services": services,
-            "hint": "Call tools in step order within each service. "
-                    "Tools with depends_on require those tools to be called first.",
+            "hint": "Start by calling list_user_teams and set_active_team to "
+                    "select a team. Then call tools in step order within each "
+                    "service. Tools with depends_on require those tools first.",
         }
 
     except Exception as e:
@@ -528,13 +583,21 @@ def main():
         logger.info("Starting Xplainable MCP Server")
         logger.info(f"Write tools enabled: {config.enable_write_tools}")
         logger.info(f"Rate limiting enabled: {config.rate_limit_enabled}")
-        
-        # Don't initialize client at startup - let it happen lazily when tools are called
-        # This prevents the server from crashing if API key is invalid
-        
-        # Run the MCP server
-        mcp.run()
-        
+
+        transport = os.getenv("MCP_TRANSPORT", "stdio")
+        logger.info(f"Transport: {transport}")
+
+        if transport == "streamable-http":
+            host = os.getenv("MCP_HOST", "0.0.0.0")
+            port = int(os.getenv("MCP_PORT", "8000"))
+            mcp.run(
+                transport="streamable-http",
+                host=host,
+                port=port,
+            )
+        else:
+            mcp.run()
+
     except KeyboardInterrupt:
         logger.info("Server shutdown requested")
         sys.exit(0)

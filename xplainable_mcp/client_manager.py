@@ -1,21 +1,26 @@
 """
 Client manager for Xplainable MCP Server.
 
-This module handles the lazy initialization of the Xplainable client.
+Handles per-user client initialization when running in HTTP mode (OAuth),
+and falls back to a singleton client in stdio mode (API key from env).
 """
 
 import os
 import logging
+import threading
 from typing import Optional
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Lazy initialization of Xplainable client
-_client = None
+# Per-user client cache (keyed by user ID from JWT)
+_clients: dict[str, object] = {}
+_clients_lock = threading.Lock()
+
+# Singleton client for stdio/API-key mode
+_static_client = None
 
 
 class ServerConfig:
@@ -29,24 +34,94 @@ class ServerConfig:
 config = ServerConfig()
 
 
-def get_client():
-    """Get or create the Xplainable client instance."""
-    global _client
-    if _client is None:
-        try:
+def _get_static_client():
+    """Get or create the singleton client (API key mode)."""
+    global _static_client
+    if _static_client is None:
+        from xplainable_client.client.client import XplainableClient
+        _static_client = XplainableClient(
+            api_key=config.api_key,
+            hostname=config.hostname,
+            org_id=config.org_id,
+            team_id=config.team_id,
+        )
+        logger.info("Static XplainableClient initialized (API key mode)")
+    return _static_client
+
+
+def _get_user_client(user_id: str, token: str):
+    """Get or create a per-user client (OAuth mode)."""
+    with _clients_lock:
+        if user_id not in _clients:
             from xplainable_client.client.client import XplainableClient
-            _client = XplainableClient(
-                api_key=config.api_key,
+            _clients[user_id] = XplainableClient(
+                bearer_token=token,
                 hostname=config.hostname,
-                org_id=config.org_id,
-                team_id=config.team_id
+                team_id=config.team_id,
             )
-            logger.info("Xplainable client initialized successfully")
-        except ImportError as e:
-            logger.error(f"Failed to import xplainable_client: {e}")
-            logger.error("Please install xplainable-client: pip install xplainable-client")
-            raise RuntimeError("xplainable-client not installed")
-        except Exception as e:
-            logger.error(f"Failed to initialize Xplainable client: {e}")
-            raise RuntimeError(f"Failed to initialize Xplainable client: {e}")
-    return _client
+            logger.info(f"Per-user XplainableClient created for user {user_id[:12]}...")
+        return _clients[user_id]
+
+
+def _get_current_user_id():
+    """Get the current user ID from the request context, or None in stdio mode."""
+    try:
+        from fastmcp.server.dependencies import get_access_token
+        access_token = get_access_token()
+        if access_token is not None:
+            user_id = access_token.client_id or "anonymous"
+            if hasattr(access_token, 'claims') and access_token.claims:
+                user_id = access_token.claims.get("sub", user_id)
+            return user_id, access_token.token
+    except Exception:
+        pass
+    return None, None
+
+
+def set_active_team(team_id: str):
+    """Set the active team for the current user's session.
+
+    Recreates the user's client with the new team_id so all subsequent
+    tool calls are scoped to that team.
+    """
+    user_id, token = _get_current_user_id()
+
+    if user_id and token:
+        # HTTP mode: recreate per-user client with new team_id
+        with _clients_lock:
+            from xplainable_client.client.client import XplainableClient
+            _clients[user_id] = XplainableClient(
+                bearer_token=token,
+                hostname=config.hostname,
+                team_id=team_id,
+            )
+            logger.info(f"Switched user {user_id[:12]}... to team {team_id}")
+    else:
+        # Stdio mode: recreate static client with new team_id
+        global _static_client
+        from xplainable_client.client.client import XplainableClient
+        _static_client = XplainableClient(
+            api_key=config.api_key,
+            hostname=config.hostname,
+            org_id=config.org_id,
+            team_id=team_id,
+        )
+        logger.info(f"Switched static client to team {team_id}")
+
+
+def get_client():
+    """Get the appropriate XplainableClient for the current request.
+
+    In HTTP mode: extracts the user's JWT from the request context and
+    returns a per-user client. In stdio mode: returns a singleton client
+    using the API key from environment variables.
+
+    All tool functions call this — no tool code changes needed.
+    """
+    user_id, token = _get_current_user_id()
+
+    if user_id and token:
+        return _get_user_client(user_id, token)
+
+    # Fallback to static client (stdio mode or no auth context)
+    return _get_static_client()
