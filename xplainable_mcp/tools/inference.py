@@ -18,12 +18,6 @@ from ..server import get_client
 # ============================================
 
 
-
-
-
-
-
-
 @mcp.tool()
 def inference_predict(filename: str, model_id: str, version_id: str, threshold: float = 0.5, delimiter: str = ','):
     """

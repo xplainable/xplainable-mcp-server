@@ -19,12 +19,6 @@ from ..server import get_client
 # ============================================
 
 
-
-
-
-
-
-
 @mcp.tool()
 def autotrain_generate_labels(summary: dict, team_id: Optional[str] = None, textgen_config: Optional[dict] = None):
     """

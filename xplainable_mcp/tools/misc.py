@@ -18,8 +18,6 @@ from ..server import get_client
 # ============================================
 
 
-
-
 @mcp.tool()
 def misc_load_classifier(model_id: str, version_id: str, model = None):
     """

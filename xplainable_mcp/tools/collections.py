@@ -18,12 +18,6 @@ from ..server import get_client
 # ============================================
 
 
-
-
-
-
-
-
 @mcp.tool()
 def collections_get_model_collections(model_id: str):
     """
