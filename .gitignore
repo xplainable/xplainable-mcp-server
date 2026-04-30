@@ -172,4 +172,4 @@ desktop.ini
 
 /.claude
 /xplainable-mcp-env
-.claude
+.claudemcp_sync_report_*.json
