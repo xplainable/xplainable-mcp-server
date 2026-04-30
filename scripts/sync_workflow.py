@@ -259,8 +259,7 @@ def generate_tool_implementation(method_info: Dict[str, Any]) -> str:
     if workflow_parts:
         workflow_line = f"\n    Workflow: {'. '.join(workflow_parts)}."
 
-    template = f'''
-@mcp.tool()
+    template = f'''@mcp.tool()
 def {method_info['mcp_name']}({param_str}):
     """
     {formatted_docstring}
@@ -283,8 +282,8 @@ def {method_info['mcp_name']}({param_str}):
         logger.error(f"Error in {method_info['mcp_name']}: {{e}}")
         raise
 '''
-    
-    return template
+
+    return template.strip() + '\n'
 
 
 def _format_type_hint_for_tool(type_hint) -> str:
