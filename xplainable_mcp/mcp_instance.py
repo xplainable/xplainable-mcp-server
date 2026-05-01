@@ -7,6 +7,7 @@ all tool modules to ensure proper registration.
 
 import os
 from fastmcp import FastMCP
+from mcp.types import Icon
 
 # Auth is only configured when running in HTTP transport mode.
 # In stdio mode (local dev), no auth is applied.
@@ -33,7 +34,14 @@ if os.getenv("MCP_TRANSPORT") == "streamable-http":
 
 # Initialize the shared FastMCP server instance
 mcp = FastMCP(
-    name="xplainable-mcp",
+    name="Xplainable",
     version="0.1.0",
     auth=auth_provider,
+    website_url="https://xplainable.io",
+    icons=[
+        Icon(
+            src="https://xplainable.io/assets/xplainable-icon.png",
+            mimeType="image/png",
+        ),
+    ],
 )
