@@ -30,6 +30,7 @@ if os.getenv("MCP_TRANSPORT") == "streamable-http":
             audience=auth0_audience,
             base_url=mcp_server_url,
             redirect_path="/auth/callback",
+            require_authorization_consent="external",
         )
 
 # Initialize the shared FastMCP server instance
