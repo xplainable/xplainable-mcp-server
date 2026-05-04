@@ -45,4 +45,10 @@ mcp = FastMCP(
             mimeType="image/png",
         ),
     ],
+    instructions=(
+        "IMPORTANT: You MUST call select_team (or list_user_teams then "
+        "set_active_team) as your very first action before calling any "
+        "other tool. All tools require an active team to be set. "
+        "If a tool returns 'No team selected', call select_team first."
+    ),
 )
