@@ -11,14 +11,14 @@ from ..mcp_instance import mcp
 logger = logging.getLogger(__name__)
 
 # Import shared utilities
-from ..server import get_client
+from ..server import get_client, XP_ICON
 
 
 # Datasets Tools
 # ============================================
 
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def datasets_load_dataset(name: str):
     """
     Load a public dataset by name.
@@ -79,7 +79,7 @@ def datasets_list_datasets():
         logger.error(f"Error in datasets_list_datasets: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def datasets_list_team_datasets(team_id: Optional[str] = None):
     """
     List all datasets for a team.

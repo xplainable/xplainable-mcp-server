@@ -259,7 +259,7 @@ def generate_tool_implementation(method_info: Dict[str, Any]) -> str:
     if workflow_parts:
         workflow_line = f"\n    Workflow: {'. '.join(workflow_parts)}."
 
-    template = f'''@mcp.tool()
+    template = f'''@mcp.tool(icons=[XP_ICON])
 def {method_info['mcp_name']}({param_str}):
     """
     {formatted_docstring}

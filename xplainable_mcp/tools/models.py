@@ -11,14 +11,14 @@ from ..mcp_instance import mcp
 logger = logging.getLogger(__name__)
 
 # Import shared utilities
-from ..server import get_client
+from ..server import get_client, XP_ICON
 
 
 # Models Tools
 # ============================================
 
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def models_link_preprocessor(model_version_id: str, preprocessor_version_id: str):
     """
     Link a model version to a preprocessor version.
@@ -48,7 +48,7 @@ def models_link_preprocessor(model_version_id: str, preprocessor_version_id: str
         logger.error(f"Error in models_link_preprocessor: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def models_list_model_versions(model_id: str):
     """
     List all versions of a model.
@@ -111,7 +111,7 @@ def models_get_model(model_id: str):
         logger.error(f"Error in models_get_model: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def models_list_model_version_partitions(version_id: str):
     """
     List all partitions for a model version.
@@ -143,7 +143,7 @@ def models_list_model_version_partitions(version_id: str):
         logger.error(f"Error in models_list_model_version_partitions: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def models_list_team_models():
     """
     List all models for the current team (based on API key).

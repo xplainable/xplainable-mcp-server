@@ -12,14 +12,14 @@ import xplainable_client.client.py_models.autotrain
 logger = logging.getLogger(__name__)
 
 # Import shared utilities
-from ..server import get_client
+from ..server import get_client, XP_ICON
 
 
 # Autotrain Tools
 # ============================================
 
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def autotrain_generate_labels(summary: dict, team_id: Optional[str] = None, textgen_config: Optional[dict] = None):
     """
     Generate label recommendations for training.
@@ -54,7 +54,7 @@ def autotrain_generate_labels(summary: dict, team_id: Optional[str] = None, text
         logger.error(f"Error in autotrain_generate_labels: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def autotrain_start_autotrain(model_name: str, model_description: str, summary: dict, team_id: Optional[str] = None, textgen_config: Optional[dict] = None):
     """
     Start the autotrain process.
@@ -91,7 +91,7 @@ def autotrain_start_autotrain(model_name: str, model_description: str, summary: 
         logger.error(f"Error in autotrain_start_autotrain: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def autotrain_summarize_dataset(file_path: str, team_id: Optional[str] = None, textgen_config: Optional[dict] = None):
     """
     Summarize a dataset by uploading a file.
@@ -162,7 +162,7 @@ def autotrain_generate_feature_engineering(summary: dict, team_id: Optional[str]
         logger.error(f"Error in autotrain_generate_feature_engineering: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def autotrain_generate_goals(summary: dict, team_id: Optional[str] = None, n: int = 5, textgen_config: Optional[dict] = None):
     """
     Generate training goals based on dataset summary.
@@ -231,7 +231,7 @@ def autotrain_check_training_status(training_id: str, team_id: Optional[str] = N
         logger.error(f"Error in autotrain_check_training_status: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def autotrain_generate_insights(goal: Dict[str, Any], summary: dict, team_id: Optional[str] = None, textgen_config: Optional[dict] = None):
     """
     Generate insights about the dataset.
@@ -267,7 +267,7 @@ def autotrain_generate_insights(goal: Dict[str, Any], summary: dict, team_id: Op
         logger.error(f"Error in autotrain_generate_insights: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def autotrain_visualize_data(summary: dict, goal: Dict[str, Any], team_id: Optional[str] = None, library: str = 'plotly', textgen_config: Optional[dict] = None):
     """
     Generate data visualizations.

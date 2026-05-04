@@ -11,14 +11,14 @@ from ..mcp_instance import mcp
 logger = logging.getLogger(__name__)
 
 # Import shared utilities
-from ..server import get_client
+from ..server import get_client, XP_ICON
 
 
 # Collections Tools
 # ============================================
 
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def collections_get_model_collections(model_id: str):
     """
     Get all collections for a specific model.
@@ -50,7 +50,7 @@ def collections_get_model_collections(model_id: str):
         logger.error(f"Error in collections_get_model_collections: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def collections_update_collection_name(model_id: str, collection_id: str, name: str):
     """
     Update the name of a collection.
@@ -117,7 +117,7 @@ def collections_create_collection(model_id: str, name: str, description: str):
         logger.error(f"Error in collections_create_collection: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def collections_create_scenarios(collection_id: str, scenarios: List[dict]):
     """
     Create scenarios for a collection.
@@ -150,7 +150,7 @@ def collections_create_scenarios(collection_id: str, scenarios: List[dict]):
         logger.error(f"Error in collections_create_scenarios: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def collections_get_team_collections():
     """
     Get all collections for the team.
@@ -211,7 +211,7 @@ def collections_delete_collection(model_id: str, collection_id: str):
         logger.error(f"Error in collections_delete_collection: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def collections_get_collection_scenarios(collection_id: str):
     """
     Get all scenarios for a collection.
@@ -243,7 +243,7 @@ def collections_get_collection_scenarios(collection_id: str):
         logger.error(f"Error in collections_get_collection_scenarios: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def collections_update_collection_description(model_id: str, collection_id: str, description: str):
     """
     Update the description of a collection.

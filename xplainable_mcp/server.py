@@ -13,6 +13,7 @@ from datetime import datetime
 
 from fastmcp import FastMCP, Context
 from fastmcp.server.elicitation import AcceptedElicitation
+from mcp.types import Icon
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from .response_handlers import (
@@ -79,7 +80,10 @@ from .mcp_instance import mcp
 # Import get_client from client_manager
 from .client_manager import get_client
 
-# Import all modular tools - they self-register with @mcp.tool() decorator
+# Shared icon for all xplainable tools
+XP_ICON = Icon(src="https://xplainable.io/assets/xplainable-icon.png", mimeType="image/png")
+
+# Import all modular tools - they self-register with @mcp.tool(icons=[XP_ICON]) decorator
 from . import tools
 
 
@@ -97,7 +101,7 @@ def _fetch_user_teams() -> List[Dict[str, Any]]:
     return client.session.get_response_content(response)
 
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def list_user_teams() -> List[Dict[str, Any]]:
     """
     List all teams the authenticated user belongs to.
@@ -118,7 +122,7 @@ def list_user_teams() -> List[Dict[str, Any]]:
         raise
 
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def set_active_team(team_id: str) -> Dict[str, str]:
     """
     Set the active team for this session.
@@ -142,7 +146,7 @@ def set_active_team(team_id: str) -> Dict[str, str]:
         raise
 
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 async def select_team(ctx: Context) -> Dict[str, str]:
     """
     Interactively select the active team for this session.
@@ -442,7 +446,7 @@ def _discover_available_tools() -> List[Dict[str, Any]]:
         ]
 
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def list_tools() -> Dict[str, Any]:
     """
     List all available MCP tools and their descriptions.
@@ -517,7 +521,7 @@ def list_tools() -> Dict[str, Any]:
             "summary": {"error": str(e)}
         }
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def get_workflows() -> Dict[str, Any]:
     """
     Get available tool workflows grouped by service with execution order.

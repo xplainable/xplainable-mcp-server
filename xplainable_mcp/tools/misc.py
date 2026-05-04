@@ -11,14 +11,14 @@ from ..mcp_instance import mcp
 logger = logging.getLogger(__name__)
 
 # Import shared utilities
-from ..server import get_client
+from ..server import get_client, XP_ICON
 
 
 # Misc Tools
 # ============================================
 
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def misc_load_classifier(model_id: str, version_id: str, model = None):
     """
     Load a binary classification model.
@@ -53,7 +53,7 @@ def misc_load_classifier(model_id: str, version_id: str, model = None):
         logger.error(f"Error in misc_load_classifier: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def misc_ping_gateway(hostname: Optional[str] = None):
     """
     Ping the API gateway to check connectivity.
@@ -150,7 +150,7 @@ def misc_get_model_info(model_id: str, version_id: str):
         logger.error(f"Error in misc_get_model_info: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def misc_ping_server(hostname: Optional[str] = None):
     """
     Ping the compute server to check connectivity.
@@ -207,7 +207,7 @@ def misc_get_version_info():
         logger.error(f"Error in misc_get_version_info: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def misc_load_regressor(model_id: str, version_id: str, model = None):
     """
     Load a regression model.

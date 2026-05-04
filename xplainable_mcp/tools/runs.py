@@ -11,14 +11,14 @@ from ..mcp_instance import mcp
 logger = logging.getLogger(__name__)
 
 # Import shared utilities
-from ..server import get_client
+from ..server import get_client, XP_ICON
 
 
 # Runs Tools
 # ============================================
 
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def runs_create_run(team_id: str, user_id: str, run_id: Optional[str] = None, model_id: Optional[str] = None, name: Optional[str] = None, metadata: Optional[Dict] = None):
     """
     Create a new training run.
@@ -55,7 +55,7 @@ def runs_create_run(team_id: str, user_id: str, run_id: Optional[str] = None, mo
         logger.error(f"Error in runs_create_run: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def runs_get_run(run_id: str):
     """
     Get run details by ID.

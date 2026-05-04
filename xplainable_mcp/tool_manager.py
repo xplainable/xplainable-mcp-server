@@ -52,11 +52,9 @@ Auto-generated and maintained by the xplainable-client sync workflow.
 import logging
 from typing import Optional, List, Dict, Any
 from ..mcp_instance import mcp
+from ..server import get_client, XP_ICON
 
 logger = logging.getLogger(__name__)
-
-# Import shared utilities
-from ..server import get_client
 
 
 # {service_name.title()} Tools

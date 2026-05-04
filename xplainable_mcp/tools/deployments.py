@@ -11,14 +11,14 @@ from ..mcp_instance import mcp
 logger = logging.getLogger(__name__)
 
 # Import shared utilities
-from ..server import get_client
+from ..server import get_client, XP_ICON
 
 
 # Deployments Tools
 # ============================================
 
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def deployments_get_deployment_payload(deployment_id: str):
     """
     Get sample payload data for a deployment.
@@ -51,7 +51,7 @@ def deployments_get_deployment_payload(deployment_id: str):
         logger.error(f"Error in deployments_get_deployment_payload: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def deployments_list_deployments(team_id: Optional[str] = None):
     """
     List all deployments for a team.
@@ -116,7 +116,7 @@ def deployments_activate_deployment(deployment_id: str):
         logger.error(f"Error in deployments_activate_deployment: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def deployments_deploy(model_version_id: str):
     """
     Deploy a model version.
@@ -181,7 +181,7 @@ def deployments_deactivate_deployment(deployment_id: str):
         logger.error(f"Error in deployments_deactivate_deployment: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def deployments_generate_deploy_key(deployment_id: str, description: str = '', days_until_expiry: int = 90):
     """
     Generate a deploy key for a deployment.
@@ -216,7 +216,7 @@ def deployments_generate_deploy_key(deployment_id: str, description: str = '', d
         logger.error(f"Error in deployments_generate_deploy_key: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def deployments_get_active_team_deploy_keys_count(team_id: Optional[str] = None):
     """
     Get count of active deploy keys for a team.

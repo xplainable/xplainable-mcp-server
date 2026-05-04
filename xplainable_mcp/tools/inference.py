@@ -11,14 +11,14 @@ from ..mcp_instance import mcp
 logger = logging.getLogger(__name__)
 
 # Import shared utilities
-from ..server import get_client
+from ..server import get_client, XP_ICON
 
 
 # Inference Tools
 # ============================================
 
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def inference_predict(filename: str, model_id: str, version_id: str, threshold: float = 0.5, delimiter: str = ','):
     """
     Predicts the target column of a dataset.
@@ -51,7 +51,7 @@ def inference_predict(filename: str, model_id: str, version_id: str, threshold: 
         logger.error(f"Error in inference_predict: {e}")
         raise
 
-@mcp.tool()
+@mcp.tool(icons=[XP_ICON])
 def inference_stream_predictions(filename: str, model_id: str, version_id: str, threshold: float = 0.5, delimiter: str = ',', batch_size: int = 1000):
     """
     Stream predictions for large datasets by processing in batches.
