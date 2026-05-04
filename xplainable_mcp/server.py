@@ -84,7 +84,7 @@ from .client_manager import get_client
 XP_ICON = Icon(src="https://xplainable.io/assets/xplainable-icon.png", mimeType="image/png")
 
 # Import all modular tools - they self-register with @mcp.tool(icons=[XP_ICON]) decorator
-from . import tools
+from . import __version__, tools
 
 
 # ============================================================================
@@ -500,7 +500,7 @@ def list_tools() -> Dict[str, Any]:
         total_tools = sum(summary[k] for k in summary if k != 'write_tools_enabled')
         
         result = {
-            "server_version": "0.1.0",
+            "server_version": __version__,
             "total_tools": total_tools,
             "enabled_tools": total_tools,
             "categories": tools_dict,
@@ -514,7 +514,7 @@ def list_tools() -> Dict[str, Any]:
         logger.error(f"Error listing tools: {e}")
         # Fallback to basic info if introspection fails
         return {
-            "server_version": "0.1.0",
+            "server_version": __version__,
             "total_tools": 0,
             "enabled_tools": 0,
             "categories": {"error": [{"name": "list_tools", "description": f"Error: {str(e)}", "category": "error"}]},

@@ -10,6 +10,7 @@ import logging
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from . import __version__
 from .mcp_instance import mcp
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ async def health_check(request: Request) -> JSONResponse:
     return JSONResponse({
         "status": "healthy",
         "service": "xplainable-mcp",
-        "version": "0.1.0",
+        "version": __version__,
         "transport": os.getenv("MCP_TRANSPORT", "stdio"),
     })
 
