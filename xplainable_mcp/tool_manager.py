@@ -298,8 +298,8 @@ This module auto-imports all service-specific tool modules.
         while i < len(lines):
             line = lines[i]
 
-            # Check for @mcp.tool() decorator followed by our function
-            if line.strip() == "@mcp.tool()":
+            # Check for @mcp.tool(...) decorator followed by our function
+            if line.strip().startswith("@mcp.tool"):
                 found_function = False
                 for j in range(i + 1, min(i + 5, len(lines))):
                     if j < len(lines) and f"def {tool_name}(" in lines[j]:
@@ -320,7 +320,7 @@ This module auto-imports all service-specific tool modules.
                 if not found_function:
                     new_lines.append(line)
 
-            # Check for function definition without decorator
+            # Check for function definition without any decorator
             elif f"def {tool_name}(" in line:
                 func_indent = len(line) - len(line.lstrip())
                 j = i + 1
@@ -433,17 +433,15 @@ This module auto-imports all service-specific tool modules.
         """
         lines = content.split('\n')
         new_lines = []
-        in_tool = False
-        indent_level = None
         tool_replaced = False
         skip_empty_lines = False
-        
+
         i = 0
         while i < len(lines):
             line = lines[i]
-            
-            # Check for @mcp.tool() decorator followed by our function
-            if line.strip() == "@mcp.tool()":
+
+            # Check for @mcp.tool(...) decorator (any variant) followed by our function
+            if line.strip().startswith("@mcp.tool"):
                 # Look ahead for our function
                 found_function = False
                 for j in range(i + 1, min(i + 5, len(lines))):
@@ -453,67 +451,62 @@ This module auto-imports all service-specific tool modules.
                         if not tool_replaced:
                             new_lines.append(new_tool_code)
                             tool_replaced = True
-                        
+
                         # Skip the entire function (decorator + function + body)
                         func_indent = len(lines[j]) - len(lines[j].lstrip())
                         k = i  # Start from decorator
-                        # Skip through the entire function
                         while k < len(lines):
-                            if k > j and lines[k].strip():  # After function def line
-                                current_indent = len(lines[k]) - len(lines[k].lstrip()) if lines[k].strip() else float('inf')
+                            if k > j and lines[k].strip():
+                                current_indent = len(lines[k]) - len(lines[k].lstrip())
                                 if current_indent <= func_indent and not lines[k].lstrip().startswith(('@', '"""', "'''", '#')):
-                                    # Found end of function
                                     break
                             k += 1
-                        i = k - 1  # Will be incremented at end of loop
+                        i = k - 1
                         skip_empty_lines = True
                         break
-                
+
                 if not found_function:
                     new_lines.append(line)
-            
-            # Check for function definition without decorator
+
+            # Check for function definition without any decorator
             elif f"def {tool_name}(" in line:
                 if not tool_replaced:
                     new_lines.append(new_tool_code)
                     tool_replaced = True
-                
+
                 # Skip the entire function body
                 func_indent = len(line) - len(line.lstrip())
                 j = i + 1
                 while j < len(lines):
-                    if lines[j].strip():  # Non-empty line
+                    if lines[j].strip():
                         current_indent = len(lines[j]) - len(lines[j].lstrip())
                         if current_indent <= func_indent and not lines[j].lstrip().startswith(('@', '"""', "'''", '#')):
-                            # Found end of function
                             break
                     j += 1
-                i = j - 1  # Will be incremented at end of loop
+                i = j - 1
                 skip_empty_lines = True
-            
+
             else:
-                # Skip excessive empty lines after function removal
+                # Collapse excessive blank lines after replacement
                 if skip_empty_lines and not line.strip():
-                    # Count consecutive empty lines
                     empty_count = 0
                     temp_i = i
                     while temp_i < len(lines) and not lines[temp_i].strip():
                         empty_count += 1
                         temp_i += 1
-                    
-                    # Keep max 2 empty lines
+
                     if empty_count > 2:
-                        i += empty_count - 2 - 1  # Will be incremented at end
+                        i += empty_count - 2 - 1
                     else:
                         new_lines.append(line)
-                    
+
                     if temp_i < len(lines) and lines[temp_i].strip():
                         skip_empty_lines = False
                 else:
                     new_lines.append(line)
                     if line.strip():
                         skip_empty_lines = False
-            
+
             i += 1
         
         # If tool was never found, append it

@@ -47,6 +47,7 @@ def preprocessing_list_preprocessors(team_id: Optional[str] = None):
         logger.error(f"Error in preprocessing_list_preprocessors: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def preprocessing_get_preprocessor(preprocessor_id: str):
     """
     Get detailed information about a preprocessor.

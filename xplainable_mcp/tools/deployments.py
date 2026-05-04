@@ -84,6 +84,7 @@ def deployments_list_deployments(team_id: Optional[str] = None):
         logger.error(f"Error in deployments_list_deployments: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def deployments_activate_deployment(deployment_id: str):
     """
     Activate a deployment.
@@ -149,6 +150,7 @@ def deployments_deploy(model_version_id: str):
         logger.error(f"Error in deployments_deploy: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def deployments_deactivate_deployment(deployment_id: str):
     """
     Deactivate a deployment.

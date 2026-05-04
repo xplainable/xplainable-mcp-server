@@ -84,6 +84,7 @@ def collections_update_collection_name(model_id: str, collection_id: str, name: 
         logger.error(f"Error in collections_update_collection_name: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def collections_create_collection(model_id: str, name: str, description: str):
     """
     Create a new collection for a model.
@@ -179,6 +180,7 @@ def collections_get_team_collections():
         logger.error(f"Error in collections_get_team_collections: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def collections_delete_collection(model_id: str, collection_id: str):
     """
     Delete a collection.

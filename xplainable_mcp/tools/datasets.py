@@ -51,6 +51,7 @@ def datasets_load_dataset(name: str):
         logger.error(f"Error in datasets_load_dataset: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def datasets_list_datasets():
     """
     List all available public datasets.
