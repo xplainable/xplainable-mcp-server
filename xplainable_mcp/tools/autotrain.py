@@ -127,7 +127,6 @@ def autotrain_summarize_dataset(file_path: str, team_id: Optional[str] = None, t
         logger.error(f"Error in autotrain_summarize_dataset: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
 def autotrain_generate_feature_engineering(summary: dict, team_id: Optional[str] = None, n: int = 5, textgen_config: Optional[dict] = None):
     """
     Generate feature engineering recommendations.
@@ -199,7 +198,6 @@ def autotrain_generate_goals(summary: dict, team_id: Optional[str] = None, n: in
         logger.error(f"Error in autotrain_generate_goals: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
 def autotrain_check_training_status(training_id: str, team_id: Optional[str] = None):
     """
     Check the status of a training job.
@@ -306,7 +304,6 @@ def autotrain_visualize_data(summary: dict, goal: Dict[str, Any], team_id: Optio
         logger.error(f"Error in autotrain_visualize_data: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
 def autotrain_train_manual(label: str, model_name: str, model_description: str, preprocessor_id: str, version_id: str, team_id: Optional[str] = None, drop_columns: Optional[List[str]] = None):
     """
     Train a model manually with specific parameters.
