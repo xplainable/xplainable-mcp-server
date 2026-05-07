@@ -80,7 +80,6 @@ def models_list_model_versions(model_id: str):
         logger.error(f"Error in models_list_model_versions: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
 def models_get_model(model_id: str):
     """
     Get detailed information about a model.
