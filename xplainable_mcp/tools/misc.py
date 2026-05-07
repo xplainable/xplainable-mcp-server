@@ -85,7 +85,6 @@ def misc_ping_gateway(hostname: Optional[str] = None):
         logger.error(f"Error in misc_ping_gateway: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
 def misc_health_check(check_database: bool = True, check_storage: bool = True, check_compute: bool = True):
     """
     Perform a comprehensive health check.
@@ -119,7 +118,6 @@ def misc_health_check(check_database: bool = True, check_storage: bool = True, c
         logger.error(f"Error in misc_health_check: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
 def misc_get_model_info(model_id: str, version_id: str):
     """
     Get information about a model without loading it.
@@ -184,7 +182,6 @@ def misc_ping_server(hostname: Optional[str] = None):
         logger.error(f"Error in misc_ping_server: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
 def misc_get_version_info():
     """
     Get comprehensive version information.
