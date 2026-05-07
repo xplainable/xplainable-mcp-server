@@ -96,7 +96,7 @@ def _fetch_user_teams() -> List[Dict[str, Any]]:
     """Fetch the authenticated user's teams from the API."""
     client = get_client()
     response = client.session._session.get(
-        url=f"{client.session.hostname}/v1/client/teams",
+        url=f"{client.session.hostname}/v1/teams",
     )
     return client.session.get_response_content(response)
 
