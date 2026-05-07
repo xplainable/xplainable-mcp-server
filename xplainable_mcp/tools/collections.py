@@ -31,7 +31,7 @@ def monitors_create_monitor(
     """
     try:
         client = get_client()
-        result = client.collections.create_monitor(
+        result = client.monitors.create_monitor(
             model_id=model_id,
             name=name,
             description=description,
@@ -56,7 +56,7 @@ def monitors_get_monitor(monitor_id: str):
     """
     try:
         client = get_client()
-        result = client.collections.get_monitor(monitor_id)
+        result = client.monitors.get_monitor(monitor_id)
         logger.info("Executed collections.get_monitor")
         return result
     except Exception as e:
@@ -76,7 +76,7 @@ def monitors_get_model_monitors(model_id: str):
     """
     try:
         client = get_client()
-        result = client.collections.get_model_monitors(model_id)
+        result = client.monitors.get_model_monitors(model_id)
         logger.info("Executed collections.get_model_monitors")
         return result
     except Exception as e:
@@ -93,7 +93,7 @@ def monitors_get_team_monitors():
     """
     try:
         client = get_client()
-        result = client.collections.get_team_monitors()
+        result = client.monitors.get_team_monitors()
         logger.info("Executed collections.get_team_monitors")
         return result
     except Exception as e:
@@ -114,7 +114,7 @@ def monitors_update_name(monitor_id: str, name: str):
     """
     try:
         client = get_client()
-        result = client.collections.update_monitor_name(monitor_id, name)
+        result = client.monitors.update_monitor_name(monitor_id, name)
         logger.info("Executed collections.update_monitor_name")
         return result
     except Exception as e:
@@ -135,7 +135,7 @@ def monitors_update_description(monitor_id: str, description: str):
     """
     try:
         client = get_client()
-        result = client.collections.update_monitor_description(monitor_id, description)
+        result = client.monitors.update_monitor_description(monitor_id, description)
         logger.info("Executed collections.update_monitor_description")
         return result
     except Exception as e:
@@ -155,7 +155,7 @@ def monitors_delete_monitor(monitor_id: str):
     """
     try:
         client = get_client()
-        result = client.collections.delete_monitor(monitor_id)
+        result = client.monitors.delete_monitor(monitor_id)
         logger.info("Executed collections.delete_monitor")
         return result
     except Exception as e:
@@ -176,7 +176,7 @@ def monitors_add_items(monitor_id: str, monitor_items: List[dict]):
     """
     try:
         client = get_client()
-        result = client.collections.add_monitor_items(monitor_id, monitor_items)
+        result = client.monitors.add_monitor_items(monitor_id, monitor_items)
         logger.info("Executed collections.add_monitor_items")
         return result
     except Exception as e:
@@ -196,7 +196,7 @@ def monitors_get_alert_rules(monitor_id: str):
     """
     try:
         client = get_client()
-        result = client.collections.get_alert_rules(monitor_id)
+        result = client.monitors.get_alert_rules(monitor_id)
         logger.info("Executed collections.get_alert_rules")
         return result
     except Exception as e:
@@ -226,7 +226,7 @@ def monitors_create_alert_rule(
     """
     try:
         client = get_client()
-        result = client.collections.create_alert_rule(
+        result = client.monitors.create_alert_rule(
             monitor_id=monitor_id,
             rule_type=rule_type,
             value=value,
