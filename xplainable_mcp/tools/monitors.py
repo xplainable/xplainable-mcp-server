@@ -1,5 +1,5 @@
 """
-Monitors (formerly collections) MCP tools.
+Monitors MCP tools.
 """
 
 import logging
@@ -37,7 +37,7 @@ def monitors_create_monitor(
             description=description,
             threshold=threshold,
         )
-        logger.info("Executed collections.create_monitor")
+        logger.info("Executed monitors.create_monitor")
         return result
     except Exception as e:
         logger.error(f"Error in monitors_create_monitor: {e}")
@@ -57,7 +57,7 @@ def monitors_get_monitor(monitor_id: str):
     try:
         client = get_client()
         result = client.monitors.get_monitor(monitor_id)
-        logger.info("Executed collections.get_monitor")
+        logger.info("Executed monitors.get_monitor")
         return result
     except Exception as e:
         logger.error(f"Error in monitors_get_monitor: {e}")
@@ -77,7 +77,7 @@ def monitors_get_model_monitors(model_id: str):
     try:
         client = get_client()
         result = client.monitors.get_model_monitors(model_id)
-        logger.info("Executed collections.get_model_monitors")
+        logger.info("Executed monitors.get_model_monitors")
         return result
     except Exception as e:
         logger.error(f"Error in monitors_get_model_monitors: {e}")
@@ -94,7 +94,7 @@ def monitors_get_team_monitors():
     try:
         client = get_client()
         result = client.monitors.get_team_monitors()
-        logger.info("Executed collections.get_team_monitors")
+        logger.info("Executed monitors.get_team_monitors")
         return result
     except Exception as e:
         logger.error(f"Error in monitors_get_team_monitors: {e}")
@@ -115,7 +115,7 @@ def monitors_update_name(monitor_id: str, name: str):
     try:
         client = get_client()
         result = client.monitors.update_monitor_name(monitor_id, name)
-        logger.info("Executed collections.update_monitor_name")
+        logger.info("Executed monitors.update_monitor_name")
         return result
     except Exception as e:
         logger.error(f"Error in monitors_update_name: {e}")
@@ -136,7 +136,7 @@ def monitors_update_description(monitor_id: str, description: str):
     try:
         client = get_client()
         result = client.monitors.update_monitor_description(monitor_id, description)
-        logger.info("Executed collections.update_monitor_description")
+        logger.info("Executed monitors.update_monitor_description")
         return result
     except Exception as e:
         logger.error(f"Error in monitors_update_description: {e}")
@@ -156,7 +156,7 @@ def monitors_delete_monitor(monitor_id: str):
     try:
         client = get_client()
         result = client.monitors.delete_monitor(monitor_id)
-        logger.info("Executed collections.delete_monitor")
+        logger.info("Executed monitors.delete_monitor")
         return result
     except Exception as e:
         logger.error(f"Error in monitors_delete_monitor: {e}")
@@ -177,7 +177,7 @@ def monitors_add_items(monitor_id: str, monitor_items: List[dict]):
     try:
         client = get_client()
         result = client.monitors.add_monitor_items(monitor_id, monitor_items)
-        logger.info("Executed collections.add_monitor_items")
+        logger.info("Executed monitors.add_monitor_items")
         return result
     except Exception as e:
         logger.error(f"Error in monitors_add_items: {e}")
@@ -197,7 +197,7 @@ def monitors_get_alert_rules(monitor_id: str):
     try:
         client = get_client()
         result = client.monitors.get_alert_rules(monitor_id)
-        logger.info("Executed collections.get_alert_rules")
+        logger.info("Executed monitors.get_alert_rules")
         return result
     except Exception as e:
         logger.error(f"Error in monitors_get_alert_rules: {e}")
@@ -233,7 +233,7 @@ def monitors_create_alert_rule(
             notify_in_app=notify_in_app,
             notify_email=notify_email,
         )
-        logger.info("Executed collections.create_alert_rule")
+        logger.info("Executed monitors.create_alert_rule")
         return result
     except Exception as e:
         logger.error(f"Error in monitors_create_alert_rule: {e}")

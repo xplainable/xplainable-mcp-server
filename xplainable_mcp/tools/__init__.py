@@ -6,7 +6,7 @@ This module auto-imports all service-specific tool modules.
 
 # Import all service tools
 from . import autotrain
-from . import collections
+from . import monitors
 from . import datasets
 from . import deployments
 from . import gpt
