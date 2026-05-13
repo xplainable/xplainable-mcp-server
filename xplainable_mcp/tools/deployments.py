@@ -18,6 +18,7 @@ from ..server import get_client, XP_ICON
 # ============================================
 
 
+@mcp.tool(icons=[XP_ICON])
 def deployments_activate_deployment(deployment_id: str):
     """
     Activate a deployment.
@@ -50,6 +51,7 @@ def deployments_activate_deployment(deployment_id: str):
         logger.error(f"Error in deployments_activate_deployment: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def deployments_deactivate_deployment(deployment_id: str):
     """
     Deactivate a deployment.
@@ -81,3 +83,266 @@ def deployments_deactivate_deployment(deployment_id: str):
     except Exception as e:
         logger.error(f"Error in deployments_deactivate_deployment: {e}")
         raise
+@mcp.tool(icons=[XP_ICON])
+def deployments_delete_deployment(deployment_id: str):
+    """
+    Delete a deployment.
+    
+    Args:
+        deployment_id: ID of the deployment to delete
+        
+    Returns:
+        Success message
+        
+    Raises:
+        XplainableAPIError: If deletion fails
+
+    Category: write
+    """
+    try:
+        client = get_client()
+        result = client.deployments.delete_deployment(deployment_id)
+        logger.info(f"Executed deployments.delete_deployment")
+        
+        # Handle different return types
+        if hasattr(result, 'model_dump'):
+            return result.model_dump()
+        elif isinstance(result, list) and result and hasattr(result[0], 'model_dump'):
+            return [item.model_dump() for item in result]
+        else:
+            return result
+    except Exception as e:
+        logger.error(f"Error in deployments_delete_deployment: {e}")
+        raise
+
+@mcp.tool(icons=[XP_ICON])
+def deployments_deploy(model_version_id: str):
+    """
+    Deploy a model version.
+    
+    Args:
+        model_version_id: ID of the model version to deploy
+        
+    Returns:
+        CreateDeploymentResponse containing the deployment_id
+        
+    Raises:
+        XplainableAPIError: If deployment fails
+
+    Category: write
+    Workflow: Step 2 of deployments.
+    """
+    try:
+        client = get_client()
+        result = client.deployments.deploy(model_version_id)
+        logger.info(f"Executed deployments.deploy")
+        
+        # Handle different return types
+        if hasattr(result, 'model_dump'):
+            return result.model_dump()
+        elif isinstance(result, list) and result and hasattr(result[0], 'model_dump'):
+            return [item.model_dump() for item in result]
+        else:
+            return result
+    except Exception as e:
+        logger.error(f"Error in deployments_deploy: {e}")
+        raise
+
+@mcp.tool(icons=[XP_ICON])
+def deployments_generate_deploy_key(deployment_id: str, description: str = '', days_until_expiry: int = 90):
+    """
+    Generate a deploy key for a deployment.
+    
+    Args:
+        deployment_id: ID of the deployment
+        description: Description of the deploy key use case
+        days_until_expiry: Number of days until the key expires
+        
+    Returns:
+        The deploy key UUID
+        
+    Raises:
+        XplainableAPIError: If key generation fails
+
+    Category: write
+    Workflow: Step 4 of deployments. Run after: deployments_deploy.
+    """
+    try:
+        client = get_client()
+        result = client.deployments.generate_deploy_key(deployment_id, description, days_until_expiry)
+        logger.info(f"Executed deployments.generate_deploy_key")
+        
+        # Handle different return types
+        if hasattr(result, 'model_dump'):
+            return result.model_dump()
+        elif isinstance(result, list) and result and hasattr(result[0], 'model_dump'):
+            return [item.model_dump() for item in result]
+        else:
+            return result
+    except Exception as e:
+        logger.error(f"Error in deployments_generate_deploy_key: {e}")
+        raise
+
+@mcp.tool(icons=[XP_ICON])
+def deployments_get_active_team_deploy_keys_count(team_id: Optional[str] = None):
+    """
+    Get count of active deploy keys for a team.
+    
+    Args:
+        team_id: Optional team ID (uses session team_id if not provided)
+        
+    Returns:
+        Count of active deploy keys
+        
+    Raises:
+        XplainableAPIError: If request fails
+
+    Category: read
+    """
+    try:
+        client = get_client()
+        result = client.deployments.get_active_team_deploy_keys_count(team_id)
+        logger.info(f"Executed deployments.get_active_team_deploy_keys_count")
+        
+        # Handle different return types
+        if hasattr(result, 'model_dump'):
+            return result.model_dump()
+        elif isinstance(result, list) and result and hasattr(result[0], 'model_dump'):
+            return [item.model_dump() for item in result]
+        else:
+            return result
+    except Exception as e:
+        logger.error(f"Error in deployments_get_active_team_deploy_keys_count: {e}")
+        raise
+
+@mcp.tool(icons=[XP_ICON])
+def deployments_get_deployment_payload(deployment_id: str):
+    """
+    Get sample payload data for a deployment.
+    
+    Args:
+        deployment_id: ID of the deployment
+        
+    Returns:
+        List containing sample data dictionary for inference
+        
+    Raises:
+        XplainableAPIError: If payload generation fails
+
+    Category: read
+    Workflow: Step 3 of deployments. Run after: deployments_deploy.
+    """
+    try:
+        client = get_client()
+        result = client.deployments.get_deployment_payload(deployment_id)
+        logger.info(f"Executed deployments.get_deployment_payload")
+        
+        # Handle different return types
+        if hasattr(result, 'model_dump'):
+            return result.model_dump()
+        elif isinstance(result, list) and result and hasattr(result[0], 'model_dump'):
+            return [item.model_dump() for item in result]
+        else:
+            return result
+    except Exception as e:
+        logger.error(f"Error in deployments_get_deployment_payload: {e}")
+        raise
+
+@mcp.tool(icons=[XP_ICON])
+def deployments_list_deploy_keys(deployment_id: str):
+    """
+    List all deploy keys for a deployment.
+    
+    Args:
+        deployment_id: ID of the deployment
+        
+    Returns:
+        List of deploy key information
+        
+    Raises:
+        XplainableAPIError: If listing fails
+
+    Category: read
+    """
+    try:
+        client = get_client()
+        result = client.deployments.list_deploy_keys(deployment_id)
+        logger.info(f"Executed deployments.list_deploy_keys")
+        
+        # Handle different return types
+        if hasattr(result, 'model_dump'):
+            return result.model_dump()
+        elif isinstance(result, list) and result and hasattr(result[0], 'model_dump'):
+            return [item.model_dump() for item in result]
+        else:
+            return result
+    except Exception as e:
+        logger.error(f"Error in deployments_list_deploy_keys: {e}")
+        raise
+
+@mcp.tool(icons=[XP_ICON])
+def deployments_list_deployments(team_id: Optional[str] = None):
+    """
+    List all deployments for a team.
+    
+    Args:
+        team_id: Optional team ID (uses session team_id if not provided)
+        
+    Returns:
+        List of deployment information
+        
+    Raises:
+        XplainableAPIError: If listing fails
+
+    Category: read
+    Workflow: Step 1 of deployments.
+    """
+    try:
+        client = get_client()
+        result = client.deployments.list_deployments(team_id)
+        logger.info(f"Executed deployments.list_deployments")
+        
+        # Handle different return types
+        if hasattr(result, 'model_dump'):
+            return result.model_dump()
+        elif isinstance(result, list) and result and hasattr(result[0], 'model_dump'):
+            return [item.model_dump() for item in result]
+        else:
+            return result
+    except Exception as e:
+        logger.error(f"Error in deployments_list_deployments: {e}")
+        raise
+
+@mcp.tool(icons=[XP_ICON])
+def deployments_revoke_deploy_key(deployment_id: str, key_id: str):
+    """
+    Revoke a deploy key for a deployment.
+    
+    Args:
+        deployment_id: ID of the deployment
+        key_id: ID of the deploy key to revoke
+        
+    Returns:
+        Success message
+        
+    Raises:
+        XplainableAPIError: If revocation fails
+
+    Category: write
+    """
+    try:
+        client = get_client()
+        result = client.deployments.revoke_deploy_key(deployment_id, key_id)
+        logger.info(f"Executed deployments.revoke_deploy_key")
+        
+        # Handle different return types
+        if hasattr(result, 'model_dump'):
+            return result.model_dump()
+        elif isinstance(result, list) and result and hasattr(result[0], 'model_dump'):
+            return [item.model_dump() for item in result]
+        else:
+            return result
+    except Exception as e:
+        logger.error(f"Error in deployments_revoke_deploy_key: {e}")
+        raise
+
