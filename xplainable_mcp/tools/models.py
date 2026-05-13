@@ -50,6 +50,7 @@ def models_get_model(model_id: str):
         logger.error(f"Error in models_get_model: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def models_get_feature_info(version_id: str):
     """
     Get feature information including types, health metrics, and distributions.
@@ -302,7 +303,26 @@ def models_refit_model(model_id: str, version_id: str, target_column: str, file_
     """
     try:
         client = get_client()
-        result = client.models.refit_model(model_id, version_id, target_column, file_path, dataset_name, csv_content, model_type, features, preprocessor_version_id, drop_columns, test_size, max_depth, min_info_gain, min_leaf_size, weight, power_degree, sigmoid_exponent, tail_sensitivity)
+        result = client.models.refit_model(
+            model_id=model_id,
+            version_id=version_id,
+            target_column=target_column,
+            file_path=file_path,
+            dataset_name=dataset_name,
+            csv_content=csv_content,
+            model_type=model_type,
+            features=features,
+            preprocessor_version_id=preprocessor_version_id,
+            drop_columns=drop_columns,
+            test_size=test_size,
+            max_depth=max_depth,
+            min_info_gain=min_info_gain,
+            min_leaf_size=min_leaf_size,
+            weight=weight,
+            power_degree=power_degree,
+            sigmoid_exponent=sigmoid_exponent,
+            tail_sensitivity=tail_sensitivity,
+        )
         logger.info(f"Executed models.refit_model")
         
         # Handle different return types
@@ -354,7 +374,25 @@ def models_train_model(target_column: str, model_name: str, model_description: s
     """
     try:
         client = get_client()
-        result = client.models.train_model(target_column, model_name, model_description, file_path, dataset_name, csv_content, model_type, preprocessor_version_id, drop_columns, test_size, max_depth, min_info_gain, min_leaf_size, weight, power_degree, sigmoid_exponent, tail_sensitivity)
+        result = client.models.train_model(
+            target_column=target_column,
+            model_name=model_name,
+            model_description=model_description,
+            file_path=file_path,
+            dataset_name=dataset_name,
+            csv_content=csv_content,
+            model_type=model_type,
+            preprocessor_version_id=preprocessor_version_id,
+            drop_columns=drop_columns,
+            test_size=test_size,
+            max_depth=max_depth,
+            min_info_gain=min_info_gain,
+            min_leaf_size=min_leaf_size,
+            weight=weight,
+            power_degree=power_degree,
+            sigmoid_exponent=sigmoid_exponent,
+            tail_sensitivity=tail_sensitivity,
+        )
         logger.info(f"Executed models.train_model")
         
         # Handle different return types
