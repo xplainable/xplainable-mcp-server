@@ -39,7 +39,7 @@ jobs:
       run: |
         python -c "
         from xplainable_mcp.tools import (
-            autotrain, collections, datasets, deployments,
+            autotrain, monitors, datasets, deployments,
             gpt, inference, misc, models, preprocessing,
             reports, runs,
         )

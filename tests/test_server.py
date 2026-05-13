@@ -25,7 +25,6 @@ from xplainable_mcp.server import (
     get_active_team_deploy_keys_count,
     list_preprocessors,
     get_preprocessor,
-    get_collection_scenarios,
     misc_get_version_info,
 )
 
@@ -82,9 +81,9 @@ def mock_client():
     client.preprocessing.list_preprocessors.return_value = [preprocessor_mock]
     client.preprocessing.get_preprocessor.return_value = preprocessor_mock
     
-    # Mock collections client
-    client.collections = Mock()
-    client.collections.get_collection_scenarios.return_value = [
+    # Mock monitors client
+    client.monitors = Mock()
+    client.monitors.get_monitor.return_value = [
         {"id": "scenario-1", "name": "Test Scenario"}
     ]
     
@@ -267,17 +266,6 @@ class TestReadOnlyTools:
         mock_client.preprocessing.get_preprocessor.assert_called_once_with("prep-1")
     
     @patch('xplainable_mcp.server.get_client')
-    def test_get_collection_scenarios(self, mock_get_client, mock_client):
-        """Test getting collection scenarios."""
-        mock_get_client.return_value = mock_client
-        
-        result = get_collection_scenarios("collection-1")
-        
-        assert len(result) == 1
-        assert result[0]["id"] == "scenario-1"
-        assert result[0]["name"] == "Test Scenario"
-        mock_client.collections.get_collection_scenarios.assert_called_once_with("collection-1")
-    
     @patch('xplainable_mcp.server.get_client')
     def test_misc_get_version_info(self, mock_get_client, mock_client):
         """Test getting version information."""
