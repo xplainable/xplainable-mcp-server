@@ -109,6 +109,7 @@ def misc_get_version_info():
     except Exception as e:
         logger.error(f"Error in misc_get_version_info: {e}")
         raise
+
 @mcp.tool(icons=[XP_ICON])
 def misc_load_classifier(model_id: str, version_id: str, model = None):
     """
@@ -242,4 +243,3 @@ def misc_ping_server(hostname: Optional[str] = None):
     except Exception as e:
         logger.error(f"Error in misc_ping_server: {e}")
         raise
-

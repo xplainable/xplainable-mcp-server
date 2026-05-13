@@ -159,6 +159,7 @@ def monitors_delete_monitor(monitor_id: str):
         logger.error(f"Error in monitors_delete_monitor: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def monitors_get_alert_rules(monitor_id: str):
     """
     Get alert rules for a monitor.
@@ -365,4 +366,3 @@ def monitors_update_monitor_name(monitor_id: str, name: str):
     except Exception as e:
         logger.error(f"Error in monitors_update_monitor_name: {e}")
         raise
-
