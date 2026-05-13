@@ -145,7 +145,10 @@ def datasets_list_team_datasets(team_id: Optional[str] = None):
 @mcp.tool(icons=[XP_ICON])
 def datasets_load_dataset(name: str):
     """
-    Load a public dataset by name.
+    Load a public dataset by name. Downloads the CSV directly from
+    the xplainable public blob storage.
+    
+    Known datasets: telco_churn, titanic, heart_disease, iris
     
     Args:
         name: Name of the dataset to load
@@ -154,7 +157,6 @@ def datasets_load_dataset(name: str):
         DataFrame containing the dataset
     
     Raises:
-        ValueError: If dataset doesn't exist
         XplainableAPIError: If loading fails
 
     Category: read
@@ -240,4 +242,3 @@ def datasets_upload_dataset(file_path: str, name: str, description: Optional[str
     except Exception as e:
         logger.error(f"Error in datasets_upload_dataset: {e}")
         raise
-

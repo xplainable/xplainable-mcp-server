@@ -83,6 +83,7 @@ def deployments_deactivate_deployment(deployment_id: str):
     except Exception as e:
         logger.error(f"Error in deployments_deactivate_deployment: {e}")
         raise
+
 @mcp.tool(icons=[XP_ICON])
 def deployments_delete_deployment(deployment_id: str):
     """
@@ -345,4 +346,3 @@ def deployments_revoke_deploy_key(deployment_id: str, key_id: str):
     except Exception as e:
         logger.error(f"Error in deployments_revoke_deploy_key: {e}")
         raise
-

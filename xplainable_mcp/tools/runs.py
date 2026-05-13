@@ -85,4 +85,3 @@ def runs_get_run(run_id: str):
     except Exception as e:
         logger.error(f"Error in runs_get_run: {e}")
         raise
-

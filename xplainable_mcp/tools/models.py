@@ -263,7 +263,7 @@ def models_list_team_models():
         raise
 
 @mcp.tool(icons=[XP_ICON])
-def models_refit_model(model_id: str, version_id: str, file_path: str, target_column: str, model_type: str = 'classifier', features: Optional[List[str]] = None, preprocessor_version_id: Optional[str] = None, drop_columns: Optional[List[str]] = None, test_size: float = 0.2, max_depth: Optional[int] = None, min_info_gain: Optional[float] = None, min_leaf_size: Optional[float] = None, weight: Optional[float] = None, power_degree: Optional[float] = None, sigmoid_exponent: Optional[float] = None, tail_sensitivity: Optional[float] = None):
+def models_refit_model(model_id: str, version_id: str, target_column: str, file_path: Optional[str] = None, dataset_name: Optional[str] = None, csv_content: Optional[str] = None, model_type: str = 'classifier', features: Optional[List[str]] = None, preprocessor_version_id: Optional[str] = None, drop_columns: Optional[List[str]] = None, test_size: float = 0.2, max_depth: Optional[int] = None, min_info_gain: Optional[float] = None, min_leaf_size: Optional[float] = None, weight: Optional[float] = None, power_degree: Optional[float] = None, sigmoid_exponent: Optional[float] = None, tail_sensitivity: Optional[float] = None):
     """
     Rapidly refit an existing model with new parameters without retraining.
     
@@ -277,8 +277,10 @@ def models_refit_model(model_id: str, version_id: str, file_path: str, target_co
     Args:
         model_id: ID of the existing model.
         version_id: ID of the model version to refit.
-        file_path: Path to the same CSV used for training (needed for evaluation).
         target_column: Name of the target column.
+        file_path: Path to a local CSV (same data used for training).
+        dataset_name: Name of an xplainable public dataset.
+        csv_content: Raw CSV string (for remote MCP servers).
         model_type: Either "classifier" or "regressor".
         features: List of feature names to update. Defaults to all features.
         preprocessor_version_id: Preprocessor version ID if one was used in training.
@@ -300,7 +302,7 @@ def models_refit_model(model_id: str, version_id: str, file_path: str, target_co
     """
     try:
         client = get_client()
-        result = client.models.refit_model(model_id, version_id, file_path, target_column, model_type, features, preprocessor_version_id, drop_columns, test_size, max_depth, min_info_gain, min_leaf_size, weight, power_degree, sigmoid_exponent, tail_sensitivity)
+        result = client.models.refit_model(model_id, version_id, target_column, file_path, dataset_name, csv_content, model_type, features, preprocessor_version_id, drop_columns, test_size, max_depth, min_info_gain, min_leaf_size, weight, power_degree, sigmoid_exponent, tail_sensitivity)
         logger.info(f"Executed models.refit_model")
         
         # Handle different return types
@@ -315,19 +317,22 @@ def models_refit_model(model_id: str, version_id: str, file_path: str, target_co
         raise
 
 @mcp.tool(icons=[XP_ICON])
-def models_train_model(file_path: str, target_column: str, model_name: str, model_description: str = '', model_type: str = 'classifier', preprocessor_version_id: Optional[str] = None, drop_columns: Optional[List[str]] = None, test_size: float = 0.2, max_depth: int = 8, min_info_gain: float = 0.0001, min_leaf_size: float = 0.0001, weight: float = 1.0, power_degree: float = 1.0, sigmoid_exponent: float = 0.0, tail_sensitivity: float = 1.0):
+def models_train_model(target_column: str, model_name: str, model_description: str = '', file_path: Optional[str] = None, dataset_name: Optional[str] = None, csv_content: Optional[str] = None, model_type: str = 'classifier', preprocessor_version_id: Optional[str] = None, drop_columns: Optional[List[str]] = None, test_size: float = 0.2, max_depth: int = 8, min_info_gain: float = 0.0001, min_leaf_size: float = 0.0001, weight: float = 1.0, power_degree: float = 1.0, sigmoid_exponent: float = 0.0, tail_sensitivity: float = 1.0):
     """
-    Train an xplainable model on a CSV dataset and upload it to the platform.
+    Train an xplainable model on a dataset and upload it to the platform.
     
-    Loads data from a CSV file, optionally applies a preprocessor pipeline,
-    trains an XClassifier or XRegressor, evaluates on train/test splits,
-    and uploads the trained model.
+    Provide ONE of: file_path (local CSV), dataset_name (xplainable public dataset),
+    or csv_content (raw CSV string -- for remote MCP servers where file paths aren't shared).
     
     Args:
-        file_path: Path to the CSV file containing training data.
         target_column: Name of the column to predict.
         model_name: Name for the uploaded model.
         model_description: Description for the uploaded model.
+        file_path: Path to a local CSV file.
+        dataset_name: Name of an xplainable public dataset (e.g. "telco_churn").
+        csv_content: Raw CSV string. Use when the MCP server can't access the
+            client's filesystem (e.g. hosted MCP). Claude can read the file
+            and pass its content directly.
         model_type: Either "classifier" or "regressor".
         preprocessor_version_id: Optional preprocessor version ID to load
             and apply a fitted pipeline to the features before training.
@@ -349,7 +354,7 @@ def models_train_model(file_path: str, target_column: str, model_name: str, mode
     """
     try:
         client = get_client()
-        result = client.models.train_model(file_path, target_column, model_name, model_description, model_type, preprocessor_version_id, drop_columns, test_size, max_depth, min_info_gain, min_leaf_size, weight, power_degree, sigmoid_exponent, tail_sensitivity)
+        result = client.models.train_model(target_column, model_name, model_description, file_path, dataset_name, csv_content, model_type, preprocessor_version_id, drop_columns, test_size, max_depth, min_info_gain, min_leaf_size, weight, power_degree, sigmoid_exponent, tail_sensitivity)
         logger.info(f"Executed models.train_model")
         
         # Handle different return types
@@ -362,4 +367,3 @@ def models_train_model(file_path: str, target_column: str, model_name: str, mode
     except Exception as e:
         logger.error(f"Error in models_train_model: {e}")
         raise
-

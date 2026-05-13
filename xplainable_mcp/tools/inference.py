@@ -83,4 +83,3 @@ def inference_stream_predictions(filename: str, model_id: str, version_id: str, 
     except Exception as e:
         logger.error(f"Error in inference_stream_predictions: {e}")
         raise
-

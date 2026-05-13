@@ -124,4 +124,3 @@ def gpt_generate_report(model_id: str, version_id: str, target_description: str 
     except Exception as e:
         logger.error(f"Error in gpt_generate_report: {e}")
         raise
-

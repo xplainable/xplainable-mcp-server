@@ -97,4 +97,3 @@ def reports_create_report_sync(run_id: str, report_name: str, report_description
     except Exception as e:
         logger.error(f"Error in reports_create_report_sync: {e}")
         raise
-
