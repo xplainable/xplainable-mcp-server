@@ -41,6 +41,7 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["xplainable_mcp"]
+artifacts = ["xplainable_mcp/skills/*.md"]
 
 [tool.black]
 line-length = 100
