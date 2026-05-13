@@ -97,7 +97,7 @@ def cmd_validate_config(args):
                 hostname=os.getenv("XPLAINABLE_HOST", "https://platform.xplainable.io"),
                 org_id=os.getenv("XPLAINABLE_ORG_ID"),
                 team_id=os.getenv("XPLAINABLE_TEAM_ID"),
-                enable_write_tools=os.getenv("ENABLE_WRITE_TOOLS", "false").lower() == "true",
+                enable_write_tools=os.getenv("ENABLE_WRITE_TOOLS", "true").lower() == "true",
                 rate_limit_enabled=os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true",
             )
             

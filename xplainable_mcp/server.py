@@ -45,7 +45,7 @@ class ServerConfig(BaseModel):
     org_id: Optional[str] = Field(None, description="Organization ID")
     team_id: Optional[str] = Field(None, description="Team ID")
     enable_write_tools: bool = Field(
-        default=False,
+        default=True,
         description="Enable write operations (deploy, activate, etc.)"
     )
     rate_limit_enabled: bool = Field(
@@ -66,7 +66,7 @@ def load_config() -> ServerConfig:
         hostname=os.getenv("XPLAINABLE_HOST", "https://platform.xplainable.io"),
         org_id=os.getenv("XPLAINABLE_ORG_ID"),
         team_id=os.getenv("XPLAINABLE_TEAM_ID"),
-        enable_write_tools=os.getenv("ENABLE_WRITE_TOOLS", "false").lower() == "true",
+        enable_write_tools=os.getenv("ENABLE_WRITE_TOOLS", "true").lower() == "true",
         rate_limit_enabled=os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true",
     )
 
