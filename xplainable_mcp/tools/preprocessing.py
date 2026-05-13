@@ -18,35 +18,6 @@ from ..server import get_client, XP_ICON
 # ============================================
 
 
-@mcp.tool(icons=[XP_ICON])
-def preprocessing_list_preprocessors(team_id: Optional[str] = None):
-    """
-    List all preprocessors for a team.
-    
-    Args:
-        team_id: Optional team ID (uses session team_id if not provided)
-    
-    Returns:
-        List of preprocessor information
-
-    Category: read
-    """
-    try:
-        client = get_client()
-        result = client.preprocessing.list_preprocessors(team_id)
-        logger.info(f"Executed preprocessing.list_preprocessors")
-        
-        # Handle different return types
-        if hasattr(result, 'model_dump'):
-            return result.model_dump()
-        elif isinstance(result, list) and result and hasattr(result[0], 'model_dump'):
-            return [item.model_dump() for item in result]
-        else:
-            return result
-    except Exception as e:
-        logger.error(f"Error in preprocessing_list_preprocessors: {e}")
-        raise
-
 def preprocessing_get_preprocessor(preprocessor_id: str):
     """
     Get detailed information about a preprocessor.
