@@ -1,0 +1,32 @@
+name: Update MCP Documentation
+
+on:
+  push:
+    branches: [main]
+    paths: ['xplainable_mcp/tools/**', 'xplainable_mcp/server.py']
+  workflow_dispatch:
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - run: python scripts/generate_mcp_docs.py --output /tmp/mcp-docs
+    - uses: actions/checkout@v4
+      with:
+        repository: xplainable/xplainable-docs
+        token: ${{ secrets.DOCS_PUSH_TOKEN }}
+        path: docs-repo
+    - run: |
+        cp /tmp/mcp-docs/tools.mdx docs-repo/website/docs/mcp/tools.md
+    - run: |
+        cd docs-repo
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add .
+        git diff --cached --quiet && echo "No changes" && exit 0
+        git commit -m "Auto-update MCP tool docs from xplainable-mcp-server"
+        git push origin main
