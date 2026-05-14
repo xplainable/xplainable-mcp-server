@@ -19,6 +19,45 @@ from ..server import get_client, XP_ICON
 # ============================================
 
 
+@mcp.tool(icons=[XP_ICON])
+def autotrain_summarize_by_dataset_id(dataset_id: str, team_id: Optional[str] = None):
+    """
+    Summarize a dataset that's already on the xplainable platform.
+
+    Downloads the dataset server-side and returns column statistics,
+    types, distributions, and metadata. Use this to understand a dataset
+    before training -- the raw data never leaves the platform.
+
+    Use datasets_list_team_datasets to find available dataset IDs.
+
+    Args:
+        dataset_id: ID of the dataset on the platform
+        team_id: Team ID (uses session team_id if not provided)
+
+    Returns:
+        Dataset summary with column statistics, types, and metadata
+
+    Category: read
+    """
+    try:
+        client = get_client()
+        result = client.autotrain.summarize_by_dataset_id(
+            dataset_id=dataset_id,
+            team_id=team_id,
+        )
+        logger.info("Executed autotrain.summarize_by_dataset_id")
+
+        if hasattr(result, 'model_dump'):
+            return result.model_dump()
+        elif isinstance(result, list) and result and hasattr(result[0], 'model_dump'):
+            return [item.model_dump() for item in result]
+        else:
+            return result
+    except Exception as e:
+        logger.error(f"Error in autotrain_summarize_by_dataset_id: {e}")
+        raise
+
+
 def autotrain_generate_feature_engineering(summary: dict, team_id: Optional[str] = None, n: int = 5, textgen_config: Optional[dict] = None):
     """
     Generate feature engineering recommendations.

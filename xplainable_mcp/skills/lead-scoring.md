@@ -18,11 +18,19 @@ Then ask: **What CSV file should I use?** (get the file path)
 
 ## Phase 1: Understand the Data
 
-Read the CSV file directly. Examine:
-- First 20-30 rows to understand the structure
-- Column names and infer types (numeric, categorical, datetime, text, ID)
+**If the user provides a local CSV file** (Claude Code / local MCP):
+- Read the CSV directly and examine it
+
+**If the user's data is on the platform** (hosted MCP / Claude Desktop):
+```
+datasets_list_team_datasets()                    → find the dataset ID
+autotrain_summarize_by_dataset_id(dataset_id)    → get column statistics
+```
+
+From the summary or direct read, identify:
+- Column names and types (numeric, categorical, datetime, text, ID)
 - Look for a conversion target column: "converted", "won", "is_customer", "deal_status", "closed_won", "qualified", etc.
-- Count rows and columns
+- Row and column counts
 
 Analyse and note:
 - **Missing values**: lead data is often sparse -- many fields left blank by sales reps or incomplete form fills
