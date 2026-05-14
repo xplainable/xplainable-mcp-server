@@ -264,7 +264,7 @@ def models_list_team_models():
         raise
 
 @mcp.tool(icons=[XP_ICON])
-def models_refit_model(model_id: str, version_id: str, target_column: str, file_path: Optional[str] = None, dataset_name: Optional[str] = None, csv_content: Optional[str] = None, model_type: str = 'classifier', features: Optional[List[str]] = None, preprocessor_version_id: Optional[str] = None, drop_columns: Optional[List[str]] = None, test_size: float = 0.2, max_depth: Optional[int] = None, min_info_gain: Optional[float] = None, min_leaf_size: Optional[float] = None, weight: Optional[float] = None, power_degree: Optional[float] = None, sigmoid_exponent: Optional[float] = None, tail_sensitivity: Optional[float] = None):
+def models_refit_model(model_id: str, version_id: str, target_column: str, file_path: Optional[str] = None, dataset_name: Optional[str] = None, dataset_id: Optional[str] = None, csv_content: Optional[str] = None, model_type: str = 'classifier', features: Optional[List[str]] = None, preprocessor_version_id: Optional[str] = None, drop_columns: Optional[List[str]] = None, test_size: float = 0.2, max_depth: Optional[int] = None, min_info_gain: Optional[float] = None, min_leaf_size: Optional[float] = None, weight: Optional[float] = None, power_degree: Optional[float] = None, sigmoid_exponent: Optional[float] = None, tail_sensitivity: Optional[float] = None):
     """
     Rapidly refit an existing model with new parameters without retraining.
     
@@ -309,6 +309,7 @@ def models_refit_model(model_id: str, version_id: str, target_column: str, file_
             target_column=target_column,
             file_path=file_path,
             dataset_name=dataset_name,
+            dataset_id=dataset_id,
             csv_content=csv_content,
             model_type=model_type,
             features=features,
@@ -337,22 +338,22 @@ def models_refit_model(model_id: str, version_id: str, target_column: str, file_
         raise
 
 @mcp.tool(icons=[XP_ICON])
-def models_train_model(target_column: str, model_name: str, model_description: str = '', file_path: Optional[str] = None, dataset_name: Optional[str] = None, csv_content: Optional[str] = None, model_type: str = 'classifier', preprocessor_version_id: Optional[str] = None, drop_columns: Optional[List[str]] = None, test_size: float = 0.2, max_depth: int = 8, min_info_gain: float = 0.0001, min_leaf_size: float = 0.0001, weight: float = 1.0, power_degree: float = 1.0, sigmoid_exponent: float = 0.0, tail_sensitivity: float = 1.0):
+def models_train_model(target_column: str, model_name: str, model_description: str = '', file_path: Optional[str] = None, dataset_name: Optional[str] = None, dataset_id: Optional[str] = None, csv_content: Optional[str] = None, model_type: str = 'classifier', preprocessor_version_id: Optional[str] = None, drop_columns: Optional[List[str]] = None, test_size: float = 0.2, max_depth: int = 8, min_info_gain: float = 0.0001, min_leaf_size: float = 0.0001, weight: float = 1.0, power_degree: float = 1.0, sigmoid_exponent: float = 0.0, tail_sensitivity: float = 1.0):
     """
     Train an xplainable model on a dataset and upload it to the platform.
-    
-    Provide ONE of: file_path (local CSV), dataset_name (xplainable public dataset),
-    or csv_content (raw CSV string -- for remote MCP servers where file paths aren't shared).
-    
+
+    Provide ONE of: dataset_id (preferred for hosted MCP), file_path (local CSV),
+    dataset_name (xplainable public dataset), or csv_content (raw CSV string).
+
     Args:
         target_column: Name of the column to predict.
         model_name: Name for the uploaded model.
         model_description: Description for the uploaded model.
         file_path: Path to a local CSV file.
         dataset_name: Name of an xplainable public dataset (e.g. "telco_churn").
-        csv_content: Raw CSV string. Use when the MCP server can't access the
-            client's filesystem (e.g. hosted MCP). Claude can read the file
-            and pass its content directly.
+        dataset_id: ID of a dataset on the xplainable platform. Use
+            datasets_list_team_datasets to find IDs. Preferred for hosted MCP.
+        csv_content: Raw CSV string for when file paths aren't accessible.
         model_type: Either "classifier" or "regressor".
         preprocessor_version_id: Optional preprocessor version ID to load
             and apply a fitted pipeline to the features before training.
@@ -380,6 +381,7 @@ def models_train_model(target_column: str, model_name: str, model_description: s
             model_description=model_description,
             file_path=file_path,
             dataset_name=dataset_name,
+            dataset_id=dataset_id,
             csv_content=csv_content,
             model_type=model_type,
             preprocessor_version_id=preprocessor_version_id,
