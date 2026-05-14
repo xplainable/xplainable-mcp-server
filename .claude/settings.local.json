@@ -8,7 +8,9 @@
       "Bash(source:*)",
       "Bash(pip install:*)",
       "Read(//Users/jtuppack/projects/xplainable-client/xplainable_client/client/**)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(cp /Users/jtuppack/projects/xplainable-skills/skills/churn-prediction.md /Users/jtuppack/projects/xplainable-mcp-server/xplainable_mcp/skills/)",
+      "Bash(cp /Users/jtuppack/projects/xplainable-skills/skills/lead-scoring.md /Users/jtuppack/projects/xplainable-mcp-server/xplainable_mcp/skills/)"
     ],
     "deny": [],
     "ask": []

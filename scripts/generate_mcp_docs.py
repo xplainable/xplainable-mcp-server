@@ -389,6 +389,133 @@ def _render_tool(tool: ToolInfo) -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# Sample data generation for ToolCallSim
+# ---------------------------------------------------------------------------
+
+# Param name → sample value
+_SAMPLE_VALUES: Dict[str, str] = {
+    "model_id": '"mdl_8gJq2Xv"',
+    "version_id": '"ver_3kLm9Nq"',
+    "deployment_id": '"dep_5xRt2Wp"',
+    "monitor_id": '"mon_7yKs4Bz"',
+    "dataset_id": '"ds_2mNp6Fj"',
+    "run_id": '"run_9qWe1Ht"',
+    "team_id": '"team_abc123"',
+    "preprocessor_id": '"pp_4vCx8Rd"',
+    "key_id": '"key_1aNb3Gk"',
+    "job_id": '"job_6pLs2Yf"',
+    "report_id": '"rpt_8wDm5Qt"',
+    "training_id": '"train_3kLm9"',
+    "filename": '"data.csv"',
+    "file_path": '"./dataset.csv"',
+    "name": '"My Resource"',
+    "model_name": '"Credit Risk Model"',
+    "model_description": '"Predicting loan defaults"',
+    "description": '"A description"',
+    "target_column": '"target"',
+    "label": '"churned"',
+    "threshold": "0.5",
+    "delimiter": '","',
+    "batch_size": "1000",
+    "test_size": "0.2",
+    "n": "5",
+    "rows": "10",
+    "max_features": "15",
+    "temperature": "0.7",
+    "report_name": '"Model Report"',
+    "content": '"What features drive churn?"',
+}
+
+# Type → default sample value
+_TYPE_SAMPLES: Dict[str, str] = {
+    "str": '"example"',
+    "int": "1",
+    "float": "0.5",
+    "bool": "true",
+    "list": "[]",
+    "dict": "{}",
+    "object": "{}",
+}
+
+# Tool name pattern → sample response
+_RESPONSE_PATTERNS: List[tuple] = [
+    ("list_", '[\n  &#123; "id": "item_1", "name": "Example" &#125;\n]'),
+    ("get_", '&#123;\n  "id": "res_abc",\n  "name": "Example",\n  "status": "active"\n&#125;'),
+    ("create_", '&#123; "id": "new_abc123", "status": "created" &#125;'),
+    ("deploy", '&#123; "deployment_id": "dep_5xRt2Wp", "status": "deployed" &#125;'),
+    ("activate", '&#123; "status": "active" &#125;'),
+    ("deactivate", '&#123; "status": "inactive" &#125;'),
+    ("delete", '&#123; "status": "deleted" &#125;'),
+    ("predict", '&#123;\n  "score": 0.87,\n  "prediction": 1,\n  "contributions": &#123; "feature_1": 0.12, "feature_2": -0.05 &#125;\n&#125;'),
+    ("summarize", '&#123;\n  "rows": 5000,\n  "columns": 12,\n  "target": "churned",\n  "summary": "Dataset ready for training"\n&#125;'),
+    ("generate_", '[\n  &#123; "suggestion": "Example suggestion", "confidence": 0.85 &#125;\n]'),
+    ("train", '&#123;\n  "job_id": "job_2K9P",\n  "status": "running",\n  "model_id": "mdl_new"\n&#125;'),
+    ("check_", '&#123; "status": "completed", "progress": 100 &#125;'),
+    ("upload", '&#123; "dataset_id": "ds_new123", "rows": 5000 &#125;'),
+    ("report", '&#123; "report_id": "rpt_abc", "status": "generating" &#125;'),
+]
+
+
+def _generate_sample_args(tool: 'ToolInfo') -> str:
+    """Generate sample JSON arguments for a tool."""
+    if not tool.params:
+        return "{}"
+
+    args = {}
+    for p in tool.params:
+        if p.name == "self":
+            continue
+        # Use known sample value or type default
+        val = _SAMPLE_VALUES.get(p.name)
+        if val is None:
+            val = _TYPE_SAMPLES.get(p.type, '"example"')
+        args[p.name] = val
+
+    # Build JSON-like string (not actual JSON since values aren't all strings)
+    lines = []
+    for k, v in args.items():
+        lines.append(f'  "{k}": {v}')
+    return "{\n" + ",\n".join(lines) + "\n}" if lines else "{}"
+
+
+def _generate_sample_result(tool: 'ToolInfo') -> str:
+    """Generate a plausible mock result for a tool."""
+    name = tool.name.lower()
+    for pattern, result in _RESPONSE_PATTERNS:
+        if pattern in name:
+            return result
+    return '&#123; "ok": true &#125;'
+
+
+def _render_tool_call_sim(groups: Dict[str, List['ToolInfo']]) -> str:
+    """Render a <ToolCallSim> block with sample tools."""
+    # Pick up to 8 representative tools
+    all_tools = []
+    for module_key in MODULE_ORDER:
+        tools = groups.get(module_key, [])
+        for t in tools[:2]:  # max 2 per module
+            all_tools.append(t)
+    all_tools = all_tools[:12]  # cap at 12
+
+    entries = []
+    for t in all_tools:
+        args = _generate_sample_args(t)
+        result = _generate_sample_result(t)
+        # Escape for JSX template literal
+        safe_args = args.replace("{", "&#123;").replace("}", "&#125;").replace("`", "\\`")
+        safe_result = result.replace("`", "\\`")
+        name = t.name
+        entries.append(
+            f'  {{ name: "{name}", '
+            f'args: `{safe_args}`, '
+            f'result: `{safe_result}` }}'
+        )
+
+    inner = ",\n".join(entries)
+    return f"<ToolCallSim tools={{[\n{inner}\n]}} />"
+
+
 def _render_mdx(groups: Dict[str, List[ToolInfo]]) -> str:
     """Render the full tools.mdx content."""
     parts: List[str] = []
@@ -402,6 +529,7 @@ def _render_mdx(groups: Dict[str, List[ToolInfo]]) -> str:
     parts.append("")
     parts.append("import PropTable from '@site/src/components/PropTable';")
     parts.append("import MethodBadge from '@site/src/components/MethodBadge';")
+    parts.append("import ToolCallSim from '@site/src/components/ToolCallSim';")
     parts.append("")
     parts.append("# Tool Reference")
     parts.append("")
@@ -409,6 +537,14 @@ def _render_mdx(groups: Dict[str, List[ToolInfo]]) -> str:
         "Complete reference for every tool exposed by the xplainable MCP server. "
         "Tools are grouped by category."
     )
+    parts.append("")
+
+    # Try a tool call section
+    parts.append("## Try a tool call")
+    parts.append("")
+    parts.append("Select a tool, review the sample arguments, and invoke it to see a simulated response.")
+    parts.append("")
+    parts.append(_render_tool_call_sim(groups))
     parts.append("")
     parts.append("---")
     parts.append("")
