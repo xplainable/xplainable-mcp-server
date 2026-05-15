@@ -32,7 +32,8 @@ async def _get_docs_index() -> List[Dict[str, Any]]:
     async with httpx.AsyncClient() as client:
         resp = await client.get(DOCS_INDEX_URL, timeout=10)
         resp.raise_for_status()
-        _docs_cache = resp.json()
+        data = resp.json()
+        _docs_cache = data.get("pages", data) if isinstance(data, dict) else data
     return _docs_cache
 
 
