@@ -8,6 +8,7 @@ This module auto-imports all service-specific tool modules.
 from . import autotrain
 from . import datasets
 from . import deployments
+from . import docs
 from . import gpt
 from . import inference
 from . import misc
