@@ -22,6 +22,10 @@ jobs:
         path: docs-repo
     - run: |
         cp /tmp/mcp-docs/tools.mdx docs-repo/website/docs/mcp/tools.md
+    - name: Regenerate docs index
+      run: |
+        cd docs-repo/website
+        python scripts/generate_docs_index.py
     - run: |
         cd docs-repo
         git config user.name "github-actions[bot]"
