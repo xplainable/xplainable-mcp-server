@@ -1,7 +1,7 @@
 """Documentation tools — let LLMs search and read xplainable docs."""
 
-import json
 import logging
+import time
 from typing import Optional, List, Dict, Any
 
 import httpx
@@ -12,28 +12,25 @@ from ..server import XP_ICON
 logger = logging.getLogger(__name__)
 
 DOCS_INDEX_URL = "https://docs.xplainable.io/docs-index.json"
+CACHE_TTL_SECONDS = 3600  # Refresh every hour
 
-# Cache the index in memory after first fetch
 _docs_cache: Optional[List[Dict[str, Any]]] = None
+_cache_timestamp: float = 0
 
 
 async def _get_docs_index() -> List[Dict[str, Any]]:
-    """Fetch and cache the docs index.
-
-    Returns:
-        The parsed docs index as a list of page objects.
-
-    Raises:
-        httpx.HTTPStatusError: If the request fails.
-    """
-    global _docs_cache
-    if _docs_cache is not None:
+    """Fetch and cache the docs index with a 1-hour TTL."""
+    global _docs_cache, _cache_timestamp
+    now = time.time()
+    if _docs_cache is not None and (now - _cache_timestamp) < CACHE_TTL_SECONDS:
         return _docs_cache
     async with httpx.AsyncClient() as client:
         resp = await client.get(DOCS_INDEX_URL, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         _docs_cache = data.get("pages", data) if isinstance(data, dict) else data
+        _cache_timestamp = now
+    logger.info(f"Refreshed docs index: {len(_docs_cache)} pages")
     return _docs_cache
 
 
