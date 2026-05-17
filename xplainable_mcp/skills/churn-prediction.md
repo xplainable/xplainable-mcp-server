@@ -192,44 +192,60 @@ Use these to understand WHY the model makes its predictions. This is the power o
 
 ### Iteration strategies
 
-**If overfitting (train >> test) -- use rapid refit:**
+Follow the per-feature tuning strategy from Best Practices. Here's the churn-specific application:
+
+**Step 1: Global refit** -- reduce depth across all features to see if overfitting shrinks:
 ```
 refit_model(
-    model_id="<model_id>",
     version_id="<version_id>",
-    file_path="path/to/data.csv",
+    dataset_id="<dataset_id>",
     target_column="Churn",
-    model_type="classifier",
-    preprocessor_version_id="<if used>",
     drop_columns=["customer_id", ...],
-    max_depth=6        # reduce from 8
+    max_depth=6
 )
 ```
-1. Reduce `max_depth` (try 6, then 4) -- instant via refit
-2. Increase `min_leaf_size` (try 0.01, then 0.05) -- instant via refit
-3. Try combinations: `refit_model(..., max_depth=6, min_leaf_size=0.01)`
-4. If still overfitting after multiple refits, drop noisy features and do a full `train_model()`
 
-**If underfitting (both train and test low) -- use rapid refit first:**
-1. Increase `max_depth` (try 10, then 12) via `refit_model()`
-2. Adjust `weight` or `tail_sensitivity` via `refit_model()`
-3. If refit can't improve it, add more preprocessing features and do a full `train_model()`
+**Step 2: Per-feature tuning** -- churn-specific recommendations:
+```
+refit_model(
+    version_id="<version_id>",
+    dataset_id="<dataset_id>",
+    target_column="Churn",
+    drop_columns=["customer_id", ...],
+    feature_params={
+        # Numeric: these carry the model, reduce depth to limit overfitting
+        "Tenure Months": {"max_depth": 4},
+        "Monthly Charges": {"max_depth": 5},
+        # Categorical: tune weight, not depth
+        "Contract": {"tail_sensitivity": 0.8},
+        "Streaming TV": {"weight": 0.5},
+        "Streaming Movies": {"weight": 0.5},
+    }
+)
+```
+
+**Step 3: Compare** -- if AUC holds and train/test gap shrinks, deploy the simpler model.
+
+**Step 4: When to fall back to full retrain**
+
+Only use `train_model()` when:
+- Dropping features entirely (feature set changed)
+- Changing preprocessing pipeline
+- Adding new derived features
 
 **If suspicious feature (possible leakage):**
 1. Drop the suspicious column
 2. Full `train_model()` (feature set changed, can't refit)
 3. If performance drops dramatically, confirm it was leakage
 
-**Rapid refit is instant** -- try multiple parameter combinations quickly. Each refit creates a new version so you can compare. Only fall back to full `train_model()` when changing features or preprocessing.
-
 **If Assisted**: Present your analysis:
 > **Model Results:**
 > - Train accuracy: X% | Test accuracy: Y%
 > - Train AUC: X | Test AUC: Y
-> - Top features: [ranked list]
+> - Top features: [ranked list with depth used]
 >
 > **Assessment:** [overfitting/good/needs work]
-> **Recommendation:** [what to adjust, or proceed to deployment]
+> **Recommendation:** [per-feature tuning plan or proceed to deployment]
 
 **Iterate until satisfied**, then proceed to deployment.
 
