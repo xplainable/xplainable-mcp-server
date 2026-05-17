@@ -54,12 +54,16 @@ components, condense high-cardinality categoricals (>15 unique → CategoryConde
 ### Training Rules
 - Start with default hyperparameters (max_depth=8). Look at train vs test metrics before adjusting.
 - Use `train_model()` for initial training. Use `refit_model()` for instant hyperparameter \
-iteration (reuses pre-computed partitions, orders of magnitude faster).
+iteration -- everything happens server-side in one API call.
 - Only `train_model()` when changing features or preprocessing. Use `refit_model()` for \
 everything else.
+- Use `feature_params` to tune multiple features with different settings in ONE refit call. \
+e.g. `feature_params={"Tenure": {"max_depth": 3}, "Contract": {"max_depth": 5}}`. \
+This avoids repeated data loads.
 
 ### Evaluation Rules
 - Compare train vs test metrics. Gap >5-8% = overfitting. Reduce max_depth or increase min_leaf_size.
+- Goal: minimise splits while maintaining AUC. Fewer splits = less overfitting = more explainable.
 - Primary metric: AUC for classifiers, R2 for regressors. Accuracy is misleading with imbalanced classes.
 - Any single feature >40% importance = investigate for data leakage.
 - Present feature contributions in original units, not scaled values.

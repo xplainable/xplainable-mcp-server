@@ -192,44 +192,81 @@ Use these to understand WHY the model makes its predictions. This is the power o
 
 ### Iteration strategies
 
-**If overfitting (train >> test) -- use rapid refit:**
+Every refit is a single API call -- the model and data stay server-side. Use `feature_params` to tune multiple features with different settings in one call, avoiding repeated data loads.
+
+**Step 1: Global refit to reduce overfitting**
+
+Start broad -- reduce complexity across all features:
 ```
 refit_model(
-    model_id="<model_id>",
     version_id="<version_id>",
-    file_path="path/to/data.csv",
+    dataset_id="<dataset_id>",
     target_column="Churn",
-    model_type="classifier",
-    preprocessor_version_id="<if used>",
     drop_columns=["customer_id", ...],
     max_depth=6        # reduce from 8
 )
 ```
-1. Reduce `max_depth` (try 6, then 4) -- instant via refit
-2. Increase `min_leaf_size` (try 0.01, then 0.05) -- instant via refit
-3. Try combinations: `refit_model(..., max_depth=6, min_leaf_size=0.01)`
-4. If still overfitting after multiple refits, drop noisy features and do a full `train_model()`
+If train/test gap shrinks without losing much AUC, the model was overfitting globally.
 
-**If underfitting (both train and test low) -- use rapid refit first:**
-1. Increase `max_depth` (try 10, then 12) via `refit_model()`
-2. Adjust `weight` or `tail_sensitivity` via `refit_model()`
-3. If refit can't improve it, add more preprocessing features and do a full `train_model()`
+**Step 2: Per-feature tuning (the power of xplainable)**
+
+Look at the feature importances. Features with high importance but noisy patterns benefit from fewer splits. Use `feature_params` to tune each feature independently in ONE call:
+
+```
+refit_model(
+    version_id="<version_id>",
+    dataset_id="<dataset_id>",
+    target_column="Churn",
+    drop_columns=["customer_id", ...],
+    feature_params={
+        "Tenure Months": {"max_depth": 4},        # strong signal, fewer splits needed
+        "Monthly Charges": {"max_depth": 5},       # moderate complexity
+        "Contract": {"max_depth": 3},              # categorical, few natural splits
+        "Online Security": {"max_depth": 3},       # binary-like, minimal depth
+        "Tech Support": {"max_depth": 3},          # binary-like, minimal depth
+        "Streaming TV": {"max_depth": 2},          # low importance, simplify aggressively
+        "Streaming Movies": {"max_depth": 2},      # low importance, simplify aggressively
+    }
+)
+```
+
+**The goal: minimise splits while maintaining AUC.** Fewer splits = simpler model = less overfitting = more explainable. Each feature gets only the complexity it needs.
+
+**Tuning heuristics:**
+- **High importance, clear signal** (Tenure, Charges): depth 4-6, these carry the model
+- **Medium importance, categorical** (Contract, Payment Method): depth 3-4, natural categories limit splits
+- **Binary/low-cardinality** (Online Security, Partner): depth 2-3, don't over-split
+- **Low importance** (<3%): depth 2, or consider if the feature adds value at all
+
+**Step 3: Compare and iterate**
+
+Each refit returns fresh metrics. Compare:
+- Did AUC hold or improve? (fewer splits can actually improve generalisation)
+- Did train/test gap shrink? (less overfitting)
+- Check feature importances shifted as expected
+
+If AUC drops significantly on a feature reduction, increase that feature's depth back up.
+
+**Step 4: When to fall back to full retrain**
+
+Only use `train_model()` when:
+- Dropping features entirely (feature set changed)
+- Changing preprocessing pipeline
+- Adding new derived features
 
 **If suspicious feature (possible leakage):**
 1. Drop the suspicious column
 2. Full `train_model()` (feature set changed, can't refit)
 3. If performance drops dramatically, confirm it was leakage
 
-**Rapid refit is instant** -- try multiple parameter combinations quickly. Each refit creates a new version so you can compare. Only fall back to full `train_model()` when changing features or preprocessing.
-
 **If Assisted**: Present your analysis:
 > **Model Results:**
 > - Train accuracy: X% | Test accuracy: Y%
 > - Train AUC: X | Test AUC: Y
-> - Top features: [ranked list]
+> - Top features: [ranked list with depth used]
 >
 > **Assessment:** [overfitting/good/needs work]
-> **Recommendation:** [what to adjust, or proceed to deployment]
+> **Recommendation:** [per-feature tuning plan or proceed to deployment]
 
 **Iterate until satisfied**, then proceed to deployment.
 
