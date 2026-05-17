@@ -58,8 +58,8 @@ iteration -- everything happens server-side in one API call.
 - Only `train_model()` when changing features or preprocessing. Use `refit_model()` for \
 everything else.
 - Use `feature_params` to tune multiple features with different settings in ONE refit call. \
-e.g. `feature_params={"Tenure": {"max_depth": 3}, "Contract": {"max_depth": 5}}`. \
-This avoids repeated data loads.
+This avoids repeated data loads. Tune numeric features with max_depth/min_leaf_size. \
+Tune categorical features with weight/tail_sensitivity (depth has little effect on categoricals).
 
 ### Evaluation Rules
 - Compare train vs test metrics. Gap >5-8% = overfitting. Reduce max_depth or increase min_leaf_size.

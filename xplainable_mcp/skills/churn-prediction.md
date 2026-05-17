@@ -210,7 +210,7 @@ If train/test gap shrinks without losing much AUC, the model was overfitting glo
 
 **Step 2: Per-feature tuning (the power of xplainable)**
 
-Look at the feature importances. Features with high importance but noisy patterns benefit from fewer splits. Use `feature_params` to tune each feature independently in ONE call:
+Look at the feature importances and types. Numeric and categorical features need different tuning strategies. Use `feature_params` to tune each feature independently in ONE call:
 
 ```
 refit_model(
@@ -219,24 +219,36 @@ refit_model(
     target_column="Churn",
     drop_columns=["customer_id", ...],
     feature_params={
-        "Tenure Months": {"max_depth": 4},        # strong signal, fewer splits needed
-        "Monthly Charges": {"max_depth": 5},       # moderate complexity
-        "Contract": {"max_depth": 3},              # categorical, few natural splits
-        "Online Security": {"max_depth": 3},       # binary-like, minimal depth
-        "Tech Support": {"max_depth": 3},          # binary-like, minimal depth
-        "Streaming TV": {"max_depth": 2},          # low importance, simplify aggressively
-        "Streaming Movies": {"max_depth": 2},      # low importance, simplify aggressively
+        # NUMERIC: tune max_depth to reduce splits
+        "Tenure Months": {"max_depth": 4},              # strong signal, fewer splits
+        "Monthly Charges": {"max_depth": 5},             # moderate complexity
+        "Latitude": {"max_depth": 3, "weight": 0.5},    # low importance, dampen
+
+        # CATEGORICAL: tune weight and tail_sensitivity (not depth)
+        # Depth has limited effect on categoricals -- a 3-value category
+        # naturally has at most 3 splits regardless of max_depth.
+        "Contract": {"tail_sensitivity": 0.8},           # reduce emphasis on rare categories
+        "Online Security": {"weight": 0.8},              # binary, slight dampening
+        "Streaming TV": {"weight": 0.5},                 # low importance, dampen strongly
+        "Streaming Movies": {"weight": 0.5},             # low importance, dampen strongly
     }
 )
 ```
 
 **The goal: minimise splits while maintaining AUC.** Fewer splits = simpler model = less overfitting = more explainable. Each feature gets only the complexity it needs.
 
-**Tuning heuristics:**
+**Tuning heuristics by feature type:**
+
+Numeric features (tune `max_depth`, `min_leaf_size`):
 - **High importance, clear signal** (Tenure, Charges): depth 4-6, these carry the model
-- **Medium importance, categorical** (Contract, Payment Method): depth 3-4, natural categories limit splits
-- **Binary/low-cardinality** (Online Security, Partner): depth 2-3, don't over-split
-- **Low importance** (<3%): depth 2, or consider if the feature adds value at all
+- **Medium importance**: depth 3-5
+- **Low importance** (<3%): depth 2, or reduce `weight` to dampen influence
+
+Categorical features (tune `weight`, `tail_sensitivity` -- NOT depth):
+- `max_depth` does little for categoricals -- a feature with 3 unique values has at most 3 splits
+- **`weight`**: controls how strongly the feature affects the score. Reduce to 0.5-0.8 for noisy or low-importance categoricals
+- **`tail_sensitivity`**: controls emphasis on rare categories. Reduce for condensed categoricals where the "Other" bucket is noisy
+- **Binary features** (Yes/No): weight 0.8-1.0, leave depth alone
 
 **Step 3: Compare and iterate**
 
