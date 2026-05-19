@@ -50,7 +50,11 @@ def _get_static_client():
 
 
 def _get_user_client(user_id: str, token: str):
-    """Get or create a per-user client (OAuth mode)."""
+    """Get or create a per-user client (OAuth mode).
+
+    Always updates the bearer token on the cached client so that
+    reconnects with a fresh token don't fail with 'Signature has expired'.
+    """
     with _clients_lock:
         if user_id not in _clients:
             from xplainable_client.client.client import XplainableClient
@@ -60,6 +64,11 @@ def _get_user_client(user_id: str, token: str):
                 team_id=config.team_id,
             )
             logger.info(f"Per-user XplainableClient created for user {user_id[:12]}...")
+        else:
+            # Update token on existing client (handles reconnects / token refresh)
+            client = _clients[user_id]
+            client.session.bearer_token = token
+            client.session._session.headers['Authorization'] = f'Bearer {token}'
         return _clients[user_id]
 
 
