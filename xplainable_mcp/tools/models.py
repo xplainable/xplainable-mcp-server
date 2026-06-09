@@ -318,7 +318,7 @@ def models_refit_model(version_id: str, dataset_id: str, target_column: str, fea
         raise
 
 @mcp.tool(icons=[XP_ICON])
-def models_train_model(target_column: str, model_name: str, model_description: str = '', file_path: Optional[str] = None, dataset_name: Optional[str] = None, dataset_id: Optional[str] = None, csv_content: Optional[str] = None, model_type: str = 'classifier', preprocessor_version_id: Optional[str] = None, drop_columns: Optional[List[str]] = None, test_size: float = 0.2, max_depth: int = 8, min_info_gain: float = 0.0001, min_leaf_size: float = 0.0001, weight: float = 1.0, power_degree: float = 1.0, sigmoid_exponent: float = 0.0, tail_sensitivity: float = 1.0):
+def models_train_model(target_column: str, model_name: str, model_description: str = '', file_path: Optional[str] = None, dataset_name: Optional[str] = None, dataset_id: Optional[str] = None, csv_content: Optional[str] = None, model_type: str = 'classifier', partition_on: Optional[str] = None, preprocessor_version_id: Optional[str] = None, drop_columns: Optional[List[str]] = None, test_size: float = 0.2, max_depth: int = 8, min_info_gain: float = 0.0001, min_leaf_size: float = 0.0001, weight: float = 1.0, power_degree: float = 1.0, sigmoid_exponent: float = 0.0, tail_sensitivity: float = 1.0):
     """
     Train an xplainable model on a dataset and upload it to the platform.
     
@@ -336,6 +336,10 @@ def models_train_model(target_column: str, model_name: str, model_description: s
             preferred method for hosted/remote MCP servers.
         csv_content: Raw CSV string for when file paths aren't accessible.
         model_type: Either "classifier" or "regressor".
+        partition_on: Optional column name to partition on. Trains a separate
+            sub-model per unique value in this column (e.g. partition_on="Industry"
+            trains one model per industry). The column stays in the data for
+            routing predictions but each partition gets its own tuned model.
         preprocessor_version_id: Optional preprocessor version ID to load
             and apply a fitted pipeline to the features before training.
         drop_columns: Optional list of column names to exclude from features.
@@ -356,7 +360,7 @@ def models_train_model(target_column: str, model_name: str, model_description: s
     """
     try:
         client = get_client()
-        result = client.models.train_model(target_column, model_name, model_description, file_path, dataset_name, dataset_id, csv_content, model_type, preprocessor_version_id, drop_columns, test_size, max_depth, min_info_gain, min_leaf_size, weight, power_degree, sigmoid_exponent, tail_sensitivity)
+        result = client.models.train_model(target_column, model_name, model_description, file_path, dataset_name, dataset_id, csv_content, model_type, partition_on, preprocessor_version_id, drop_columns, test_size, max_depth, min_info_gain, min_leaf_size, weight, power_degree, sigmoid_exponent, tail_sensitivity)
         logger.info(f"Executed models.train_model")
         
         # Handle different return types
