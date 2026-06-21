@@ -373,3 +373,46 @@ def models_train_model(target_column: str, model_name: str, model_description: s
     except Exception as e:
         logger.error(f"Error in models_train_model: {e}")
         raise
+
+@mcp.tool(icons=[XP_ICON])
+def models_create_model_v2(name: str, description: str, model_type: str, target_name: str, blob: str, team_id: Optional[str] = None, run_id: Optional[str] = None):
+    """
+    Persist an XGM v2 model from a pre-serialized JSON blob.
+    
+    The client never imports ``xplainable_gm`` and so cannot fit a v2 model
+    locally; the ``blob`` is produced by an internal/agent training path
+    (the closed package) and posted as-is to the v2 create endpoint.
+    
+    Args:
+        name: Model name
+        description: Model description
+        model_type: 'classification' or 'regression'
+        target_name: Name of the target column
+        blob: XGM serialization blob (JSON string)
+        team_id: Optional team ID (defaults to the session team)
+        run_id: Optional run ID to associate with the model
+    
+    Returns:
+        Tuple of (model_id, version_id)
+    
+    Raises:
+        XplainableAPIError: If model creation fails
+
+    Category: write
+    """
+    try:
+        client = get_client()
+        result = client.models.create_model_v2(name, description, model_type, target_name, blob, team_id, run_id)
+        logger.info(f"Executed models.create_model_v2")
+        
+        # Handle different return types
+        if hasattr(result, 'model_dump'):
+            return result.model_dump()
+        elif isinstance(result, list) and result and hasattr(result[0], 'model_dump'):
+            return [item.model_dump() for item in result]
+        else:
+            return result
+    except Exception as e:
+        logger.error(f"Error in models_create_model_v2: {e}")
+        raise
+

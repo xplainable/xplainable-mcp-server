@@ -14,6 +14,7 @@ from . import inference
 from . import misc
 from . import models
 from . import monitors
+from . import optimisers
 from . import preprocessing
 from . import reports
 from . import runs
