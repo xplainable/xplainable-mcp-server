@@ -39,6 +39,25 @@ IMPORTANT: You MUST call select_team (or list_user_teams then set_active_team) \
 as your very first action before calling any other tool. All tools require an \
 active team to be set. If a tool returns 'No team selected', call select_team first.
 
+## Primary Training Workflow (XGM v2)
+
+Model training runs server-side on Xplainable's agentic pipeline — never \
+train locally unless explicitly asked to use the legacy v1 path.
+
+1. Upload the dataset (datasets tools), then summarize it to obtain a run_id.
+2. `agentic_start_run(model_name=..., run_id=...)` — defaults to \
+algorithm="xgm" (v2) and auto_mode=True.
+3. Poll `agentic_get_run_state(run_id)` until status is 'completed' \
+(runs take ~10 minutes; if 'waiting_input', answer via \
+`agentic_get_pending_decision` + `agentic_submit_decision`).
+4. Optionally create and run prescriptive optimisers (optimisers tools: \
+create policy -> create version -> run).
+5. Deploy and test inference (deployments tools).
+
+Legacy v1 (`models_train_model`, `models_refit_model`) trains locally in \
+the MCP host and remains available for the opensource workflow; the rules \
+below apply mainly to that path.
+
 ## xplainable Best Practices
 
 xplainable models are inherently explainable. Every decision must preserve this.

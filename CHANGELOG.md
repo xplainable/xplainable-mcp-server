@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- XGM v2 as the primary training workflow: 9 `agentic_*` lifecycle tools
+  (`agentic_start_run` defaults to `algorithm="xgm"` and `auto_mode=True`,
+  polling via `agentic_get_run_state`, decisions, chat, cancel, skip,
+  phases, retrain) — training runs server-side on Xplainable's agentic
+  pipeline
+- 8 optimiser tools (policies / versions / batch runs)
+
+### Changed
+- Server instructions and README now feature the v2 workflow; legacy v1
+  tools (`models_train_model`, `models_refit_model`) remain for the
+  opensource path
+- Bumped `xplainable-client` pin to >=1.7.0
+
+### Removed
+- `models_create_model_v2` tool (raw-blob persistence stays an internal
+  client method; exposing it would bypass server-side-only v2 training)
+
+### Added (initial release)
 - Initial implementation of Xplainable MCP Server
 - FastMCP-based server architecture
 - Read-only tools for models, deployments, preprocessors, and collections

@@ -373,3 +373,9 @@ def models_train_model(target_column: str, model_name: str, model_description: s
     except Exception as e:
         logger.error(f"Error in models_train_model: {e}")
         raise
+
+# NOTE: create_model_v2 (raw-blob persistence) is deliberately NOT exposed
+# as an MCP tool. It is the internal training agent's path; exposing it
+# would let consumers push arbitrary v2 blobs, bypassing server-side-only
+# v2 training. Use agentic_start_run (tools/agentic.py) instead.
+

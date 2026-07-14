@@ -5,6 +5,7 @@ This module auto-imports all service-specific tool modules.
 """
 
 # Import all service tools
+from . import agentic
 from . import autotrain
 from . import datasets
 from . import deployments
@@ -14,6 +15,7 @@ from . import inference
 from . import misc
 from . import models
 from . import monitors
+from . import optimisers
 from . import preprocessing
 from . import reports
 from . import runs

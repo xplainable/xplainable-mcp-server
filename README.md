@@ -266,6 +266,24 @@ curl -X POST https://inference.xplainable.io/v1/predict \
   }'
 ```
 
+## Primary Training Workflow (XGM v2)
+
+Training runs server-side on Xplainable's agentic pipeline — the MCP host
+never fits a v2 model locally:
+
+1. Upload a dataset and summarize it to obtain a `run_id`
+2. `agentic_start_run(model_name, run_id)` — defaults to `algorithm="xgm"`
+   (v2) and `auto_mode=True`
+3. Poll `agentic_get_run_state(run_id)` until `completed` (~10 minutes);
+   if `waiting_input`, respond via `agentic_get_pending_decision` /
+   `agentic_submit_decision`
+4. Optionally run prescriptive optimisers (`optimisers_create_optimiser` →
+   `optimisers_create_optimiser_version` → `optimisers_run_optimiser`)
+5. Deploy and test inference
+
+Legacy v1 training (`models_train_model`, `models_refit_model`) remains
+available for the opensource workflow.
+
 ## Available Tools
 
 ### Discovery Tools
