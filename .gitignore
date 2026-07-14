@@ -172,7 +172,8 @@ desktop.ini
 
 /.claude
 /xplainable-mcp-env
-.claudemcp_sync_report_*.json
+.claude
+mcp_sync_report_*.json
 
 # Git worktrees
 .worktrees/

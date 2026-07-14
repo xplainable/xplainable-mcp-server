@@ -82,7 +82,7 @@ xplainable-mcp --host 0.0.0.0 --port 8000
   "mcpServers": {
     "xplainable": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/yourusername/xplainable-mcp-server.git", "xplainable-mcp-server"],
+      "args": ["--from", "git+https://github.com/xplainable/xplainable-mcp-server.git", "xplainable-mcp-server"],
       "env": {
         "XPLAINABLE_API_KEY": "your-api-key-here",
         "XPLAINABLE_HOST": "https://platform.xplainable.io"
@@ -142,7 +142,7 @@ Add the configuration to your Claude Desktop MCP settings file:
   "mcpServers": {
     "xplainable": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/yourusername/xplainable-mcp-server.git", "xplainable-mcp-server"],
+      "args": ["--from", "git+https://github.com/xplainable/xplainable-mcp-server.git", "xplainable-mcp-server"],
       "env": {
         "XPLAINABLE_API_KEY": "your-api-key-here",
         "XPLAINABLE_HOST": "https://platform.xplainable.io"
@@ -406,7 +406,7 @@ docker run --env-file .env -p 8000:8000 xplainable-mcp-server
 
 | MCP Server Version | Xplainable Client | Backend API |
 |-------------------|-------------------|-------------|
-| 0.1.x             | >=1.0.0           | v1          |
+| 1.0.x             | >=1.7.0           | v1 + v2 (agentic) |
 
 ## Contributing
 
