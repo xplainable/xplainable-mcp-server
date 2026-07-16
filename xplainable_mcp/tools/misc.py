@@ -52,6 +52,7 @@ def misc_health_check(check_database: bool = True, check_storage: bool = True, c
         logger.error(f"Error in misc_health_check: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def misc_get_model_info(model_id: str, version_id: str):
     """
     Get information about a model without loading it.

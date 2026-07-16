@@ -74,6 +74,7 @@ def monitors_get_monitor(monitor_id: str):
         logger.error(f"Error in monitors_get_monitor: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def monitors_get_model_monitors(model_id: str):
     """
     Get all monitors for a specific model.
@@ -131,6 +132,7 @@ def monitors_get_team_monitors(team_id: Optional[str] = None):
         logger.error(f"Error in monitors_get_team_monitors: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def monitors_delete_monitor(monitor_id: str):
     """
     Delete a monitor.
@@ -188,6 +190,7 @@ def monitors_get_alert_rules(monitor_id: str):
         logger.error(f"Error in monitors_get_alert_rules: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def monitors_create_alert_rule(monitor_id: str, rule_type: str, value: float, notify_in_app: bool = True, notify_email: bool = False):
     """
     Create an alert rule for a monitor.
@@ -220,6 +223,7 @@ def monitors_create_alert_rule(monitor_id: str, rule_type: str, value: float, no
         logger.error(f"Error in monitors_create_alert_rule: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def monitors_add_monitor_items(monitor_id: str, monitor_items: List[dict]):
     """
     Add items to a monitor.
