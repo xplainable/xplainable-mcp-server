@@ -75,6 +75,7 @@ def agentic_start_run(model_name: str, model_description: str = '', auto_mode: b
         logger.error(f"Error in agentic_start_run: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def agentic_get_run_state(run_id: str):
     """
     Get the current state of an agentic pipeline run.
@@ -106,6 +107,7 @@ def agentic_get_run_state(run_id: str):
         logger.error(f"Error in agentic_get_run_state: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def agentic_get_pending_decision(run_id: str):
     """
     Check if the pipeline is waiting for a human decision.
@@ -195,6 +197,7 @@ def agentic_submit_decision(run_id: str, decision_type: str, choice_index: Optio
         logger.error(f"Error in agentic_submit_decision: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def agentic_send_chat(run_id: str, content: str):
     """
     Send a chat message to the agentic pipeline and get a response.
@@ -227,6 +230,7 @@ def agentic_send_chat(run_id: str, content: str):
         logger.error(f"Error in agentic_send_chat: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def agentic_cancel_run(run_id: str):
     """
     Cancel a running agentic pipeline.
@@ -284,6 +288,7 @@ def agentic_skip_phase(run_id: str):
         logger.error(f"Error in agentic_skip_phase: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def agentic_get_phases(run_id: str):
     """
     Get the phase execution history for a run.

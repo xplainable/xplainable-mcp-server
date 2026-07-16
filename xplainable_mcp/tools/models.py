@@ -50,6 +50,7 @@ def models_get_model(model_id: str):
         logger.error(f"Error in models_get_model: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def models_get_feature_info(version_id: str):
     """
     Get feature information including types, health metrics, and distributions.

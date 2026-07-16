@@ -47,6 +47,7 @@ def preprocessing_get_preprocessor(preprocessor_id: str):
         logger.error(f"Error in preprocessing_get_preprocessor: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def preprocessing_add_version_from_spec(preprocessor_id: str, spec: dict, sample_data: Optional[List[Dict]] = None, parent_version_id: Optional[str] = None):
     """
     Add a new version to an existing preprocessor.

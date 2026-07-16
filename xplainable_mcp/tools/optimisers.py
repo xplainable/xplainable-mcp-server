@@ -106,6 +106,7 @@ def optimisers_run_optimiser(optimiser_id: str, dataset_id: str, version_id: Opt
         logger.error(f"Error in optimisers_run_optimiser: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def optimisers_list_optimisers(model_id: str):
     """
     List optimisers for a model.
@@ -128,6 +129,7 @@ def optimisers_list_optimisers(model_id: str):
         logger.error(f"Error in optimisers_list_optimisers: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def optimisers_list_optimiser_versions(optimiser_id: str):
     """
     List policy versions for an optimiser.
@@ -150,6 +152,7 @@ def optimisers_list_optimiser_versions(optimiser_id: str):
         logger.error(f"Error in optimisers_list_optimiser_versions: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def optimisers_get_optimiser_version(optimiser_id: str, version_id: str):
     """
     Get a single policy version.
@@ -172,6 +175,7 @@ def optimisers_get_optimiser_version(optimiser_id: str, version_id: str):
         logger.error(f"Error in optimisers_get_optimiser_version: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def optimisers_get_optimiser_run(optimiser_id: str, run_id: str):
     """
     Get an optimiser run and its batches.
@@ -194,6 +198,7 @@ def optimisers_get_optimiser_run(optimiser_id: str, run_id: str):
         logger.error(f"Error in optimisers_get_optimiser_run: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def optimisers_delete_optimiser(optimiser_id: str):
     """
     Delete an optimiser and its versions/runs.

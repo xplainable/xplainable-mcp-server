@@ -310,7 +310,9 @@ This module auto-imports all service-specific tool modules.
                         while k < len(lines):
                             if k > j and lines[k].strip():
                                 current_indent = len(lines[k]) - len(lines[k].lstrip())
-                                if current_indent <= func_indent and not lines[k].lstrip().startswith(('@', '"""', "'''", '#', ')')):
+                                # A top-level '@' after the body is the NEXT
+                                # definition's decorator - it ends this block.
+                                if current_indent <= func_indent and not lines[k].lstrip().startswith(('"""', "'''", '#', ')')):
                                     break
                             k += 1
                         i = k - 1
@@ -327,7 +329,7 @@ This module auto-imports all service-specific tool modules.
                 while j < len(lines):
                     if lines[j].strip():
                         current_indent = len(lines[j]) - len(lines[j].lstrip())
-                        if current_indent <= func_indent and not lines[j].lstrip().startswith(('@', '"""', "'''", '#', ')')):
+                        if current_indent <= func_indent and not lines[j].lstrip().startswith(('"""', "'''", '#', ')')):
                             break
                     j += 1
                 i = j - 1
@@ -411,7 +413,7 @@ This module auto-imports all service-specific tool modules.
             
             if in_tool:
                 # Check if we've reached the end of the function
-                if line.strip() and (len(line) - len(line.lstrip())) <= indent_level and not line.lstrip().startswith(('@', '"""', "'''")):
+                if line.strip() and (len(line) - len(line.lstrip())) <= indent_level and not line.lstrip().startswith(('"""', "'''")):
                     # We've found a line at the same or lesser indentation that isn't a decorator or docstring
                     # This marks the end of the function
                     break
@@ -458,7 +460,9 @@ This module auto-imports all service-specific tool modules.
                         while k < len(lines):
                             if k > j and lines[k].strip():
                                 current_indent = len(lines[k]) - len(lines[k].lstrip())
-                                if current_indent <= func_indent and not lines[k].lstrip().startswith(('@', '"""', "'''", '#', ')')):
+                                # A top-level '@' after the body is the NEXT
+                                # definition's decorator - it ends this block.
+                                if current_indent <= func_indent and not lines[k].lstrip().startswith(('"""', "'''", '#', ')')):
                                     break
                             k += 1
                         i = k - 1
@@ -480,7 +484,7 @@ This module auto-imports all service-specific tool modules.
                 while j < len(lines):
                     if lines[j].strip():
                         current_indent = len(lines[j]) - len(lines[j].lstrip())
-                        if current_indent <= func_indent and not lines[j].lstrip().startswith(('@', '"""', "'''", '#', ')')):
+                        if current_indent <= func_indent and not lines[j].lstrip().startswith(('"""', "'''", '#', ')')):
                             break
                     j += 1
                 i = j - 1

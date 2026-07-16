@@ -47,6 +47,7 @@ def datasets_list_datasets():
         logger.error(f"Error in datasets_list_datasets: {e}")
         raise
 
+@mcp.tool(icons=[XP_ICON])
 def datasets_delete_dataset(dataset_id: str):
     """
     Delete a dataset.
