@@ -259,7 +259,14 @@ def generate_tool_implementation(method_info: Dict[str, Any]) -> str:
     if workflow_parts:
         workflow_line = f"\n    Workflow: {'. '.join(workflow_parts)}."
 
-    template = f'''@mcp.tool(icons=[XP_ICON])
+    # Build FastMCP tags: the category plus an optional "curated" marker.
+    # The server gates exposure via include_tags (e.g. {"workflow", "curated"}).
+    tags = {method_info.get('category', 'read')}
+    if method_info.get('curated'):
+        tags.add('curated')
+    tags_literal = "{" + ", ".join(f'"{t}"' for t in sorted(tags)) + "}"
+
+    template = f'''@mcp.tool(icons=[XP_ICON], tags={tags_literal})
 def {method_info['mcp_name']}({param_str}):
     """
     {formatted_docstring}
