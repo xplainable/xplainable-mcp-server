@@ -270,7 +270,11 @@ def generate_tool_implementation(method_info: Dict[str, Any]) -> str:
     if step:
         workflow_parts.append(f"Step {step} of {module}")
     if depends_on:
-        prefixed = [f"{module}_{d}" for d in depends_on]
+        # depends_on entries may be bare method names (e.g. deployments'
+        # "deploy") or already-full tool names (e.g. workflow's
+        # "workflow_train_model"). Only prefix bare names — otherwise we'd
+        # emit non-existent tools like "workflow_workflow_train_model".
+        prefixed = [d if d.startswith(f"{module}_") else f"{module}_{d}" for d in depends_on]
         workflow_parts.append(f"Run after: {', '.join(prefixed)}")
 
     workflow_line = ""

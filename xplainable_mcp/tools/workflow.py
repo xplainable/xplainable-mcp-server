@@ -30,7 +30,7 @@ def workflow_create_report(run_id: str, report_name: str, goal: str = ''):
     job status for success is "done".
 
     Category: workflow
-    Workflow: Step 9 of workflow. Run after: workflow_workflow_train_model.
+    Workflow: Step 9 of workflow. Run after: workflow_train_model.
     """
     try:
         client = get_client()
@@ -64,7 +64,7 @@ def workflow_decide(run_id: str, approve: Optional[bool] = None, choice: Optiona
     raising.
 
     Category: workflow
-    Workflow: Step 4 of workflow. Run after: workflow_workflow_wait_for_update.
+    Workflow: Step 4 of workflow. Run after: workflow_wait_for_update.
     """
     try:
         client = get_client()
@@ -97,7 +97,7 @@ def workflow_deploy_model(model_id: str, version_id: Optional[str] = None):
     with header api_key=<deploy_key>.
 
     Category: workflow
-    Workflow: Step 5 of workflow. Run after: workflow_workflow_train_model.
+    Workflow: Step 5 of workflow. Run after: workflow_train_model.
     """
     try:
         client = get_client()
@@ -128,7 +128,7 @@ def workflow_explain_model(model_id: str, version_id: Optional[str] = None):
     omitted, the model's active (or latest) version is used.
 
     Category: workflow
-    Workflow: Step 7 of workflow. Run after: workflow_workflow_train_model.
+    Workflow: Step 7 of workflow. Run after: workflow_train_model.
     """
     try:
         client = get_client()
@@ -193,7 +193,7 @@ def workflow_optimise_model(model_id: str, objective: str, dataset_id: str, cons
     'pareto'); the full result stays on the stored run.
 
     Category: workflow
-    Workflow: Step 6 of workflow. Run after: workflow_workflow_deploy_model.
+    Workflow: Step 6 of workflow. Run after: workflow_deploy_model.
     """
     try:
         client = get_client()
@@ -225,7 +225,7 @@ def workflow_predict(model_id: str, rows: List[dict], version_id: Optional[str] 
     as rows.
 
     Category: workflow
-    Workflow: Step 8 of workflow. Run after: workflow_workflow_train_model.
+    Workflow: Step 8 of workflow. Run after: workflow_train_model.
     """
     try:
         client = get_client()
@@ -253,7 +253,7 @@ def workflow_train_model(dataset_id: str, goal: str, model_name: str, model_desc
     workflow_wait_for_update(run_id).
 
     Category: workflow
-    Workflow: Step 2 of workflow. Run after: workflow_workflow_list_assets.
+    Workflow: Step 2 of workflow. Run after: workflow_list_assets.
     """
     try:
         client = get_client()
@@ -281,7 +281,7 @@ def workflow_wait_for_update(run_id: str, since_event: int = 0, timeout: int = 6
     Pass the returned next_since_event into the next call.
 
     Category: workflow
-    Workflow: Step 3 of workflow. Run after: workflow_workflow_train_model.
+    Workflow: Step 3 of workflow. Run after: workflow_train_model.
     """
     try:
         client = get_client()

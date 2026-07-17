@@ -89,7 +89,7 @@ def agentic_get_run_state(run_id: str):
         Dict with run state including current phase, status, and any results
 
     Category: read
-    Workflow: Step 2 of agentic. Run after: agentic_agentic_start_run.
+    Workflow: Step 2 of agentic. Run after: agentic_start_run.
     """
     try:
         client = get_client()

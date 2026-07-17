@@ -128,6 +128,31 @@ class TestScannerSkipsImportedClasses:
         )
 
 
+class TestWorkflowDependsOnPrefixing:
+    def test_already_prefixed_depends_on_is_not_double_prefixed(self, sync_workflow):
+        # The client's workflow.py declares depends_on with full tool names
+        # (e.g. "workflow_train_model"); the generator must not prefix again.
+        code = sync_workflow.generate_tool_implementation(
+            _method_info(step=5, depends_on=["workflow_train_model"])
+        )
+        assert "Run after: workflow_train_model." in code
+        assert "workflow_workflow_train_model" not in code
+
+    def test_bare_method_depends_on_still_gets_module_prefix(self, sync_workflow):
+        # Other client modules (deployments, reports) declare bare method
+        # names (e.g. "deploy"), which must still be prefixed to full tool names.
+        code = sync_workflow.generate_tool_implementation(
+            _method_info(
+                module="deployments",
+                method="zz_fake_method",
+                mcp_name="deployments_zz_fake_method",
+                step=3,
+                depends_on=["deploy"],
+            )
+        )
+        assert "Run after: deployments_deploy." in code
+
+
 class TestGenerateToolTags:
     def test_workflow_curated_emits_both_tags_sorted(self, sync_workflow):
         code = sync_workflow.generate_tool_implementation(
