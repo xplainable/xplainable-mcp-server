@@ -7,9 +7,12 @@ all tool modules to ensure proper registration.
 
 import os
 from typing import Optional
+from dotenv import load_dotenv
 from fastmcp import FastMCP
 from mcp.types import Icon
 from . import __version__
+
+load_dotenv()
 
 
 def resolve_include_tags(env_value: Optional[str]) -> Optional[set]:
@@ -22,6 +25,7 @@ def resolve_include_tags(env_value: Optional[str]) -> Optional[set]:
     if (env_value or "").strip().lower() in ("1", "true", "yes"):
         return None  # advanced: full surface
     return {"workflow", "curated"}
+
 
 # Auth is only configured when running in HTTP transport mode.
 # In stdio mode (local dev), no auth is applied.

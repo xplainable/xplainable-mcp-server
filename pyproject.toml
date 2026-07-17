@@ -13,7 +13,7 @@ authors = [
     {name = "Xplainable Team", email = "support@xplainable.io"},
 ]
 dependencies = [
-    "fastmcp>=2.0.0",
+    "fastmcp>=2.0.0,<3.0.0",
     "xplainable-client>=1.7.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
