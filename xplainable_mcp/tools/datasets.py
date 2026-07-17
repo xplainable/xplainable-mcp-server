@@ -18,7 +18,7 @@ from ..server import get_client, XP_ICON
 # ============================================
 
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"curated", "read"})
 def datasets_list_datasets():
     """
     List all available public datasets.
@@ -47,7 +47,7 @@ def datasets_list_datasets():
         logger.error(f"Error in datasets_list_datasets: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def datasets_delete_dataset(dataset_id: str):
     """
     Delete a dataset.
@@ -79,7 +79,7 @@ def datasets_delete_dataset(dataset_id: str):
         logger.error(f"Error in datasets_delete_dataset: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def datasets_get_dataset_info(dataset_id: str):
     """
     Get information about a specific dataset.
@@ -111,7 +111,7 @@ def datasets_get_dataset_info(dataset_id: str):
         logger.error(f"Error in datasets_get_dataset_info: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def datasets_list_team_datasets(team_id: Optional[str] = None):
     """
     List all datasets for a team.
@@ -143,7 +143,7 @@ def datasets_list_team_datasets(team_id: Optional[str] = None):
         logger.error(f"Error in datasets_list_team_datasets: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def datasets_load_dataset(name: str):
     """
     Load a public dataset by name. Downloads the CSV directly from
@@ -178,7 +178,7 @@ def datasets_load_dataset(name: str):
         logger.error(f"Error in datasets_load_dataset: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"curated", "read"})
 def datasets_preview_dataset_json(dataset_id: str, rows: int = 10):
     """
     Preview a dataset as JSON records.
@@ -208,7 +208,7 @@ def datasets_preview_dataset_json(dataset_id: str, rows: int = 10):
         logger.error(f"Error in datasets_preview_dataset_json: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def datasets_upload_dataset(file_path: str, name: str, description: Optional[str] = None, team_id: Optional[str] = None):
     """
     Upload a dataset file.

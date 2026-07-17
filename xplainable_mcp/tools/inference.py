@@ -17,7 +17,7 @@ from ..server import get_client, XP_ICON
 # Inference Tools
 # ============================================
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"inference"})
 def inference_predict(filename: str, model_id: str, version_id: str, threshold: float = 0.5, delimiter: str = ','):
     """
     Predicts the target column of a dataset.
@@ -50,7 +50,7 @@ def inference_predict(filename: str, model_id: str, version_id: str, threshold: 
         logger.error(f"Error in inference_predict: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"inference"})
 def inference_stream_predictions(filename: str, model_id: str, version_id: str, threshold: float = 0.5, delimiter: str = ',', batch_size: int = 1000):
     """
     Stream predictions for large datasets by processing in batches.

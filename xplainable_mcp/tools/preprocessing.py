@@ -18,7 +18,7 @@ from ..server import get_client, XP_ICON
 # ============================================
 
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def preprocessing_get_preprocessor(preprocessor_id: str):
     """
     Get detailed information about a preprocessor.
@@ -47,7 +47,7 @@ def preprocessing_get_preprocessor(preprocessor_id: str):
         logger.error(f"Error in preprocessing_get_preprocessor: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def preprocessing_add_version_from_spec(preprocessor_id: str, spec: dict, sample_data: Optional[List[Dict]] = None, parent_version_id: Optional[str] = None):
     """
     Add a new version to an existing preprocessor.
@@ -79,7 +79,7 @@ def preprocessing_add_version_from_spec(preprocessor_id: str, spec: dict, sample
         logger.error(f"Error in preprocessing_add_version_from_spec: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def preprocessing_check_signature(version_id: str, columns: List[str]):
     """
     Check if a preprocessor version's output schema matches expected columns.
@@ -109,7 +109,7 @@ def preprocessing_check_signature(version_id: str, columns: List[str]):
         logger.error(f"Error in preprocessing_check_signature: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def preprocessing_create_preprocessor_from_spec(name: str, description: str, spec: dict, sample_data: Optional[List[Dict]] = None):
     """
     Create a new preprocessor from a PipelineSpec dict.
@@ -146,7 +146,7 @@ def preprocessing_create_preprocessor_from_spec(name: str, description: str, spe
         logger.error(f"Error in preprocessing_create_preprocessor_from_spec: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def preprocessing_delete_preprocessor(preprocessor_id: str):
     """
     Delete a preprocessor and all its versions.
@@ -175,7 +175,7 @@ def preprocessing_delete_preprocessor(preprocessor_id: str):
         logger.error(f"Error in preprocessing_delete_preprocessor: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def preprocessing_delete_version(version_id: str):
     """
     Delete a preprocessor version.
@@ -204,7 +204,7 @@ def preprocessing_delete_version(version_id: str):
         logger.error(f"Error in preprocessing_delete_version: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def preprocessing_fit_version_from_data(version_id: str, sample_data: List[Dict]):
     """
     Fit a preprocessor version with sample data.
@@ -234,7 +234,7 @@ def preprocessing_fit_version_from_data(version_id: str, sample_data: List[Dict]
         logger.error(f"Error in preprocessing_fit_version_from_data: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def preprocessing_get_version(version_id: str):
     """
     Get metadata for a preprocessor version.
@@ -263,7 +263,7 @@ def preprocessing_get_version(version_id: str):
         logger.error(f"Error in preprocessing_get_version: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def preprocessing_list_available_transformers():
     """
     List all available preprocessing transformers with their parameters.
@@ -292,7 +292,7 @@ def preprocessing_list_available_transformers():
         logger.error(f"Error in preprocessing_list_available_transformers: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def preprocessing_list_preprocessors(team_id: Optional[str] = None):
     """
     List all preprocessors for a team.
@@ -321,7 +321,7 @@ def preprocessing_list_preprocessors(team_id: Optional[str] = None):
         logger.error(f"Error in preprocessing_list_preprocessors: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def preprocessing_preview_from_data(version_id: str, sample_data: List[Dict]):
     """
     Preview pipeline transformation on sample data.
@@ -351,7 +351,7 @@ def preprocessing_preview_from_data(version_id: str, sample_data: List[Dict]):
         logger.error(f"Error in preprocessing_preview_from_data: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def preprocessing_update_version_from_spec(version_id: str, spec: dict, sample_data: Optional[List[Dict]] = None):
     """
     Update an existing preprocessor version with a new spec.

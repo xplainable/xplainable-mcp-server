@@ -17,7 +17,7 @@ from ..server import get_client, XP_ICON
 # Gpt Tools
 # ============================================
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"analysis"})
 def gpt_explain_model(model_id: str, version_id: str, language: str = 'en', detail_level: str = 'medium'):
     """
     Get a natural language explanation of the model.
@@ -52,7 +52,7 @@ def gpt_explain_model(model_id: str, version_id: str, language: str = 'en', deta
         logger.error(f"Error in gpt_explain_model: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"analysis"})
 def gpt_generate_documentation(model_id: str, version_id: str, include_technical: bool = True, include_business: bool = True, format: str = 'markdown'):
     """
     Generate comprehensive documentation for a model.
@@ -88,7 +88,7 @@ def gpt_generate_documentation(model_id: str, version_id: str, include_technical
         logger.error(f"Error in gpt_generate_documentation: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"analysis"})
 def gpt_generate_report(model_id: str, version_id: str, target_description: str = 'text', project_objective: str = 'text', max_features: int = 15, temperature: float = 0.7):
     """
     Generate a GPT-powered report for a model.

@@ -19,5 +19,6 @@ from . import optimisers
 from . import preprocessing
 from . import reports
 from . import runs
+from . import workflow
 
 # All tools are automatically registered via the @mcp.tool() decorators
