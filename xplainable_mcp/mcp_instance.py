@@ -52,59 +52,48 @@ if os.getenv("MCP_TRANSPORT") == "streamable-http":
         )
 
 INSTRUCTIONS = """\
-IMPORTANT: You MUST call select_team (or list_user_teams then set_active_team) \
-as your very first action before calling any other tool. All tools require an \
-active team to be set. If a tool returns 'No team selected', call select_team first.
+Xplainable trains inherently explainable ML models server-side. Everything \
+you need for the end-to-end journey is covered by the workflow_* tools — \
+prefer them over any other tool.
 
-## Primary Training Workflow (XGM v2)
+If a tool returns 'No team selected', an active team must be set first \
+(select_team / set_active_team when available, or the XPLAINABLE_TEAM_ID \
+environment variable).
 
-Model training runs server-side on Xplainable's agentic pipeline — never \
-train locally unless explicitly asked to use the legacy v1 path.
+## The Workflow Loop
 
-1. Upload the dataset (datasets tools), then summarize it to obtain a run_id.
-2. `agentic_start_run(model_name=..., run_id=...)` — defaults to \
-algorithm="xgm" (v2) and auto_mode=True.
-3. Poll `agentic_get_run_state(run_id)` until status is 'completed' \
-(runs take ~10 minutes; if 'waiting_input', answer via \
-`agentic_get_pending_decision` + `agentic_submit_decision`).
-4. Optionally create and run prescriptive optimisers (optimisers tools: \
-create policy -> create version -> run).
-5. Deploy and test inference (deployments tools).
+1. `workflow_list_assets` — see the team's datasets, models, and \
+deployments. Find the dataset to model (or confirm a model already exists).
+2. `workflow_train_model(dataset_id, goal, model_name)` — starts a \
+server-side agentic training run and returns a run_id.
+3. Loop: `workflow_wait_for_update(run_id, since_event, timeout)` — \
+long-polls the run and returns new events. Narrate progress to the user as \
+events arrive. If it reports a pending_decision, relay the question and \
+options to the user, then submit their answer with \
+`workflow_decide(run_id, approve=... | choice=... | custom=...)`. Repeat \
+until the run completes (typically ~10 minutes end-to-end).
+4. `workflow_deploy_model(model_id)` — deploys the trained model (or \
+approve the deployment gate if the run pauses on one).
+5. Act on the model:
+   - `workflow_optimise_model` — prescriptive optimisation toward an objective.
+   - `workflow_predict` — score rows through the deployment.
+   - `workflow_explain_model` — feature-importance and profile digest.
+   - `workflow_create_report` — generate a shareable platform report.
 
-Legacy v1 (`models_train_model`, `models_refit_model`) trains locally in \
-the MCP host and remains available for the opensource workflow; the rules \
-below apply mainly to that path.
+Read-oriented tools (datasets_*, models_*, deployments_*, optimisers_*, \
+runs_*, agentic_*) are available for inspecting assets in more detail \
+between workflow steps.
 
-## xplainable Best Practices
+## Advanced Tool Surface
 
-xplainable models are inherently explainable. Every decision must preserve this.
+By default this server exposes the curated workflow surface (~25 tools). \
+Set the environment variable `XPLAINABLE_ADVANCED_TOOLS` to `1`, `true`, or \
+`yes` to expose the full surface (~104 tools) including write/admin tools \
+for preprocessing, monitors, GPT reports, inference, and low-level agentic \
+run control.
 
-### Preprocessing Rules
-- NEVER scale numeric columns (no StandardScaler, MinMaxScaler, RobustScaler, etc.). \
-Feature contributions are expressed in original units — scaling destroys interpretability. \
-The model handles raw values natively.
-- NEVER use OrdinalEncoder on nominal categories. xplainable handles categories natively.
-- DO: drop IDs/irrelevant columns, fill missing values (median/mode), extract datetime \
-components, condense high-cardinality categoricals (>15 unique → CategoryCondenseTransformer).
+## Available Skills
 
-### Training Rules
-- Start with default hyperparameters (max_depth=8). Look at train vs test metrics before adjusting.
-- Use `train_model()` for initial training. Use `refit_model()` for instant hyperparameter \
-iteration -- everything happens server-side in one API call.
-- Only `train_model()` when changing features or preprocessing. Use `refit_model()` for \
-everything else.
-- Use `feature_params` to tune multiple features with different settings in ONE refit call. \
-This avoids repeated data loads. Tune numeric features with max_depth/min_leaf_size. \
-Tune categorical features with weight/tail_sensitivity (depth has little effect on categoricals).
-
-### Evaluation Rules
-- Compare train vs test metrics. Gap >5-8% = overfitting. Reduce max_depth or increase min_leaf_size.
-- Goal: minimise splits while maintaining AUC. Fewer splits = less overfitting = more explainable.
-- Primary metric: AUC for classifiers, R2 for regressors. Accuracy is misleading with imbalanced classes.
-- Any single feature >40% importance = investigate for data leakage.
-- Present feature contributions in original units, not scaled values.
-
-### Available Skills
 Pin a skill resource to your project for domain-specific workflow guidance. \
 Available skills can be discovered via the MCP resources panel.
 """
