@@ -1,42 +1,45 @@
-# Digital Ocean App Platform specification
+# Digital Ocean App Platform specification for the hosted server
+# (https://mcp.xplainable.io). Mirrors the live app; secrets are set in the
+# DO dashboard, never here.
 # https://docs.digitalocean.com/products/app-platform/reference/app-spec/
+#
+# Note: the hosted server is OAuth-gated (Auth0) and serves the default
+# 28-tool workflow surface (XPLAINABLE_ADVANCED_TOOLS is not set).
 name: xplainable-mcp-server
+region: syd
 
 services:
-  - name: mcp-server
-    dockerfile_path: Dockerfile
+  - name: xplainable-mcp-server
+    dockerfile_path: /Dockerfile
+    source_dir: /
     github:
       repo: xplainable/xplainable-mcp-server
       branch: main
       deploy_on_push: true
     http_port: 8000
     instance_count: 1
-    instance_size_slug: basic-xxs
-    routes:
-      - path: /
-    health_check:
-      http_path: /health
-      initial_delay_seconds: 10
-      period_seconds: 30
-      timeout_seconds: 5
+    instance_size_slug: apps-s-1vcpu-1gb
     envs:
       - key: MCP_TRANSPORT
         value: streamable-http
-      - key: XPLAINABLE_API_KEY
-        type: SECRET
       - key: XPLAINABLE_HOSTNAME
         value: https://platform.xplainable.io
-      - key: ENABLE_WRITE_TOOLS
-        value: "false"
-      # Auth0 (Phase 2)
-      # - key: AUTH0_DOMAIN
-      #   value: dev-k-xn6t1r.us.auth0.com
-      # - key: AUTH0_CLIENT_ID
-      #   type: SECRET
-      # - key: AUTH0_CLIENT_SECRET
-      #   type: SECRET
-      # - key: MCP_SERVER_URL
-      #   value: https://mcp.xplainable.io
+      # OAuth (per-user auth on the hosted server; local stdio uses
+      # XPLAINABLE_API_KEY instead)
+      - key: AUTH0_DOMAIN
+        value: xplainable.au.auth0.com
+      - key: AUTH0_CLIENT_ID
+        type: SECRET
+      - key: AUTH0_CLIENT_SECRET
+        type: SECRET
+      - key: AUTH0_AUDIENCE
+        value: https://xplainable.au.auth0.com/api/v2/
+      - key: MCP_SERVER_URL
+        value: https://mcp.xplainable.io
+      # Set to "1" to expose the full advanced tool surface instead of the
+      # default workflow + curated set.
+      # - key: XPLAINABLE_ADVANCED_TOOLS
+      #   value: "1"
 
 domains:
   - domain: mcp.xplainable.io
