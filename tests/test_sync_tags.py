@@ -47,6 +47,87 @@ def _method_info(**overrides):
     return info
 
 
+class _FakeCategory:
+    """Mimics the client's McpCategory enum members (scan reads .value)."""
+
+    def __init__(self, value):
+        self.value = value
+
+
+def _fake_method(name, category=None, curated=None):
+    def method(self, x: str):
+        """Fake docstring."""
+
+    method.__name__ = name
+    method._is_mcp_tool = True
+    if category is not None:
+        method._mcp_category = _FakeCategory(category)
+    if curated is not None:
+        method._mcp_curated = curated
+    return method
+
+
+def _make_client_class(class_name, module_name, methods):
+    cls = type(class_name, (), {m.__name__: m for m in methods})
+    cls.__module__ = module_name
+    return cls
+
+
+class TestDiscoveryCuratedFlag:
+    def test_curated_defaults_to_false_when_marker_absent(self, sync_workflow):
+        module = types.ModuleType("fake_pkg.reads")
+        module.ReadsClient = _make_client_class(
+            "ReadsClient", "fake_pkg.reads", [_fake_method("get_thing", category="read")]
+        )
+
+        infos = sync_workflow.scan_module_for_mcp_methods("reads", module)
+
+        assert len(infos) == 1
+        assert infos[0]["curated"] is False
+        assert infos[0]["category"] == "read"
+
+    def test_curated_true_when_marker_set(self, sync_workflow):
+        module = types.ModuleType("fake_pkg.reads")
+        module.ReadsClient = _make_client_class(
+            "ReadsClient",
+            "fake_pkg.reads",
+            [_fake_method("get_thing", category="read", curated=True)],
+        )
+
+        infos = sync_workflow.scan_module_for_mcp_methods("reads", module)
+
+        assert len(infos) == 1
+        assert infos[0]["curated"] is True
+
+
+class TestScannerSkipsImportedClasses:
+    def test_only_locally_defined_client_classes_are_scanned(self, sync_workflow):
+        # ForeignClient is defined in fake_pkg.models but imported into
+        # fake_pkg.workflow (like WorkflowClient importing 8 sub-clients).
+        foreign_module = types.ModuleType("fake_pkg.models")
+        foreign_module.ModelsClient = _make_client_class(
+            "ModelsClient",
+            "fake_pkg.models",
+            [_fake_method("train_model", category="write")],
+        )
+
+        workflow_module = types.ModuleType("fake_pkg.workflow")
+        workflow_module.WorkflowClient = _make_client_class(
+            "WorkflowClient",
+            "fake_pkg.workflow",
+            [_fake_method("wf_train_model", category="workflow", curated=True)],
+        )
+        # Simulate top-level `from .models import ModelsClient` in workflow.py
+        workflow_module.ModelsClient = foreign_module.ModelsClient
+
+        infos = sync_workflow.scan_module_for_mcp_methods("workflow", workflow_module)
+
+        names = [i["mcp_name"] for i in infos]
+        assert names == ["workflow_wf_train_model"], (
+            "imported ModelsClient must not be re-emitted as workflow_* tools"
+        )
+
+
 class TestGenerateToolTags:
     def test_workflow_curated_emits_both_tags_sorted(self, sync_workflow):
         code = sync_workflow.generate_tool_implementation(

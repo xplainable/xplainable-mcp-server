@@ -32,6 +32,42 @@ def get_current_version() -> str:
     return "unknown"
 
 
+def scan_module_for_mcp_methods(module_name: str, module) -> List[Dict[str, Any]]:
+    """Scan a client module for MCP-decorated methods on its *Client classes.
+
+    Only classes *defined in* the module are scanned: client modules may
+    import other sub-client classes at top level (e.g. workflow.py imports
+    ModelsClient, DatasetsClient, ...), and scanning those would emit
+    bogus duplicate tools like ``workflow_train_model`` calling
+    ``client.workflow.train_model``.
+    """
+    discovered = []
+    for class_name, class_obj in inspect.getmembers(module, inspect.isclass):
+        if not class_name.endswith('Client'):
+            continue
+        # Skip classes imported from other modules
+        if class_obj.__module__ != module.__name__:
+            continue
+        # Scan methods in the client class
+        for method_name, method in inspect.getmembers(class_obj):
+            # Check if method has the MCP marker
+            if hasattr(method, '_is_mcp_tool'):
+                method_info = {
+                    'module': module_name,
+                    'class': class_name,
+                    'method': method_name,
+                    'mcp_name': f"{module_name}_{method_name}",
+                    'category': method._mcp_category.value if hasattr(method, '_mcp_category') else 'read',
+                    'curated': getattr(method, '_mcp_curated', False),
+                    'signature': str(inspect.signature(method)) if callable(method) else '',
+                    'docstring': inspect.getdoc(method) or '',
+                    'step': getattr(method, '_mcp_step', 0),
+                    'depends_on': getattr(method, '_mcp_depends_on', []),
+                }
+                discovered.append(method_info)
+    return discovered
+
+
 def discover_mcp_decorated_methods(verbose: bool = False) -> Dict[str, Any]:
     """Discover methods decorated with @mcp_tool in xplainable-client."""
     decorated_methods = []
@@ -68,25 +104,7 @@ def discover_mcp_decorated_methods(verbose: bool = False) -> Dict[str, Any]:
                 pass
         
         for module_name, module in modules_to_scan:
-            # Find client classes
-            for class_name, class_obj in inspect.getmembers(module, inspect.isclass):
-                if class_name.endswith('Client'):
-                    # Scan methods in the client class
-                    for method_name, method in inspect.getmembers(class_obj):
-                        # Check if method has the MCP marker
-                        if hasattr(method, '_is_mcp_tool'):
-                            method_info = {
-                                'module': module_name,
-                                'class': class_name,
-                                'method': method_name,
-                                'mcp_name': f"{module_name}_{method_name}",
-                                'category': method._mcp_category.value if hasattr(method, '_mcp_category') else 'read',
-                                'signature': str(inspect.signature(method)) if callable(method) else '',
-                                'docstring': inspect.getdoc(method) or '',
-                                'step': getattr(method, '_mcp_step', 0),
-                                'depends_on': getattr(method, '_mcp_depends_on', []),
-                            }
-                            decorated_methods.append(method_info)
+            decorated_methods.extend(scan_module_for_mcp_methods(module_name, module))
         
         # Sort by module and method name
         decorated_methods.sort(key=lambda x: (x['module'], x['method']))
