@@ -278,8 +278,10 @@ journey:
 2. `workflow_train_model(dataset_id, goal, model_name)` — returns a `run_id`
 3. Loop: `workflow_wait_for_update(run_id)` — narrate progress as events
    arrive; if a decision is pending, relay it to the user and submit their
-   answer via `workflow_decide`
-4. `workflow_deploy_model(model_id)` — or approve the deployment gate
+   answer via `workflow_decide` (the run's two gates: label selection and
+   training approval)
+4. `workflow_deploy_model(model_id)` — deploy after the run completes
+   (there is no deployment gate inside the run)
 5. Act on the model: `workflow_optimise_model` / `workflow_predict`
    (scores rows with the trained model via the platform inference route —
    no deployment needed) / `workflow_explain_model` /

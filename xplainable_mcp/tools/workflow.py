@@ -152,7 +152,9 @@ def workflow_list_assets():
     List the team's models, datasets, and deployments in one call.
     
     Start here: shows what exists before training, deploying, or
-    optimising anything.
+    optimising anything. Returns trimmed summaries (ids, names, types,
+    created timestamps, active flags) plus a "counts" section — never
+    full asset blobs.
 
     Category: workflow
     Workflow: Step 1 of workflow.

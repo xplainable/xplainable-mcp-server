@@ -70,10 +70,11 @@ server-side agentic training run and returns a run_id.
 long-polls the run and returns new events. Narrate progress to the user as \
 events arrive. If it reports a pending_decision, relay the question and \
 options to the user, then submit their answer with \
-`workflow_decide(run_id, approve=... | choice=... | custom=...)`. Repeat \
+`workflow_decide(run_id, approve=... | choice=... | custom=...)`. The run \
+pauses at exactly two gates: label selection and training approval. Repeat \
 until the run completes (typically ~10 minutes end-to-end).
-4. `workflow_deploy_model(model_id)` — deploys the trained model (or \
-approve the deployment gate if the run pauses on one).
+4. `workflow_deploy_model(model_id)` — deploys the trained model after \
+the run completes (deployment is a separate call, not a gate in the run).
 5. Act on the model:
    - `workflow_optimise_model` — prescriptive optimisation toward an objective.
    - `workflow_predict` — score rows with the trained model (no \
