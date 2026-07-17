@@ -298,4 +298,3 @@ def workflow_wait_for_update(run_id: str, since_event: int = 0, timeout: int = 6
     except Exception as e:
         logger.error(f"Error in workflow_wait_for_update: {e}")
         raise
-

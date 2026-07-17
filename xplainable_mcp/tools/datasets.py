@@ -18,7 +18,7 @@ from ..server import get_client, XP_ICON
 # ============================================
 
 
-@mcp.tool(icons=[XP_ICON], tags={"curated", "read"})
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def datasets_list_datasets():
     """
     List all available public datasets.
@@ -111,7 +111,7 @@ def datasets_get_dataset_info(dataset_id: str):
         logger.error(f"Error in datasets_get_dataset_info: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON], tags={"read"})
+@mcp.tool(icons=[XP_ICON], tags={"curated", "read"})
 def datasets_list_team_datasets(team_id: Optional[str] = None):
     """
     List all datasets for a team.
