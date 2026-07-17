@@ -274,6 +274,8 @@ def generate_tool_implementation(method_info: Dict[str, Any]) -> str:
         # "deploy") or already-full tool names (e.g. workflow's
         # "workflow_train_model"). Only prefix bare names — otherwise we'd
         # emit non-existent tools like "workflow_workflow_train_model".
+        # Note: this heuristic assumes bare method names never start with
+        # their own module prefix (e.g. no "workflow_*" method in workflow).
         prefixed = [d if d.startswith(f"{module}_") else f"{module}_{d}" for d in depends_on]
         workflow_parts.append(f"Run after: {', '.join(prefixed)}")
 

@@ -101,7 +101,11 @@ def _fetch_user_teams() -> List[Dict[str, Any]]:
     return client.session.get_response_content(response)
 
 
-@mcp.tool(icons=[XP_ICON])
+# The three team-selection tools are tagged "curated" so they stay visible
+# on the default (include_tags={"workflow", "curated"}) surface: INSTRUCTIONS
+# direct callers to recover from 'No team selected' via these tools, so they
+# must be reachable without XPLAINABLE_ADVANCED_TOOLS.
+@mcp.tool(icons=[XP_ICON], tags={"admin", "curated"})
 def list_user_teams() -> List[Dict[str, Any]]:
     """
     List all teams the authenticated user belongs to.
@@ -122,7 +126,7 @@ def list_user_teams() -> List[Dict[str, Any]]:
         raise
 
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"admin", "curated"})
 def set_active_team(team_id: str) -> Dict[str, str]:
     """
     Set the active team for this session.
@@ -146,7 +150,7 @@ def set_active_team(team_id: str) -> Dict[str, str]:
         raise
 
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"admin", "curated"})
 async def select_team(ctx: Context) -> Dict[str, str]:
     """
     Interactively select the active team for this session.

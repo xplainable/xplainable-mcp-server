@@ -57,8 +57,8 @@ you need for the end-to-end journey is covered by the workflow_* tools — \
 prefer them over any other tool.
 
 If a tool returns 'No team selected', an active team must be set first \
-(select_team / set_active_team when available, or the XPLAINABLE_TEAM_ID \
-environment variable).
+(select_team / set_active_team, or the XPLAINABLE_TEAM_ID environment \
+variable).
 
 ## The Workflow Loop
 
@@ -76,7 +76,8 @@ until the run completes (typically ~10 minutes end-to-end).
 approve the deployment gate if the run pauses on one).
 5. Act on the model:
    - `workflow_optimise_model` — prescriptive optimisation toward an objective.
-   - `workflow_predict` — score rows through the deployment.
+   - `workflow_predict` — score rows with the trained model (no \
+deployment needed).
    - `workflow_explain_model` — feature-importance and profile digest.
    - `workflow_create_report` — generate a shareable platform report.
 
@@ -86,7 +87,7 @@ between workflow steps.
 
 ## Advanced Tool Surface
 
-By default this server exposes the curated workflow surface (~25 tools). \
+By default this server exposes the curated workflow surface (28 tools). \
 Set the environment variable `XPLAINABLE_ADVANCED_TOOLS` to `1`, `true`, or \
 `yes` to expose the full surface (~104 tools) including write/admin tools \
 for preprocessing, monitors, GPT reports, inference, and low-level agentic \

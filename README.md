@@ -280,14 +280,18 @@ journey:
    arrive; if a decision is pending, relay it to the user and submit their
    answer via `workflow_decide`
 4. `workflow_deploy_model(model_id)` — or approve the deployment gate
-5. Act on the model: `workflow_optimise_model` / `workflow_predict` /
-   `workflow_explain_model` / `workflow_create_report`
+5. Act on the model: `workflow_optimise_model` / `workflow_predict`
+   (scores rows with the trained model via the platform inference route —
+   no deployment needed) / `workflow_explain_model` /
+   `workflow_create_report`
 
 ## Tool Surface
 
-By default the server registers the **curated surface: 25 tools** — the 9
-`workflow_*` tools above plus 16 read-only inspection tools (datasets,
-models, deployments, optimisers, runs, and agentic run state).
+By default the server registers the **curated surface: 28 tools** — the 9
+`workflow_*` tools above, plus 16 curated read/health tools across
+datasets, models, deployments, optimisers, runs, agentic state, and
+gateway health, plus 3 team-selection tools (`list_user_teams`,
+`set_active_team`, `select_team`).
 
 Set `XPLAINABLE_ADVANCED_TOOLS=1` (accepted values: `1`, `true`, `yes`) to
 register the **full surface (~104 tools)**, adding write/admin tools for
@@ -299,6 +303,9 @@ Tool files under `xplainable_mcp/tools/` are auto-generated from
 xplainable-client" below) — each tool carries tags (e.g. `curated`,
 `workflow`, `read`, `write`) that drive this gating. Do not hand-edit
 generated tool files.
+
+Note: `ENABLE_WRITE_TOOLS` is a legacy display/categorization flag (still
+read by `server.py`/`cli.py`) and is distinct from this tag gating.
 
 ## Security
 
