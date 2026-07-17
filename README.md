@@ -60,6 +60,7 @@ XPLAINABLE_API_KEY=your-api-key-here
 XPLAINABLE_HOST=https://platform.xplainable.io
 XPLAINABLE_ORG_ID=your-org-id  # Optional
 XPLAINABLE_TEAM_ID=your-team-id  # Optional
+XPLAINABLE_ADVANCED_TOOLS=false  # Optional: 1/true/yes exposes the full ~104-tool surface
 ```
 
 ### 2. Run the server
@@ -266,52 +267,47 @@ curl -X POST https://inference.xplainable.io/v1/predict \
   }'
 ```
 
-## Primary Training Workflow (XGM v2)
+## The Workflow Loop
 
 Training runs server-side on Xplainable's agentic pipeline — the MCP host
-never fits a v2 model locally:
+never fits a model locally. The curated `workflow_*` tools cover the whole
+journey:
 
-1. Upload a dataset and summarize it to obtain a `run_id`
-2. `agentic_start_run(model_name, run_id)` — defaults to `algorithm="xgm"`
-   (v2) and `auto_mode=True`
-3. Poll `agentic_get_run_state(run_id)` until `completed` (~10 minutes);
-   if `waiting_input`, respond via `agentic_get_pending_decision` /
-   `agentic_submit_decision`
-4. Optionally run prescriptive optimisers (`optimisers_create_optimiser` →
-   `optimisers_create_optimiser_version` → `optimisers_run_optimiser`)
-5. Deploy and test inference
+1. `workflow_list_assets` — find a dataset (and see existing models /
+   deployments)
+2. `workflow_train_model(dataset_id, goal, model_name)` — returns a `run_id`
+3. Loop: `workflow_wait_for_update(run_id)` — narrate progress as events
+   arrive; if a decision is pending, relay it to the user and submit their
+   answer via `workflow_decide` (the run's two gates: label selection and
+   training approval)
+4. `workflow_deploy_model(model_id)` — deploy after the run completes
+   (there is no deployment gate inside the run)
+5. Act on the model: `workflow_optimise_model` / `workflow_predict`
+   (scores rows with the trained model via the platform inference route —
+   no deployment needed) / `workflow_explain_model` /
+   `workflow_create_report`
 
-Legacy v1 training (`models_train_model`, `models_refit_model`) remains
-available for the opensource workflow.
+## Tool Surface
 
-## Available Tools
+By default the server registers the **curated surface: 28 tools** — the 9
+`workflow_*` tools above, plus 16 curated read/health tools across
+datasets, models, deployments, optimisers, runs, agentic state, and
+gateway health, plus 3 team-selection tools (`list_user_teams`,
+`set_active_team`, `select_team`).
 
-### Discovery Tools
+Set `XPLAINABLE_ADVANCED_TOOLS=1` (accepted values: `1`, `true`, `yes`) to
+register the **full surface (~104 tools)**, adding write/admin tools for
+preprocessing, monitors, GPT reports, inference, and low-level agentic run
+control.
 
-- `list_tools()` - List all available MCP tools with descriptions and parameters
+Tool files under `xplainable_mcp/tools/` are auto-generated from
+`@mcp_tool`-decorated client methods (see "Synchronization with
+xplainable-client" below) — each tool carries tags (e.g. `curated`,
+`workflow`, `read`, `write`) that drive this gating. Do not hand-edit
+generated tool files.
 
-### Read-Only Tools
-
-- `get_connection_info()` - Get connection and diagnostic information
-- `list_team_models(team_id?)` - List all models for a team
-- `get_model(model_id)` - Get detailed model information
-- `list_model_versions(model_id)` - List all versions of a model
-- `list_deployments(team_id?)` - List all deployments
-- `list_preprocessors(team_id?)` - List all preprocessors
-- `get_preprocessor(preprocessor_id)` - Get preprocessor details
-- `get_collection_scenarios(collection_id)` - List scenarios in a collection
-- `get_active_team_deploy_keys_count(team_id?)` - Get count of active deploy keys
-- `misc_get_version_info()` - Get version information
-
-### Write Tools (Restricted)
-
-*Note: Write tools require `ENABLE_WRITE_TOOLS=true` in environment*
-
-- `activate_deployment(deployment_id)` - Activate a deployment  
-- `deactivate_deployment(deployment_id)` - Deactivate a deployment
-- `generate_deploy_key(deployment_id, description?, days_until_expiry?)` - Generate deployment key
-- `get_deployment_payload(deployment_id)` - Get sample payload data for deployment
-- `gpt_generate_report(model_id, version_id, ...)` - Generate GPT report
+Note: `ENABLE_WRITE_TOOLS` is a legacy display/categorization flag (still
+read by `server.py`/`cli.py`) and is distinct from this tag gating.
 
 ## Security
 

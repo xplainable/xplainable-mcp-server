@@ -18,7 +18,7 @@ from ..server import get_client, XP_ICON
 # ============================================
 
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"admin"})
 def misc_health_check(check_database: bool = True, check_storage: bool = True, check_compute: bool = True):
     """
     Perform a comprehensive health check.
@@ -52,7 +52,7 @@ def misc_health_check(check_database: bool = True, check_storage: bool = True, c
         logger.error(f"Error in misc_health_check: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def misc_get_model_info(model_id: str, version_id: str):
     """
     Get information about a model without loading it.
@@ -85,7 +85,7 @@ def misc_get_model_info(model_id: str, version_id: str):
         logger.error(f"Error in misc_get_model_info: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def misc_get_version_info():
     """
     Get comprehensive version information.
@@ -111,7 +111,7 @@ def misc_get_version_info():
         logger.error(f"Error in misc_get_version_info: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def misc_load_classifier(model_id: str, version_id: str, model = None):
     """
     Load a binary classification model.
@@ -146,7 +146,7 @@ def misc_load_classifier(model_id: str, version_id: str, model = None):
         logger.error(f"Error in misc_load_classifier: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def misc_load_regressor(model_id: str, version_id: str, model = None):
     """
     Load a regression model.
@@ -181,7 +181,7 @@ def misc_load_regressor(model_id: str, version_id: str, model = None):
         logger.error(f"Error in misc_load_regressor: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"admin", "curated"})
 def misc_ping_gateway(hostname: Optional[str] = None):
     """
     Ping the API gateway to check connectivity.
@@ -213,7 +213,7 @@ def misc_ping_gateway(hostname: Optional[str] = None):
         logger.error(f"Error in misc_ping_gateway: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"admin"})
 def misc_ping_server(hostname: Optional[str] = None):
     """
     Ping the compute server to check connectivity.

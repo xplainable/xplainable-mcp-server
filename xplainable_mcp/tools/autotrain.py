@@ -19,7 +19,7 @@ from ..server import get_client, XP_ICON
 # ============================================
 
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def autotrain_summarize_by_dataset_id(dataset_id: str, team_id: Optional[str] = None):
     """
     Summarize a dataset that's already on the xplainable platform.

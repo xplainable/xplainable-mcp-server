@@ -12,3 +12,5 @@ import os
 
 os.environ.setdefault("XPLAINABLE_API_KEY", "test-api-key")
 os.environ["ENABLE_WRITE_TOOLS"] = "true"
+# Keep the tool surface deterministic: tests assume the curated default.
+os.environ.pop("XPLAINABLE_ADVANCED_TOOLS", None)

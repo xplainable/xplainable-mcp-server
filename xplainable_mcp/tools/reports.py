@@ -17,7 +17,7 @@ from ..server import get_client, XP_ICON
 # Reports Tools
 # ============================================
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"analysis"})
 def reports_available_widgets():
     """
     Return the available widget tags and their descriptions.
@@ -44,7 +44,7 @@ def reports_available_widgets():
         logger.error(f"Error in reports_available_widgets: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def reports_create_report(run_id: str, report_name: str, report_description: str = '', is_public: bool = False, widgets: Optional[List[str]] = None, mode: str = 'dynamic', max_features: int = 40, constraints: Optional[Dict] = None, audience: Optional[Dict] = None):
     """
     Start async report generation via the wizard.
@@ -71,7 +71,7 @@ def reports_create_report(run_id: str, report_name: str, report_description: str
         logger.error(f"Error in reports_create_report: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def reports_create_report_sync(run_id: str, report_name: str, report_description: str = '', is_public: bool = False, widgets: Optional[List[str]] = None, mode: str = 'dynamic', max_features: int = 40, constraints: Optional[Dict] = None, audience: Optional[Dict] = None, timeout: int = 120, poll_interval: float = 2.0):
     """
     Create a report synchronously (polls until complete or timeout).

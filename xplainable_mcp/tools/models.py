@@ -18,7 +18,7 @@ from ..server import get_client, XP_ICON
 # ============================================
 
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def models_get_model(model_id: str):
     """
     Get detailed information about a model.
@@ -50,7 +50,7 @@ def models_get_model(model_id: str):
         logger.error(f"Error in models_get_model: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"curated", "read"})
 def models_get_feature_info(version_id: str):
     """
     Get feature information including types, health metrics, and distributions.
@@ -79,7 +79,7 @@ def models_get_feature_info(version_id: str):
         logger.error(f"Error in models_get_feature_info: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def models_get_model_evaluation(partition_id: str):
     """
     Get detailed evaluation metrics for a model partition.
@@ -108,7 +108,7 @@ def models_get_model_evaluation(partition_id: str):
         logger.error(f"Error in models_get_model_evaluation: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def models_get_model_profile(version_id: str):
     """
     Get the model profile showing feature contributions and decision boundaries.
@@ -137,7 +137,7 @@ def models_get_model_profile(version_id: str):
         logger.error(f"Error in models_get_model_profile: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def models_link_preprocessor(model_version_id: str, preprocessor_version_id: str):
     """
     Link a model version to a preprocessor version.
@@ -167,7 +167,7 @@ def models_link_preprocessor(model_version_id: str, preprocessor_version_id: str
         logger.error(f"Error in models_link_preprocessor: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"curated", "read"})
 def models_list_model_version_partitions(version_id: str):
     """
     List all partitions for a model version.
@@ -199,7 +199,7 @@ def models_list_model_version_partitions(version_id: str):
         logger.error(f"Error in models_list_model_version_partitions: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"curated", "read"})
 def models_list_model_versions(model_id: str):
     """
     List all versions of a model.
@@ -231,7 +231,7 @@ def models_list_model_versions(model_id: str):
         logger.error(f"Error in models_list_model_versions: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"curated", "read"})
 def models_list_team_models():
     """
     List all models for the current team (based on API key).
@@ -263,7 +263,7 @@ def models_list_team_models():
         logger.error(f"Error in models_list_team_models: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def models_refit_model(version_id: str, dataset_id: str, target_column: str, features: Optional[List[str]] = None, feature_params: Optional[Dict[str, Dict]] = None, drop_columns: Optional[List[str]] = None, test_size: float = 0.2, max_depth: Optional[int] = None, min_info_gain: Optional[float] = None, min_leaf_size: Optional[float] = None, weight: Optional[float] = None, power_degree: Optional[float] = None, sigmoid_exponent: Optional[float] = None, tail_sensitivity: Optional[float] = None):
     """
     Rapidly refit an existing model with new parameters without retraining.
@@ -318,7 +318,7 @@ def models_refit_model(version_id: str, dataset_id: str, target_column: str, fea
         logger.error(f"Error in models_refit_model: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def models_train_model(target_column: str, model_name: str, model_description: str = '', file_path: Optional[str] = None, dataset_name: Optional[str] = None, dataset_id: Optional[str] = None, csv_content: Optional[str] = None, model_type: str = 'classifier', partition_on: Optional[str] = None, preprocessor_version_id: Optional[str] = None, drop_columns: Optional[List[str]] = None, test_size: float = 0.2, max_depth: int = 8, min_info_gain: float = 0.0001, min_leaf_size: float = 0.0001, weight: float = 1.0, power_degree: float = 1.0, sigmoid_exponent: float = 0.0, tail_sensitivity: float = 1.0):
     """
     Train an xplainable model on a dataset and upload it to the platform.

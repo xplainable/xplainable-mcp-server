@@ -52,7 +52,9 @@ jobs:
       run: |
         python -c "
         from xplainable_mcp.server import get_workflows
-        result = get_workflows()
+        # fastmcp 2.x wraps decorated tools in FunctionTool; the function is on .fn
+        fn = getattr(get_workflows, 'fn', get_workflows)
+        result = fn()
         assert 'services' in result, 'get_workflows missing services key'
         assert len(result['services']) > 0, 'No services found'
         print(f'get_workflows OK: {result[\"total_services\"]} services')

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 from ..server import get_client, XP_ICON
 
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def monitors_create_monitor(model_id: str, name: str, description: str = '', threshold: float = 0.5, data_source_type: str = 'csv', schedule_type: str = 'manual'):
     """
     Create a new monitor for a model.
@@ -45,7 +45,7 @@ def monitors_create_monitor(model_id: str, name: str, description: str = '', thr
         logger.error(f"Error in monitors_create_monitor: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def monitors_get_monitor(monitor_id: str):
     """
     Get a monitor by ID.
@@ -74,7 +74,7 @@ def monitors_get_monitor(monitor_id: str):
         logger.error(f"Error in monitors_get_monitor: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def monitors_get_model_monitors(model_id: str):
     """
     Get all monitors for a specific model.
@@ -103,7 +103,7 @@ def monitors_get_model_monitors(model_id: str):
         logger.error(f"Error in monitors_get_model_monitors: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def monitors_get_team_monitors(team_id: Optional[str] = None):
     """
     Get all monitors for a team.
@@ -132,7 +132,7 @@ def monitors_get_team_monitors(team_id: Optional[str] = None):
         logger.error(f"Error in monitors_get_team_monitors: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def monitors_delete_monitor(monitor_id: str):
     """
     Delete a monitor.
@@ -161,7 +161,7 @@ def monitors_delete_monitor(monitor_id: str):
         logger.error(f"Error in monitors_delete_monitor: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def monitors_get_alert_rules(monitor_id: str):
     """
     Get alert rules for a monitor.
@@ -190,7 +190,7 @@ def monitors_get_alert_rules(monitor_id: str):
         logger.error(f"Error in monitors_get_alert_rules: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def monitors_create_alert_rule(monitor_id: str, rule_type: str, value: float, notify_in_app: bool = True, notify_email: bool = False):
     """
     Create an alert rule for a monitor.
@@ -223,7 +223,7 @@ def monitors_create_alert_rule(monitor_id: str, rule_type: str, value: float, no
         logger.error(f"Error in monitors_create_alert_rule: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def monitors_add_monitor_items(monitor_id: str, monitor_items: List[dict]):
     """
     Add items to a monitor.
@@ -253,7 +253,7 @@ def monitors_add_monitor_items(monitor_id: str, monitor_items: List[dict]):
         logger.error(f"Error in monitors_add_monitor_items: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def monitors_delete_monitor_item(monitor_item_id: str):
     """
     Delete a monitor item.
@@ -282,7 +282,7 @@ def monitors_delete_monitor_item(monitor_item_id: str):
         logger.error(f"Error in monitors_delete_monitor_item: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"read"})
 def monitors_get_monitor_item(monitor_item_id: str):
     """
     Get a specific monitor item.
@@ -311,7 +311,7 @@ def monitors_get_monitor_item(monitor_item_id: str):
         logger.error(f"Error in monitors_get_monitor_item: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def monitors_update_monitor_description(monitor_id: str, description: str):
     """
     Update the description of a monitor.
@@ -341,7 +341,7 @@ def monitors_update_monitor_description(monitor_id: str, description: str):
         logger.error(f"Error in monitors_update_monitor_description: {e}")
         raise
 
-@mcp.tool(icons=[XP_ICON])
+@mcp.tool(icons=[XP_ICON], tags={"write"})
 def monitors_update_monitor_name(monitor_id: str, name: str):
     """
     Update the name of a monitor.
