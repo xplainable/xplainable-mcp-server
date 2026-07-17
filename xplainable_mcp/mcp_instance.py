@@ -6,9 +6,22 @@ all tool modules to ensure proper registration.
 """
 
 import os
+from typing import Optional
 from fastmcp import FastMCP
 from mcp.types import Icon
 from . import __version__
+
+
+def resolve_include_tags(env_value: Optional[str]) -> Optional[set]:
+    """Resolve FastMCP include_tags from XPLAINABLE_ADVANCED_TOOLS.
+
+    Truthy values ("1", "true", "yes") disable tag filtering (return None)
+    so the full tool surface is registered. Anything else restricts the
+    server to the curated surface: tools tagged "workflow" or "curated".
+    """
+    if (env_value or "").strip().lower() in ("1", "true", "yes"):
+        return None  # advanced: full surface
+    return {"workflow", "curated"}
 
 # Auth is only configured when running in HTTP transport mode.
 # In stdio mode (local dev), no auth is applied.
@@ -105,6 +118,7 @@ mcp = FastMCP(
         ),
     ],
     instructions=INSTRUCTIONS,
+    include_tags=resolve_include_tags(os.getenv("XPLAINABLE_ADVANCED_TOOLS")),
 )
 
 # Register bundled skills as MCP resources
