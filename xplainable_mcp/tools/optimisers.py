@@ -45,10 +45,10 @@ def optimisers_create_optimiser_version(optimiser_id: str, data: Optional[Dict] 
     Create a named policy version (OptimizationConfig overrides).
     
     ``data`` may contain any of the recognised batch keys (objective,
-    budget, target, cost_weight, mutable_features, per_row_immutable,
-    feature_bounds, cost_structure, infeasible, max_joint_candidates,
-    n_grid, cost_resolution). Bounds are tighten-only relative to the
-    model's default config.
+    direction, budget, target, cost_weight, mutable_features,
+    per_row_immutable, feature_bounds, cost_structure, infeasible,
+    max_joint_candidates, n_grid, cost_resolution). Bounds are
+    tighten-only relative to the model's default config.
 
     Category: write
     Workflow: Step 2 of optimisers.
