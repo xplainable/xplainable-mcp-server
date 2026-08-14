@@ -176,7 +176,7 @@ def workflow_list_assets():
         raise
 
 @mcp.tool(icons=[XP_ICON], tags={"curated", "workflow"})
-def workflow_optimise_model(model_id: str, objective: str, dataset_id: str, constraints: Optional[dict] = None, version_id: Optional[str] = None):
+def workflow_optimise_model(model_id: str, objective: str, dataset_id: str, constraints: Optional[dict] = None, version_id: Optional[str] = None, direction: Optional[str] = None):
     """
     Run a prescriptive optimisation over a hosted dataset.
     
@@ -189,17 +189,23 @@ def workflow_optimise_model(model_id: str, objective: str, dataset_id: str, cons
     constraints (optional): {"immutable": [feature, ...] held at
     each row's current value, "bounds": {feature: [min, max] or
     [allowed categories]} — bounds may only tighten the model's
-    configured ranges}. Returns optimiser_id, run_id and up to 10
-    per-row prescriptions ({row, optimal_features, prediction,
-    total_cost} for 'minimize'; {row, selected, reached_target} for
-    'pareto'); the full result stays on the stored run.
+    configured ranges}. direction (optional): 'minimize' | 'maximize'
+    — overrides the model's baked-in optimisation direction for this
+    run; when omitted, the model's persisted/baked-in direction is
+    used. direction is orthogonal to objective: objective selects the
+    search strategy while direction sets the optimisation sense, so the
+    'minimize' value shared by each is unrelated. Returns optimiser_id,
+    run_id and up to 10 per-row
+    prescriptions ({row, optimal_features, prediction, total_cost}
+    for 'minimize'; {row, selected, reached_target} for 'pareto');
+    the full result stays on the stored run.
 
     Category: workflow
     Workflow: Step 6 of workflow. Run after: workflow_deploy_model.
     """
     try:
         client = get_client()
-        result = client.workflow.optimise_model(model_id, objective, dataset_id, constraints, version_id)
+        result = client.workflow.optimise_model(model_id, objective, dataset_id, constraints, version_id, direction)
         logger.info(f"Executed workflow.optimise_model")
         
         # Handle different return types
