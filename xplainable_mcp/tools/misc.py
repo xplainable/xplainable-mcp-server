@@ -244,3 +244,44 @@ def misc_ping_server(hostname: Optional[str] = None):
     except Exception as e:
         logger.error(f"Error in misc_ping_server: {e}")
         raise
+
+@mcp.tool(icons=[XP_ICON], tags={"curated", "read"})
+def misc_get_organisation_usage(org_id: Optional[str] = None):
+    """
+    Get org-wide quota usage for every limited resource.
+    
+    Covers six resources: models, preprocessors, deployments,
+    monitors, reports and ai_credits. Each item has count, limit,
+    remaining and has_space. Check has_space before creating a
+    resource to avoid a 429 quota rejection — but always still
+    handle 429: the check is advisory and another user may consume
+    the last slot first.
+    
+    Args:
+        org_id: Organisation to inspect (defaults to the session org).
+    
+    Returns:
+        OrganisationUsage with a UsageItem per resource.
+    
+    Raises:
+        XplainableAPIError: If the request fails (.status_code
+            carries the HTTP status).
+
+    Category: read
+    """
+    try:
+        client = get_client()
+        result = client.misc.get_organisation_usage(org_id)
+        logger.info(f"Executed misc.get_organisation_usage")
+        
+        # Handle different return types
+        if hasattr(result, 'model_dump'):
+            return result.model_dump()
+        elif isinstance(result, list) and result and hasattr(result[0], 'model_dump'):
+            return [item.model_dump() for item in result]
+        else:
+            return result
+    except Exception as e:
+        logger.error(f"Error in misc_get_organisation_usage: {e}")
+        raise
+

@@ -287,6 +287,8 @@ def workflow_wait_for_update(run_id: str, since_event: int = 0, timeout: int = 6
     Returns as soon as new events (past since_event), a pending
     decision, or a terminal status appear — or after timeout seconds.
     Pass the returned next_since_event into the next call.
+    charts_ready counts the charts rendered so far; when it rises,
+    call workflow_get_run_charts(run_id) to display them inline.
 
     Category: workflow
     Workflow: Step 3 of workflow. Run after: workflow_train_model.
