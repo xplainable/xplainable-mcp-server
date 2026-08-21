@@ -190,7 +190,6 @@ async def select_team(ctx: Context) -> Dict[str, str]:
         result = await ctx.elicit(
             message="Select your team to continue:",
             response_type=TeamChoice,
-            response_title="Team",
         )
 
         if not isinstance(result, AcceptedElicitation):
