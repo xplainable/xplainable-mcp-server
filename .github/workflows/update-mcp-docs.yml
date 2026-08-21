@@ -21,7 +21,7 @@ jobs:
         token: ${{ secrets.DOCS_PUSH_TOKEN }}
         path: docs-repo
     - run: |
-        cp /tmp/mcp-docs/tools.mdx docs-repo/website/docs/mcp/tools.md
+        cp /tmp/mcp-docs/tools.mdx docs-repo/website/platform/mcp/tools.md
     - name: Regenerate docs index
       run: |
         cd docs-repo/website
