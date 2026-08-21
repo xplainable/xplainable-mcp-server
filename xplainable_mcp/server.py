@@ -212,6 +212,68 @@ async def select_team(ctx: Context) -> Dict[str, str]:
 
 
 # ============================================================================
+# CHART TOOLS (hand-written; the sync workflow owns tools/, not this file)
+# ============================================================================
+
+
+@mcp.tool(icons=[XP_ICON], tags={"curated", "workflow"})
+def workflow_get_run_charts(run_id: str, max_charts: int = 10):
+    """
+    Fetch the rendered charts for a training run as images.
+
+    Call after workflow_wait_for_update shows the plots phase has
+    produced charts (tool_complete events mentioning "Chart N").
+    Returns each successfully rendered chart as an inline PNG image
+    preceded by a caption with the analytical question it answers,
+    so the host can display them directly in the conversation.
+
+    Category: workflow
+    Workflow: Run after: workflow_wait_for_update (plots phase).
+    """
+    import base64 as _b64
+    from fastmcp.utilities.types import Image
+
+    try:
+        client = get_client()
+        state = client.agentic.get_run_state(run_id)
+        charts = ((state or {}).get("results") or {}).get("charts") or []
+
+        content: List[Any] = []
+        rendered = 0
+        for i, chart in enumerate(charts):
+            raster = chart.get("raster")
+            if not raster:
+                continue
+            if rendered >= max_charts:
+                break
+            caption = chart.get("goal") or f"Chart {i + 1}"
+            try:
+                image_bytes = _b64.b64decode(raster)
+            except Exception:
+                logger.warning(f"Chart {i + 1} of run {run_id} has an undecodable raster; skipping")
+                continue
+            content.append(f"Chart {rendered + 1}: {caption}")
+            content.append(Image(data=image_bytes, format="png"))
+            rendered += 1
+
+        if not content:
+            return {
+                "status": "no_charts",
+                "message": (
+                    "No rendered charts found for this run yet. If the plots "
+                    "phase is still running, poll workflow_wait_for_update and retry."
+                ),
+                "total_charts": len(charts),
+            }
+
+        logger.info(f"Returning {rendered} chart image(s) for run {run_id}")
+        return content
+    except Exception as e:
+        logger.error(f"Error in workflow_get_run_charts: {e}")
+        raise
+
+
+# ============================================================================
 # DISCOVERY/METADATA TOOLS
 # ============================================================================
 
