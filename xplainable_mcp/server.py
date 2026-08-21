@@ -190,7 +190,6 @@ async def select_team(ctx: Context) -> Dict[str, str]:
         result = await ctx.elicit(
             message="Select your team to continue:",
             response_type=TeamChoice,
-            response_title="Team",
         )
 
         if not isinstance(result, AcceptedElicitation):
@@ -209,6 +208,64 @@ async def select_team(ctx: Context) -> Dict[str, str]:
 
     except Exception as e:
         logger.error(f"Error in select_team: {e}")
+        raise
+
+
+# ============================================================================
+# CHART TOOLS (hand-written; the sync workflow owns tools/, not this file)
+# ============================================================================
+
+
+@mcp.tool(icons=[XP_ICON], tags={"curated", "workflow"})
+def workflow_get_run_charts(run_id: str, max_charts: int = 10):
+    """
+    Fetch the rendered charts for a training run as images.
+
+    Call after workflow_wait_for_update shows the plots phase has
+    produced charts (tool_complete events mentioning "Chart N").
+    Returns each successfully rendered chart as an inline PNG image
+    preceded by a caption with the analytical question it answers,
+    so the host can display them directly in the conversation.
+
+    Category: workflow
+    Workflow: Run after: workflow_wait_for_update (plots phase).
+    """
+    import base64 as _b64
+    from fastmcp.utilities.types import Image
+
+    try:
+        client = get_client()
+        result = client.workflow.get_run_charts(run_id, max_charts=max_charts)
+        if result.get("error"):
+            return result  # coaching dict from the client
+        charts = result.get("charts") or []
+
+        content: List[Any] = []
+        for chart in charts:
+            try:
+                image_bytes = _b64.b64decode(chart["raster"])
+            except Exception:
+                logger.warning(
+                    f"Chart {chart.get('index')} of run {run_id} has an undecodable raster; skipping"
+                )
+                continue
+            content.append(f"Chart {len(content) // 2 + 1}: {chart.get('question')}")
+            content.append(Image(data=image_bytes, format="png"))
+
+        if not content:
+            return {
+                "status": "no_charts",
+                "message": (
+                    "No rendered charts found for this run yet. If the plots "
+                    "phase is still running, poll workflow_wait_for_update and retry."
+                ),
+                "total_charts": result.get("total_charts", 0),
+            }
+
+        logger.info(f"Returning {len(content) // 2} chart image(s) for run {run_id}")
+        return content
+    except Exception as e:
+        logger.error(f"Error in workflow_get_run_charts: {e}")
         raise
 
 
