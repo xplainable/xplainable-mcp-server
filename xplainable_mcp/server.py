@@ -235,26 +235,22 @@ def workflow_get_run_charts(run_id: str, max_charts: int = 10):
 
     try:
         client = get_client()
-        state = client.agentic.get_run_state(run_id)
-        charts = ((state or {}).get("results") or {}).get("charts") or []
+        result = client.workflow.get_run_charts(run_id, max_charts=max_charts)
+        if result.get("error"):
+            return result  # coaching dict from the client
+        charts = result.get("charts") or []
 
         content: List[Any] = []
-        rendered = 0
-        for i, chart in enumerate(charts):
-            raster = chart.get("raster")
-            if not raster:
-                continue
-            if rendered >= max_charts:
-                break
-            caption = chart.get("goal") or f"Chart {i + 1}"
+        for chart in charts:
             try:
-                image_bytes = _b64.b64decode(raster)
+                image_bytes = _b64.b64decode(chart["raster"])
             except Exception:
-                logger.warning(f"Chart {i + 1} of run {run_id} has an undecodable raster; skipping")
+                logger.warning(
+                    f"Chart {chart.get('index')} of run {run_id} has an undecodable raster; skipping"
+                )
                 continue
-            content.append(f"Chart {rendered + 1}: {caption}")
+            content.append(f"Chart {len(content) // 2 + 1}: {chart.get('question')}")
             content.append(Image(data=image_bytes, format="png"))
-            rendered += 1
 
         if not content:
             return {
@@ -263,10 +259,10 @@ def workflow_get_run_charts(run_id: str, max_charts: int = 10):
                     "No rendered charts found for this run yet. If the plots "
                     "phase is still running, poll workflow_wait_for_update and retry."
                 ),
-                "total_charts": len(charts),
+                "total_charts": result.get("total_charts", 0),
             }
 
-        logger.info(f"Returning {rendered} chart image(s) for run {run_id}")
+        logger.info(f"Returning {len(content) // 2} chart image(s) for run {run_id}")
         return content
     except Exception as e:
         logger.error(f"Error in workflow_get_run_charts: {e}")
