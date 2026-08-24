@@ -6,8 +6,8 @@ from typing import Optional, List, Dict, Any
 
 import httpx
 
-from ..mcp_instance import mcp
-from ..server import XP_ICON
+from .mcp_instance import mcp
+from .runtime_tools import XP_ICON
 
 logger = logging.getLogger(__name__)
 

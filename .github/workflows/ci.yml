@@ -22,52 +22,16 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e .
+        pip install -e ".[dev]"
 
-    - name: Check syntax (all Python files)
-      run: |
-        python -m py_compile xplainable_mcp/server.py
-        python -m py_compile xplainable_mcp/tool_manager.py
-        python -m py_compile xplainable_mcp/tool_discovery.py
-        python -m py_compile xplainable_mcp/client_manager.py
-        python -m py_compile xplainable_mcp/mcp_instance.py
-        python -m py_compile scripts/sync_workflow.py
-
-    - name: Validate tool imports
+    - name: Validate server import (registers runtime tools)
       env:
         XPLAINABLE_API_KEY: "ci-test-key"
       run: |
-        python -c "
-        from xplainable_mcp.tools import (
-            autotrain, monitors, datasets, deployments,
-            gpt, inference, misc, models, preprocessing,
-            reports, runs,
-        )
-        print('All tool modules imported successfully')
-        "
+        python -c "import xplainable_mcp.server; print('Server import OK')"
 
-    - name: Validate get_workflows tool
+    - name: Run tests
       env:
         XPLAINABLE_API_KEY: "ci-test-key"
       run: |
-        python -c "
-        from xplainable_mcp.server import get_workflows
-        # fastmcp 2.x wraps decorated tools in FunctionTool; the function is on .fn
-        fn = getattr(get_workflows, 'fn', get_workflows)
-        result = fn()
-        assert 'services' in result, 'get_workflows missing services key'
-        assert len(result['services']) > 0, 'No services found'
-        print(f'get_workflows OK: {result[\"total_services\"]} services')
-        "
-
-    - name: Validate tool discovery matches tool files
-      env:
-        XPLAINABLE_API_KEY: "ci-test-key"
-      run: |
-        python -c "
-        from xplainable_mcp.tool_discovery import ModularToolDiscovery
-        discovery = ModularToolDiscovery()
-        tools = discovery.discover_all_tools()
-        assert len(tools) > 0, 'No tools discovered'
-        print(f'Tool discovery OK: {len(tools)} tools found')
-        "
+        python -m pytest -q

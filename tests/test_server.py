@@ -1,23 +1,25 @@
 """
 Tests for the Xplainable MCP Server core: config, discovery, and
-representative tool wrappers.
+representative runtime tool wrappers.
 
-Note: no sys.modules mocking here — xplainable_client is a real dependency
-and stubbing it at module level poisons collection for the whole suite
-(tools/autotrain.py imports xplainable_client.client.py_models.*, which a
-MagicMock cannot satisfy). Tools are tested by patching get_client instead.
+fastmcp 2.x: @mcp.tool-decorated names are FunctionTool objects, not
+callables — tools are fetched from the FastMCP registry and invoked via
+`.fn(...)`. Runtime-generated wrappers resolve the client via
+xplainable_mcp.runtime_tools.get_client, which is patched here.
 """
+
+import asyncio
 
 import pytest
 from unittest.mock import Mock, patch
 
-from xplainable_mcp.server import (
-    ServerConfig,
-    load_config,
-    list_tools,
-    get_workflows,
-)
-from xplainable_mcp.tools import models as models_tools
+from xplainable_mcp.server import ServerConfig, load_config, mcp
+
+
+@pytest.fixture(scope="module")
+def tool_map():
+    """All registered tools (unfiltered by include_tags)."""
+    return asyncio.run(mcp.get_tools())
 
 
 @pytest.fixture
@@ -60,8 +62,8 @@ class TestServerConfig:
 class TestDiscoveryTools:
     """Test discovery and metadata tools."""
 
-    def test_list_tools_shape_and_counts(self):
-        result = list_tools()
+    def test_list_tools_shape_and_counts(self, tool_map):
+        result = asyncio.run(tool_map["list_tools"].fn())
 
         assert result["server_version"]
         assert "categories" in result and "summary" in result
@@ -72,8 +74,8 @@ class TestDiscoveryTools:
         )
         assert result["total_tools"] == total_from_categories
 
-    def test_list_tools_includes_v2_agentic_workflow(self):
-        result = list_tools()
+    def test_list_tools_includes_v2_agentic_workflow(self, tool_map):
+        result = asyncio.run(tool_map["list_tools"].fn())
         all_names = {
             tool["name"]
             for tools in result["categories"].values()
@@ -83,8 +85,8 @@ class TestDiscoveryTools:
         # The raw-blob persistence path must never be exposed as a tool.
         assert "models_create_model_v2" not in all_names
 
-    def test_get_workflows_agentic_steps_ordered(self):
-        result = get_workflows()
+    def test_get_workflows_agentic_steps_ordered(self, tool_map):
+        result = tool_map["get_workflows"].fn()
 
         agentic = result["services"]["agentic"]
         steps = [(s["step"], s["tool"]) for s in agentic["steps"]]
@@ -94,40 +96,40 @@ class TestDiscoveryTools:
 
 
 class TestModelTools:
-    """Representative read-tool wrappers (patched client)."""
+    """Representative runtime read-tool wrappers (patched client)."""
 
-    @patch("xplainable_mcp.tools.models.get_client")
-    def test_models_list_team_models(self, mock_get_client):
+    @patch("xplainable_mcp.runtime_tools.get_client")
+    def test_models_list_team_models(self, mock_get_client, tool_map):
         model_mock = Mock()
         model_mock.model_dump.return_value = {"id": "model-1", "name": "Test Model"}
         client = Mock()
         client.models.list_team_models.return_value = [model_mock]
         mock_get_client.return_value = client
 
-        result = models_tools.models_list_team_models()
+        result = tool_map["models_list_team_models"].fn()
 
         assert result == [{"id": "model-1", "name": "Test Model"}]
         client.models.list_team_models.assert_called_once_with()
 
-    @patch("xplainable_mcp.tools.models.get_client")
-    def test_models_get_model(self, mock_get_client):
+    @patch("xplainable_mcp.runtime_tools.get_client")
+    def test_models_get_model(self, mock_get_client, tool_map):
         client = Mock()
         client.models.get_model.return_value = {"id": "model-1"}
         mock_get_client.return_value = client
 
-        result = models_tools.models_get_model("model-1")
+        result = tool_map["models_get_model"].fn(model_id="model-1")
 
         assert result == {"id": "model-1"}
-        client.models.get_model.assert_called_once_with("model-1")
+        client.models.get_model.assert_called_once_with(model_id="model-1")
 
-    @patch("xplainable_mcp.tools.models.get_client")
-    def test_tool_error_propagates(self, mock_get_client):
+    @patch("xplainable_mcp.runtime_tools.get_client")
+    def test_tool_error_propagates(self, mock_get_client, tool_map):
         client = Mock()
         client.models.get_model.side_effect = Exception("API Error")
         mock_get_client.return_value = client
 
         with pytest.raises(Exception, match="API Error"):
-            models_tools.models_get_model("model-1")
+            tool_map["models_get_model"].fn(model_id="model-1")
 
 
 if __name__ == "__main__":

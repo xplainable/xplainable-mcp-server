@@ -3,7 +3,7 @@ name: Update MCP Documentation
 on:
   push:
     branches: [main]
-    paths: ['xplainable_mcp/tools/**', 'xplainable_mcp/server.py']
+    paths: ['xplainable_mcp/**', 'scripts/generate_mcp_docs.py']
   workflow_dispatch:
 
 jobs:
@@ -14,6 +14,7 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: '3.11'
+    - run: pip install -e .
     - run: python scripts/generate_mcp_docs.py --output /tmp/mcp-docs
     - uses: actions/checkout@v4
       with:

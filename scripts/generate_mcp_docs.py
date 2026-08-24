@@ -1,59 +1,71 @@
 #!/usr/bin/env python3
-"""Generate MDX MCP tool documentation from xplainable-mcp-server source.
+"""Generate MDX MCP tool documentation from the live FastMCP server.
 
-Uses AST parsing to extract tool definitions from Python source files
-without requiring any runtime imports. Produces a single tools.mdx file
-suitable for Docusaurus.
+Imports the server and introspects the registered tools (including the
+runtime tools generated from the xplainable-client @mcp_tool registry),
+so the docs always match the actual tool surface. Produces a single
+tools.mdx file suitable for Docusaurus.
+
+Requires the package (and xplainable-client) to be installed.
 """
 
 import argparse
-import ast
+import asyncio
 import json
 import os
 import re
 import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-TOOLS_DIR = Path(__file__).resolve().parent.parent / "xplainable_mcp" / "tools"
-SERVER_FILE = Path(__file__).resolve().parent.parent / "xplainable_mcp" / "server.py"
-
 MODULE_DISPLAY_NAMES: Dict[str, str] = {
     "session": "Discovery & Session",
+    "workflow": "Workflow",
     "models": "Models",
-    "inference": "Inference",
-    "deployments": "Deployments",
+    "agentic": "Agentic Runs",
     "autotrain": "Auto-Train",
-    "preprocessing": "Preprocessing",
     "datasets": "Datasets",
+    "preprocessing": "Preprocessing",
+    "deployments": "Deployments",
+    "inference": "Inference",
+    "optimisers": "Optimisers",
     "monitors": "Monitors",
     "reports": "Reports",
     "runs": "Runs",
-    "misc": "Utilities",
     "gpt": "AI Reports",
+    "docs": "Documentation",
+    "misc": "Utilities",
 }
 
 # Ordered list so the generated doc has a predictable section order.
 MODULE_ORDER = [
     "session",
+    "workflow",
     "models",
+    "agentic",
     "autotrain",
     "datasets",
     "preprocessing",
     "deployments",
     "inference",
+    "optimisers",
     "monitors",
     "reports",
     "runs",
     "gpt",
+    "docs",
     "misc",
 ]
+
+# Tool-name prefixes that map to a module section. Anything else
+# (list_tools, get_workflows, select_team, ...) is a session tool.
+_KNOWN_MODULES = set(MODULE_ORDER) - {"session"}
 
 
 # ---------------------------------------------------------------------------
@@ -78,93 +90,57 @@ class ToolInfo:
 
 
 # ---------------------------------------------------------------------------
-# Type normalisation helpers
+# JSON-schema helpers
 # ---------------------------------------------------------------------------
 
-_SIMPLE_TYPES = {"str", "int", "float", "bool", "dict", "list", "None"}
+_SCHEMA_TYPES: Dict[str, str] = {
+    "string": "str",
+    "integer": "int",
+    "number": "float",
+    "boolean": "bool",
+    "array": "list",
+    "object": "dict",
+    "null": "None",
+}
 
 
-def _normalize_type(raw: str) -> Tuple[str, bool]:
-    """Return (display_type, is_optional).
+def _schema_type(schema: dict) -> str:
+    """Return a readable display type for a JSON-schema property."""
+    if "anyOf" in schema:
+        variants = [_schema_type(s) for s in schema["anyOf"]]
+        non_null = [v for v in variants if v != "None"]
+        if len(non_null) == 1:
+            return non_null[0]
+        return " | ".join(non_null) if non_null else "object"
 
-    Handles ``Optional[X]``, ``List[X]``, ``Dict[X, Y]``, ``Any``, etc.
-    """
-    raw = raw.strip()
+    raw = schema.get("type")
+    if isinstance(raw, list):
+        non_null = [t for t in raw if t != "null"]
+        raw = non_null[0] if non_null else "object"
 
-    # Optional[X] -> X, mark optional
-    m = re.match(r"Optional\[(.+)\]$", raw)
-    if m:
-        inner, _ = _normalize_type(m.group(1))
-        return inner, True
-
-    # Union[X, None] style
-    m = re.match(r"Union\[(.+),\s*None\]$", raw)
-    if m:
-        inner, _ = _normalize_type(m.group(1))
-        return inner, True
-
-    # List[X]
-    m = re.match(r"[Ll]ist\[(.+)\]$", raw)
-    if m:
-        inner, _ = _normalize_type(m.group(1))
-        return f"List[{inner}]", False
-
-    # Dict[X, Y]
-    m = re.match(r"[Dd]ict\[(.+)\]$", raw)
-    if m:
-        return "Dict", False
-
-    # Simple well-known types
-    low = raw.lower()
-    for t in _SIMPLE_TYPES:
-        if low == t.lower():
-            return t, False
-
-    if raw == "Any":
-        return "object", False
-
-    # Fallback
-    return raw if raw else "object", False
+    display = _SCHEMA_TYPES.get(raw, "object")
+    if display == "list":
+        items = schema.get("items")
+        if isinstance(items, dict) and items:
+            return f"List[{_schema_type(items)}]"
+    if display == "dict":
+        return "Dict"
+    return display
 
 
-def _annotation_to_str(node: ast.expr) -> str:
-    """Convert an AST annotation node to a readable string."""
-    if isinstance(node, ast.Constant):
-        return str(node.value)
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.Attribute):
-        return f"{_annotation_to_str(node.value)}.{node.attr}"
-    if isinstance(node, ast.Subscript):
-        base = _annotation_to_str(node.value)
-        sl = node.slice
-        if isinstance(sl, ast.Tuple):
-            inner = ", ".join(_annotation_to_str(e) for e in sl.elts)
-        else:
-            inner = _annotation_to_str(sl)
-        return f"{base}[{inner}]"
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
-        left = _annotation_to_str(node.left)
-        right = _annotation_to_str(node.right)
-        if right == "None":
-            return f"Optional[{left}]"
-        return f"Union[{left}, {right}]"
-    return "object"
-
-
-def _default_to_str(node: ast.expr) -> str:
-    """Convert a default-value AST node to a display string."""
-    if isinstance(node, ast.Constant):
-        if node.value is None:
-            return "None"
-        return repr(node.value)
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.List):
-        return "[]"
-    if isinstance(node, ast.Dict):
-        return "{}"
-    return "..."
+def _default_to_str(value) -> str:
+    """Convert a JSON-schema default value to a display string."""
+    if value is None:
+        return "None"
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, str):
+        return repr(value)
+    if isinstance(value, list):
+        return "[]" if not value else json.dumps(value)
+    if isinstance(value, dict):
+        return "{}" if not value else json.dumps(value)
+    return str(value)
 
 
 # ---------------------------------------------------------------------------
@@ -209,10 +185,8 @@ def _parse_docstring(raw: Optional[str]) -> Tuple[str, Dict[str, str]]:
 
         # End of Args section on next top-level section header
         if in_args and stripped and not stripped.startswith("-") and ":" in stripped:
-            # Check if it's a section header like Returns:, Raises:, Category:, Workflow:
             maybe_header = stripped.split(":")[0].strip()
             if maybe_header in ("Returns", "Raises", "Category", "Workflow", "Yields"):
-                # Save current param
                 if current_param is not None:
                     param_descs[current_param] = " ".join(current_desc_parts).strip()
                 in_args = False
@@ -224,104 +198,17 @@ def _parse_docstring(raw: Optional[str]) -> Tuple[str, Dict[str, str]]:
         # Match param lines like "param_name: description" or "param_name (type): desc"
         m = re.match(r"\s+(\w+)\s*(?:\([^)]*\))?\s*:\s*(.*)", line)
         if m:
-            # Save previous param
             if current_param is not None:
                 param_descs[current_param] = " ".join(current_desc_parts).strip()
             current_param = m.group(1)
             current_desc_parts = [m.group(2).strip()] if m.group(2).strip() else []
         elif current_param and stripped:
-            # Continuation line
             current_desc_parts.append(stripped)
 
-    # Save last param
     if current_param is not None:
         param_descs[current_param] = " ".join(current_desc_parts).strip()
 
     return description, param_descs
-
-
-# ---------------------------------------------------------------------------
-# AST extraction
-# ---------------------------------------------------------------------------
-
-def _has_mcp_tool_decorator(func_node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> bool:
-    """Check whether the function has an ``@mcp.tool(...)`` decorator."""
-    for dec in func_node.decorator_list:
-        if isinstance(dec, ast.Call):
-            func = dec.func
-            if (isinstance(func, ast.Attribute)
-                    and func.attr == "tool"
-                    and isinstance(func.value, ast.Name)
-                    and func.value.id == "mcp"):
-                return True
-    return False
-
-
-def _extract_tools_from_source(source: str, module_name: str) -> List[ToolInfo]:
-    """Parse a Python source string and return all ``@mcp.tool()`` functions."""
-    tree = ast.parse(source)
-    tools: List[ToolInfo] = []
-
-    for node in ast.walk(tree):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        if not _has_mcp_tool_decorator(node):
-            continue
-
-        # Docstring
-        raw_doc = ast.get_docstring(node)
-        description, param_descs = _parse_docstring(raw_doc)
-
-        # Parameters
-        args = node.args
-        params: List[ParamInfo] = []
-
-        # Build list of defaults aligned to args (right-aligned)
-        num_args = len(args.args)
-        defaults = args.defaults
-        num_defaults = len(defaults)
-        padded_defaults: List[Optional[ast.expr]] = [None] * (num_args - num_defaults) + list(defaults)
-
-        for i, arg in enumerate(args.args):
-            name = arg.arg
-            # Skip 'self', 'cls', 'ctx' (FastMCP Context)
-            if name in ("self", "cls", "ctx"):
-                continue
-
-            # Type annotation
-            if arg.annotation:
-                raw_type = _annotation_to_str(arg.annotation)
-            else:
-                raw_type = "str"
-
-            display_type, is_optional_type = _normalize_type(raw_type)
-
-            # Default value
-            default_node = padded_defaults[i]
-            has_default = default_node is not None
-            default_str = _default_to_str(default_node) if has_default else None
-
-            required = not has_default and not is_optional_type
-
-            # Description from docstring
-            pdesc = param_descs.get(name, "")
-
-            params.append(ParamInfo(
-                name=name,
-                type=display_type,
-                required=required,
-                default=default_str,
-                description=pdesc,
-            ))
-
-        tools.append(ToolInfo(
-            name=node.name,
-            description=description,
-            params=params,
-            module=module_name,
-        ))
-
-    return tools
 
 
 # ---------------------------------------------------------------------------
@@ -435,6 +322,7 @@ _TYPE_SAMPLES: Dict[str, str] = {
     "bool": "true",
     "list": "[]",
     "dict": "{}",
+    "Dict": "{}",
     "object": "{}",
 }
 
@@ -457,29 +345,25 @@ _RESPONSE_PATTERNS: List[tuple] = [
 ]
 
 
-def _generate_sample_args(tool: 'ToolInfo') -> str:
+def _generate_sample_args(tool: ToolInfo) -> str:
     """Generate sample JSON arguments for a tool."""
     if not tool.params:
         return "{}"
 
     args = {}
     for p in tool.params:
-        if p.name == "self":
-            continue
-        # Use known sample value or type default
         val = _SAMPLE_VALUES.get(p.name)
         if val is None:
             val = _TYPE_SAMPLES.get(p.type, '"example"')
         args[p.name] = val
 
-    # Build JSON-like string (not actual JSON since values aren't all strings)
     lines = []
     for k, v in args.items():
         lines.append(f'  "{k}": {v}')
     return "{\n" + ",\n".join(lines) + "\n}" if lines else "{}"
 
 
-def _generate_sample_result(tool: 'ToolInfo') -> str:
+def _generate_sample_result(tool: ToolInfo) -> str:
     """Generate a plausible mock result for a tool."""
     name = tool.name.lower()
     for pattern, result in _RESPONSE_PATTERNS:
@@ -488,9 +372,8 @@ def _generate_sample_result(tool: 'ToolInfo') -> str:
     return '&#123; "ok": true &#125;'
 
 
-def _render_tool_call_sim(groups: Dict[str, List['ToolInfo']]) -> str:
+def _render_tool_call_sim(groups: Dict[str, List[ToolInfo]]) -> str:
     """Render a <ToolCallSim> block with sample tools."""
-    # Pick up to 8 representative tools
     all_tools = []
     for module_key in MODULE_ORDER:
         tools = groups.get(module_key, [])
@@ -502,12 +385,10 @@ def _render_tool_call_sim(groups: Dict[str, List['ToolInfo']]) -> str:
     for t in all_tools:
         args = _generate_sample_args(t)
         result = _generate_sample_result(t)
-        # Escape for JSX template literal
         safe_args = args.replace("{", "&#123;").replace("}", "&#125;").replace("`", "\\`")
         safe_result = result.replace("`", "\\`")
-        name = t.name
         entries.append(
-            f'  {{ name: "{name}", '
+            f'  {{ name: "{t.name}", '
             f'args: `{safe_args}`, '
             f'result: `{safe_result}` }}'
         )
@@ -563,30 +444,51 @@ def _render_mdx(groups: Dict[str, List[ToolInfo]]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Main logic
+# Tool collection (FastMCP introspection)
 # ---------------------------------------------------------------------------
 
+def _tool_module(name: str) -> str:
+    """Map a tool name to its docs module section by prefix."""
+    prefix = name.split("_", 1)[0]
+    return prefix if prefix in _KNOWN_MODULES else "session"
+
+
 def _collect_tools() -> Dict[str, List[ToolInfo]]:
-    """Scan all tool source files and server.py, returning grouped tools."""
+    """Introspect the FastMCP server and return grouped tools."""
+    # The server refuses to boot without credentials; a dummy key is fine
+    # for introspection (no API calls are made).
+    os.environ.setdefault("XPLAINABLE_API_KEY", "docs-generation-key")
+
+    from xplainable_mcp.server import mcp
+
+    tool_map = asyncio.run(mcp.get_tools())
+
     groups: Dict[str, List[ToolInfo]] = {}
+    for name in sorted(tool_map):
+        tool = tool_map[name]
+        description, param_descs = _parse_docstring(tool.description)
 
-    # 1. Session / discovery tools from server.py
-    if SERVER_FILE.exists():
-        source = SERVER_FILE.read_text()
-        session_tools = _extract_tools_from_source(source, "session")
-        if session_tools:
-            groups["session"] = session_tools
+        schema = tool.parameters or {}
+        properties = schema.get("properties", {})
+        required = set(schema.get("required", []))
 
-    # 2. Tool module files
-    if TOOLS_DIR.is_dir():
-        for py_file in sorted(TOOLS_DIR.iterdir()):
-            if py_file.name.startswith("_") or py_file.suffix != ".py":
-                continue
-            module_name = py_file.stem
-            source = py_file.read_text()
-            tools = _extract_tools_from_source(source, module_name)
-            if tools:
-                groups.setdefault(module_name, []).extend(tools)
+        params: List[ParamInfo] = []
+        for pname, pschema in properties.items():
+            has_default = "default" in pschema
+            params.append(ParamInfo(
+                name=pname,
+                type=_schema_type(pschema),
+                required=pname in required,
+                default=_default_to_str(pschema["default"]) if has_default else None,
+                description=param_descs.get(pname, ""),
+            ))
+
+        groups.setdefault(_tool_module(name), []).append(ToolInfo(
+            name=name,
+            description=description,
+            params=params,
+            module=_tool_module(name),
+        ))
 
     return groups
 
@@ -598,11 +500,9 @@ def generate(output_dir: str) -> None:
 
     groups = _collect_tools()
 
-    # Count tools
     total = sum(len(t) for t in groups.values())
     print(f"Discovered {total} tools across {len(groups)} modules")
 
-    # Render and write tools.mdx
     mdx = _render_mdx(groups)
     tools_path = out / "tools.mdx"
     tools_path.write_text(mdx)

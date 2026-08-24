@@ -1,17 +1,18 @@
 """
-Tests for the agentic lifecycle MCP tools (XGM v2 primary workflow).
+Tests for the agentic lifecycle MCP tools (server-side pipeline control).
 
-The agentic tools mirror the client's AgenticClient lifecycle so the MCP
-server can trigger server-side v2 training. The raw-blob persistence path
-(models_create_model_v2) must NOT be exposed as a tool.
+The agentic tools are runtime-generated from the client's AgenticClient
+@mcp_tool methods. The raw-blob persistence path (models_create_model_v2)
+must NOT be exposed as a tool.
 """
 
+import asyncio
 import inspect
+
 import pytest
 from unittest.mock import Mock, patch
 
-from xplainable_mcp.tools import agentic
-from xplainable_mcp.tools import models as models_tools
+from xplainable_mcp.server import mcp
 
 
 EXPECTED_TOOLS = [
@@ -27,6 +28,11 @@ EXPECTED_TOOLS = [
 ]
 
 
+@pytest.fixture(scope="module")
+def tool_map():
+    return asyncio.run(mcp.get_tools())
+
+
 @pytest.fixture
 def mock_client():
     client = Mock()
@@ -36,30 +42,41 @@ def mock_client():
 
 class TestToolSurface:
     @pytest.mark.parametrize("tool_name", EXPECTED_TOOLS)
-    def test_tool_exists(self, tool_name):
-        assert callable(getattr(agentic, tool_name, None)), f"missing {tool_name}"
+    def test_tool_exists(self, tool_map, tool_name):
+        assert tool_name in tool_map, f"missing {tool_name}"
 
-    def test_create_model_v2_not_exposed(self):
+    def test_create_model_v2_not_exposed(self, tool_map):
         # Raw-blob persistence is the internal training agent's path only.
         # Exposing it would let MCP consumers push arbitrary v2 blobs,
         # bypassing server-side-only training.
-        assert not hasattr(models_tools, "models_create_model_v2")
-
-    def test_agentic_module_registered(self):
-        from xplainable_mcp import tools
-        assert hasattr(tools, "agentic")
+        assert "models_create_model_v2" not in tool_map
 
 
 class TestWorkflowMetadata:
-    def test_start_run_is_step_1_write(self):
-        doc = agentic.agentic_start_run.__doc__
-        assert "Category: write" in doc
-        assert "Workflow: Step 1" in doc
+    """Category and step metadata come from the client @mcp_tool registry."""
 
-    def test_get_run_state_is_step_2_read(self):
-        doc = agentic.agentic_get_run_state.__doc__
-        assert "Category: read" in doc
-        assert "Workflow: Step 2" in doc
+    def _registry_entry(self, tool_name):
+        from xplainable_mcp.runtime_tools import (
+            derive_tool_name,
+            iter_registry_entries,
+        )
+
+        for entry in iter_registry_entries():
+            if derive_tool_name(entry) == tool_name:
+                return entry
+        raise AssertionError(f"{tool_name} not in registry")
+
+    def test_start_run_is_step_1_write(self, tool_map):
+        entry = self._registry_entry("agentic_start_run")
+        assert entry["category"].value == "write"
+        assert entry["step"] == 1
+        assert "write" in tool_map["agentic_start_run"].tags
+
+    def test_get_run_state_is_step_2_read(self, tool_map):
+        entry = self._registry_entry("agentic_get_run_state")
+        assert entry["category"].value == "read"
+        assert entry["step"] == 2
+        assert "read" in tool_map["agentic_get_run_state"].tags
 
     @pytest.mark.parametrize("tool_name,category", [
         ("agentic_get_pending_decision", "read"),
@@ -70,30 +87,47 @@ class TestWorkflowMetadata:
         ("agentic_skip_phase", "write"),
         ("agentic_retrain", "write"),
     ])
-    def test_categories(self, tool_name, category):
-        doc = getattr(agentic, tool_name).__doc__
-        assert f"Category: {category}" in doc
+    def test_categories(self, tool_map, tool_name, category):
+        assert category in tool_map[tool_name].tags
 
 
 class TestStartRunDefaults:
-    @patch("xplainable_mcp.tools.agentic.get_client")
-    def test_defaults_are_v2_auto(self, mock_get_client, mock_client):
-        """Simple case = one call: auto_mode on, algorithm xgm."""
+    def test_wrapper_defaults_match_client_signature(self, tool_map):
+        """Single source of truth: the tool signature IS the client method
+        signature (minus self), so defaults can never drift."""
+        from xplainable_client.client.agentic import AgenticClient
+
+        wrapper_sig = inspect.signature(tool_map["agentic_start_run"].fn)
+        client_sig = inspect.signature(AgenticClient.start_run)
+        client_params = {
+            n: p for n, p in client_sig.parameters.items() if n != "self"
+        }
+        assert list(wrapper_sig.parameters) == list(client_params)
+        for name, param in wrapper_sig.parameters.items():
+            assert param.default == client_params[name].default, name
+
+    def test_algorithm_defaults_to_xgm(self, tool_map):
+        sig = inspect.signature(tool_map["agentic_start_run"].fn)
+        assert sig.parameters["algorithm"].default == "xgm"
+
+    @patch("xplainable_mcp.runtime_tools.get_client")
+    def test_only_provided_kwargs_forwarded(self, mock_get_client, tool_map, mock_client):
+        """The wrapper forwards exactly what the caller supplied; the client
+        method applies its own defaults (no default duplication in the MCP
+        layer)."""
         mock_get_client.return_value = mock_client
         mock_client.agentic.start_run.return_value = {"run_id": "r1"}
 
-        agentic.agentic_start_run(model_name="My Model")
+        tool_map["agentic_start_run"].fn(model_name="My Model")
 
-        kwargs = mock_client.agentic.start_run.call_args.kwargs
-        assert kwargs["auto_mode"] is True
-        assert kwargs["algorithm"] == "xgm"
+        mock_client.agentic.start_run.assert_called_once_with(model_name="My Model")
 
-    @patch("xplainable_mcp.tools.agentic.get_client")
-    def test_overrides_forwarded(self, mock_get_client, mock_client):
+    @patch("xplainable_mcp.runtime_tools.get_client")
+    def test_overrides_forwarded(self, mock_get_client, tool_map, mock_client):
         mock_get_client.return_value = mock_client
         mock_client.agentic.start_run.return_value = {"run_id": "r1"}
 
-        agentic.agentic_start_run(
+        tool_map["agentic_start_run"].fn(
             model_name="M",
             auto_mode=False,
             algorithm="xplainable",
@@ -109,22 +143,22 @@ class TestStartRunDefaults:
 
 
 class TestLifecycleCalls:
-    @patch("xplainable_mcp.tools.agentic.get_client")
-    def test_get_run_state(self, mock_get_client, mock_client):
+    @patch("xplainable_mcp.runtime_tools.get_client")
+    def test_get_run_state(self, mock_get_client, tool_map, mock_client):
         mock_get_client.return_value = mock_client
         mock_client.agentic.get_run_state.return_value = {"status": "running"}
 
-        result = agentic.agentic_get_run_state("run-1")
+        result = tool_map["agentic_get_run_state"].fn(run_id="run-1")
 
         assert result == {"status": "running"}
-        mock_client.agentic.get_run_state.assert_called_once_with("run-1")
+        mock_client.agentic.get_run_state.assert_called_once_with(run_id="run-1")
 
-    @patch("xplainable_mcp.tools.agentic.get_client")
-    def test_submit_decision_forwards_fields(self, mock_get_client, mock_client):
+    @patch("xplainable_mcp.runtime_tools.get_client")
+    def test_submit_decision_forwards_fields(self, mock_get_client, tool_map, mock_client):
         mock_get_client.return_value = mock_client
         mock_client.agentic.submit_decision.return_value = {"status": "ok"}
 
-        agentic.agentic_submit_decision(
+        tool_map["agentic_submit_decision"].fn(
             run_id="run-1",
             decision_type="model_deployment",
             action="approve",
@@ -135,22 +169,24 @@ class TestLifecycleCalls:
         assert kwargs["decision_type"] == "model_deployment"
         assert kwargs["action"] == "approve"
 
-    @patch("xplainable_mcp.tools.agentic.get_client")
-    def test_send_chat(self, mock_get_client, mock_client):
+    @patch("xplainable_mcp.runtime_tools.get_client")
+    def test_send_chat(self, mock_get_client, tool_map, mock_client):
         mock_get_client.return_value = mock_client
         reply = Mock()
         reply.model_dump.return_value = {"content": "hi"}
         mock_client.agentic.send_chat.return_value = reply
 
-        result = agentic.agentic_send_chat("run-1", "explain the metrics")
+        result = tool_map["agentic_send_chat"].fn(
+            run_id="run-1", message="explain the metrics"
+        )
 
         assert result == {"content": "hi"}
         mock_client.agentic.send_chat.assert_called_once_with(
-            "run-1", "explain the metrics"
+            run_id="run-1", message="explain the metrics"
         )
 
-    @patch("xplainable_mcp.tools.agentic.get_client")
-    def test_cancel_skip_phases_retrain(self, mock_get_client, mock_client):
+    @patch("xplainable_mcp.runtime_tools.get_client")
+    def test_cancel_skip_phases_retrain(self, mock_get_client, tool_map, mock_client):
         mock_get_client.return_value = mock_client
         mock_client.agentic.cancel_run.return_value = {"success": True}
         mock_client.agentic.skip_phase.return_value = {"skipped_phase": "x"}
@@ -158,11 +194,11 @@ class TestLifecycleCalls:
         mock_client.agentic.get_pending_decision.return_value = None
         mock_client.agentic.retrain.return_value = {"status": "queued"}
 
-        assert agentic.agentic_cancel_run("r") == {"success": True}
-        assert agentic.agentic_skip_phase("r") == {"skipped_phase": "x"}
-        assert agentic.agentic_get_phases("r") == [{"phase": "p"}]
-        assert agentic.agentic_get_pending_decision("r") is None
-        assert agentic.agentic_retrain("r") == {"status": "queued"}
+        assert tool_map["agentic_cancel_run"].fn(run_id="r") == {"success": True}
+        assert tool_map["agentic_skip_phase"].fn(run_id="r") == {"skipped_phase": "x"}
+        assert tool_map["agentic_get_phases"].fn(run_id="r") == [{"phase": "p"}]
+        assert tool_map["agentic_get_pending_decision"].fn(run_id="r") is None
+        assert tool_map["agentic_retrain"].fn(run_id="r") == {"status": "queued"}
 
 
 if __name__ == "__main__":

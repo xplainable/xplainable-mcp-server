@@ -15,16 +15,26 @@ from . import __version__
 load_dotenv()
 
 
-def resolve_include_tags(env_value: Optional[str]) -> Optional[set]:
-    """Resolve FastMCP include_tags from XPLAINABLE_ADVANCED_TOOLS.
+def _truthy(env_value: Optional[str]) -> bool:
+    return (env_value or "").strip().lower() in ("1", "true", "yes")
 
-    Truthy values ("1", "true", "yes") disable tag filtering (return None)
-    so the full tool surface is registered. Anything else restricts the
-    server to the curated surface: tools tagged "workflow" or "curated".
+
+def resolve_include_tags(advanced: Optional[str], guided: Optional[str]) -> Optional[set]:
+    """Resolve FastMCP include_tags for the three-tier tool surface.
+
+    - default: direct mode — curated tools only (~33)
+    - XPLAINABLE_GUIDED_TOOLS truthy: adds the guided agentic trio (~36)
+    - XPLAINABLE_ADVANCED_TOOLS truthy: no filtering — full surface (~105)
+
+    Note: "workflow" must never be in the default set — the guided trio
+    keeps its "workflow" category tag, so including it would leak the
+    trio back into the direct surface.
     """
-    if (env_value or "").strip().lower() in ("1", "true", "yes"):
+    if _truthy(advanced):
         return None  # advanced: full surface
-    return {"workflow", "curated"}
+    if _truthy(guided):
+        return {"curated", "guided"}
+    return {"curated"}
 
 
 # Auth is only configured when running in HTTP transport mode.
@@ -52,47 +62,59 @@ if os.getenv("MCP_TRANSPORT") == "streamable-http":
         )
 
 INSTRUCTIONS = """\
-Xplainable trains inherently explainable ML models server-side. Everything \
-you need for the end-to-end journey is covered by the workflow_* tools — \
-prefer them over any other tool.
+Xplainable trains inherently explainable ML models server-side. You are the \
+orchestrator: analyse the data, decide the preprocessing and features, \
+train, inspect, and iterate. Compute always runs on the Xplainable \
+platform — never train locally.
 
 If a tool returns 'No team selected', an active team must be set first \
 (select_team / set_active_team, or the XPLAINABLE_TEAM_ID environment \
 variable).
 
-## The Workflow Loop
+## The Iterate Loop
 
-1. `workflow_list_assets` — see the team's datasets, models, and \
-deployments. Find the dataset to model (or confirm a model already exists).
-2. `workflow_train_model(dataset_id, goal, model_name)` — starts a \
-server-side agentic training run and returns a run_id.
-3. Loop: `workflow_wait_for_update(run_id, since_event, timeout)` — \
-long-polls the run and returns new events. Narrate progress to the user as \
-events arrive. If it reports a pending_decision, relay the question and \
-options to the user, then submit their answer with \
-`workflow_decide(run_id, approve=... | choice=... | custom=...)`. The run \
-pauses at exactly two gates: label selection and training approval. Repeat \
-until the run completes (typically ~10 minutes end-to-end).
-4. `workflow_deploy_model(model_id)` — deploys the trained model after \
-the run completes (deployment is a separate call, not a gate in the run).
-5. Act on the model:
+1. `workflow_list_assets` — see the team's datasets, models, and deployments.
+2. `datasets_preview_dataset_json(dataset_id)` — inspect columns, types, \
+and sample rows. Decide the target column, columns to drop (IDs, leakage), \
+and whether preprocessing is needed.
+3. (Optional) preprocessing: `preprocessing_list_available_transformers` → \
+`preprocessing_create_preprocessor_from_spec(name, spec, sample_data)` → \
+`preprocessing_preview_from_data(version_id, sample_data)` to verify the \
+transformed output before training.
+4. `models_train_model(dataset_id, target_column, model_name, ...)` — \
+synchronous server-side training (may take up to a couple of minutes). \
+Returns model_id, version_id, train/test metrics, and feature importances.
+5. Inspect: compare train vs test metrics (a large gap = overfitting). Use \
+`models_get_feature_info(version_id)` for feature health and \
+`workflow_explain_model` for the importance/profile digest.
+6. Iterate:
+   - Hyperparameter tuning → `models_refit_model` (cheap, same structure).
+   - Different features / preprocessing / target → `models_train_model` again.
+   Narrate what you changed and why; show the user the metric movement.
+7. `workflow_deploy_model(model_id)` — deploy once satisfied.
+8. Act on the model:
+   - `workflow_predict` — score rows (no deployment needed).
    - `workflow_optimise_model` — prescriptive optimisation toward an objective.
-   - `workflow_predict` — score rows with the trained model (no \
-deployment needed).
-   - `workflow_explain_model` — feature-importance and profile digest.
-   - `workflow_create_report` — generate a shareable platform report.
+   - `workflow_create_report` — starts report generation and returns a \
+job_id; poll `reports_get_job_status(job_id)` until status is 'done' \
+(or 'error').
 
-Read-oriented tools (datasets_*, models_*, deployments_*, optimisers_*, \
-runs_*, agentic_*) are available for inspecting assets in more detail \
-between workflow steps.
+Read tools (datasets_*, models_*, deployments_*, optimisers_*, runs_*, \
+agentic_*, misc_get_organisation_usage) are available for inspecting \
+assets at any point.
+
+## Guided Mode (opt-in)
+
+Set `XPLAINABLE_GUIDED_TOOLS=1` to expose workflow_train_model / \
+workflow_wait_for_update / workflow_decide: a hands-off run of the same \
+agentic pipeline that powers the Xplainable platform UI. Prefer the direct \
+loop above when available — it keeps you in control of every decision.
 
 ## Advanced Tool Surface
 
-By default this server exposes the curated workflow surface (28 tools). \
-Set the environment variable `XPLAINABLE_ADVANCED_TOOLS` to `1`, `true`, or \
-`yes` to expose the full surface (~104 tools) including write/admin tools \
-for preprocessing, monitors, GPT reports, inference, and low-level agentic \
-run control.
+Set `XPLAINABLE_ADVANCED_TOOLS=1` to expose the full surface (~105 tools) \
+including write/admin tools for monitors, GPT reports, inference, and \
+low-level agentic run control.
 
 ## Available Skills
 
@@ -113,7 +135,10 @@ mcp = FastMCP(
         ),
     ],
     instructions=INSTRUCTIONS,
-    include_tags=resolve_include_tags(os.getenv("XPLAINABLE_ADVANCED_TOOLS")),
+    include_tags=resolve_include_tags(
+        os.getenv("XPLAINABLE_ADVANCED_TOOLS"),
+        os.getenv("XPLAINABLE_GUIDED_TOOLS"),
+    ),
 )
 
 # Register bundled skills as MCP resources
