@@ -106,7 +106,7 @@ class TestModelTools:
         client.models.list_team_models.return_value = [model_mock]
         mock_get_client.return_value = client
 
-        result = tool_map["models_list_team_models"].fn()
+        result = asyncio.run(tool_map["models_list_team_models"].fn())
 
         assert result == [{"id": "model-1", "name": "Test Model"}]
         client.models.list_team_models.assert_called_once_with()
@@ -117,7 +117,7 @@ class TestModelTools:
         client.models.get_model.return_value = {"id": "model-1"}
         mock_get_client.return_value = client
 
-        result = tool_map["models_get_model"].fn(model_id="model-1")
+        result = asyncio.run(tool_map["models_get_model"].fn(model_id="model-1"))
 
         assert result == {"id": "model-1"}
         client.models.get_model.assert_called_once_with(model_id="model-1")
@@ -129,7 +129,7 @@ class TestModelTools:
         mock_get_client.return_value = client
 
         with pytest.raises(Exception, match="API Error"):
-            tool_map["models_get_model"].fn(model_id="model-1")
+            asyncio.run(tool_map["models_get_model"].fn(model_id="model-1"))
 
 
 if __name__ == "__main__":

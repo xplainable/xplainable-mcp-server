@@ -6,9 +6,11 @@ with @mcp_tool is registered as a FastMCP tool at server startup, so a client
 upgrade is automatically reflected in the tool surface (no sync PR).
 """
 
+import functools
 import logging
 from typing import Any, Dict, List, Set
 
+import anyio.to_thread
 from mcp.types import Icon
 
 from .client_manager import get_client
@@ -84,10 +86,15 @@ def _dump(result: Any) -> Any:
 def _build_wrapper(entry: Dict[str, Any], tool_name: str, module_attr: str):
     method_name = entry["name"]
 
-    def wrapper(**kwargs):
+    async def wrapper(**kwargs):
         client = get_client()
         method = getattr(getattr(client, module_attr), method_name)
-        result = method(**kwargs)
+        # Offload the blocking client call to a worker thread. Sync tools run
+        # directly on the event loop, so a long call (e.g. train, ~70s) starves
+        # the SSE keepalive pings and the LB drops the connection at ~60s idle.
+        result = await anyio.to_thread.run_sync(
+            functools.partial(method, **kwargs)
+        )
         logger.info("Executed %s.%s", module_attr, method_name)
         return _dump(result)
 

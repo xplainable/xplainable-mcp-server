@@ -102,7 +102,7 @@ class TestRegistration:
         with patch(
             "xplainable_mcp.runtime_tools.get_client", return_value=mock_client
         ):
-            result = tool_map["models_get_model"].fn(model_id="m1")
+            result = asyncio.run(tool_map["models_get_model"].fn(model_id="m1"))
         mock_client.models.get_model.assert_called_once_with(model_id="m1")
         assert result == {"model_id": "m1"}
 
@@ -114,7 +114,9 @@ class TestRegistration:
         with patch(
             "xplainable_mcp.runtime_tools.get_client", return_value=mock_client
         ):
-            assert tool_map["models_get_model"].fn(model_id="m1") == {"ok": True}
+            assert asyncio.run(
+                tool_map["models_get_model"].fn(model_id="m1")
+            ) == {"ok": True}
 
     def test_wrapper_model_dumps_list_of_pydantic(self, tool_map):
         obj = MagicMock()
@@ -124,7 +126,7 @@ class TestRegistration:
         with patch(
             "xplainable_mcp.runtime_tools.get_client", return_value=mock_client
         ):
-            result = tool_map["models_list_team_models"].fn()
+            result = asyncio.run(tool_map["models_list_team_models"].fn())
         assert result == [{"ok": True}, {"ok": True}]
 
     def test_duplicate_name_raises(self):
