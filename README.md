@@ -3,11 +3,12 @@
 A [Model Context Protocol](https://modelcontextprotocol.io) server for the
 [Xplainable](https://www.xplainable.io) platform. It lets an LLM agent
 (Claude, or any MCP client) train, deploy, optimise, and explain
-transparent machine-learning models through a small set of goal-oriented
-`workflow_*` tools.
+transparent machine-learning models. The agent is the orchestrator: it
+inspects the data, decides features and preprocessing, trains, reads the
+metrics, and iterates.
 
-Training runs server-side on Xplainable's agentic pipeline — the MCP host
-never fits a model locally.
+Training always runs server-side on the Xplainable platform — the MCP
+host never fits a model locally.
 
 ## Two Ways to Use It
 
@@ -69,42 +70,47 @@ then use `"command": "/path/to/xplainable-mcp-server/.venv/bin/xplainable-mcp"`
 Ask your agent: *"What models and datasets do I have?"* — it should call
 `workflow_list_assets`.
 
-## The Workflow Loop
+## The Iterate Loop
 
-The curated `workflow_*` tools cover the whole journey:
+The default (direct-mode) surface puts the agent in control of every
+training decision:
 
-1. `workflow_list_assets` — find a dataset (and see existing models /
-   deployments)
-2. `workflow_train_model(dataset_id, goal, model_name)` — returns a `run_id`
-3. Loop: `workflow_wait_for_update(run_id)` — narrate progress as events
-   arrive; if a decision is pending, relay it to the user and submit their
-   answer via `workflow_decide` (the run's two gates: label selection and
-   training approval)
-4. `workflow_deploy_model(model_id)` — deploy after the run completes
-   (there is no deployment gate inside the run)
-5. Act on the model: `workflow_optimise_model` / `workflow_predict`
-   (scores rows with the trained model via the platform inference route —
-   no deployment needed) / `workflow_explain_model` /
-   `workflow_create_report`
+1. `workflow_list_assets` — see the team's datasets, models, and
+   deployments
+2. `datasets_preview_dataset_json(dataset_id)` — inspect columns, types,
+   and sample rows; decide the target, columns to drop, and whether
+   preprocessing is needed
+3. (Optional) `preprocessing_list_available_transformers` →
+   `preprocessing_create_preprocessor_from_spec` →
+   `preprocessing_preview_from_data` to verify transformed output
+4. `models_train_model(dataset_id, target_column, model_name, ...)` —
+   synchronous server-side training; returns model/version IDs,
+   train/test metrics, and feature importances
+5. Inspect: `models_get_feature_info` / `workflow_explain_model`; compare
+   train vs test metrics
+6. Iterate: `models_refit_model` for hyperparameter tuning, or train
+   again with different features / preprocessing
+7. `workflow_deploy_model(model_id)` — deploy once satisfied
+8. Act on the model: `workflow_predict` (no deployment needed) /
+   `workflow_optimise_model` / `workflow_create_report` (+ poll
+   `reports_get_job_status`)
 
 ## Tool Surface
 
-By default the server registers the **curated surface: 28 tools** — the 9
-`workflow_*` tools above, plus 16 curated read/health tools across
-datasets, models, deployments, optimisers, runs, agentic state, and
-gateway health, plus 3 team-selection tools (`list_user_teams`,
-`set_active_team`, `select_team`).
+Tools are generated at server startup from `@mcp_tool`-decorated methods
+in the [xplainable-client](https://pypi.org/project/xplainable-client/)
+package — there are no checked-in generated files. Each tool carries tags
+(`curated`, `guided`, `read`, `write`, ...) that drive a three-tier
+surface:
 
-Set `XPLAINABLE_ADVANCED_TOOLS=1` (accepted values: `1`, `true`, `yes`) to
-register the **full surface (~104 tools)**, adding write/admin tools for
-preprocessing, monitors, GPT reports, inference, and low-level agentic run
-control.
+| Tier | Env | Tools | What you get |
+|---|---|---|---|
+| **Direct** (default) | — | 33 | The iterate loop above: curated training, preprocessing, read, and team-selection tools |
+| **Guided** | `XPLAINABLE_GUIDED_TOOLS=1` | 36 | Adds `workflow_train_model` / `workflow_wait_for_update` / `workflow_decide` — a hands-off run of the same agentic pipeline that powers the platform UI |
+| **Advanced** | `XPLAINABLE_ADVANCED_TOOLS=1` | ~107 | The full registry, adding write/admin tools for monitors, GPT reports, inference, and low-level agentic run control |
 
-Tool files under `xplainable_mcp/tools/` are auto-generated from
-`@mcp_tool`-decorated client methods (see "Synchronization with
-xplainable-client" below) — each tool carries tags (e.g. `curated`,
-`workflow`, `read`, `write`) that drive this gating. Do not hand-edit
-generated tool files.
+Env values `1`, `true`, and `yes` are accepted; advanced wins if both are
+set.
 
 ## Configuration
 
@@ -113,7 +119,8 @@ generated tool files.
 | `XPLAINABLE_API_KEY` | yes (local) | API key from platform.xplainable.io |
 | `XPLAINABLE_HOST` / `XPLAINABLE_HOSTNAME` | no | Platform host override (defaults to `https://platform.xplainable.io`). Set **both** to the same value. |
 | `XPLAINABLE_ORG_ID` / `XPLAINABLE_TEAM_ID` | no | Org/team binding, if your API key is not bound to a team |
-| `XPLAINABLE_ADVANCED_TOOLS` | no | `1`/`true`/`yes` exposes the full ~104-tool surface |
+| `XPLAINABLE_GUIDED_TOOLS` | no | `1`/`true`/`yes` adds the guided workflow trio (36 tools) |
+| `XPLAINABLE_ADVANCED_TOOLS` | no | `1`/`true`/`yes` exposes the full ~107-tool surface |
 | `MCP_TRANSPORT` | no | `stdio` (default) or `streamable-http` |
 | `LOG_LEVEL` | no | `DEBUG`, `INFO` (default), `WARNING`, `ERROR` |
 
@@ -150,29 +157,20 @@ pytest            # run tests
 ruff check .      # lint
 ```
 
-### Synchronization with xplainable-client
+### Runtime tool generation
 
-Tool files are generated from the
-[xplainable-client](https://pypi.org/project/xplainable-client/) package:
-
-```bash
-# Check if sync is needed / regenerate tool files
-python scripts/sync_workflow.py --sync-files
-
-# Generate a detailed report
-python scripts/sync_workflow.py --markdown sync_report.md
-```
-
-See [`examples/SYNC_WORKFLOW.md`](examples/SYNC_WORKFLOW.md) and
-[`examples/sync_scenarios.md`](examples/sync_scenarios.md) for the full
-process. Run the sync with the pinned `xplainable-client` version
-installed, and with Python 3.11+.
+Client-backed tools are generated at import time by
+`xplainable_mcp/runtime_tools.py` from the `@mcp_tool` registry in
+xplainable-client — there is no sync step. Upgrading the pinned
+`xplainable-client` version is all it takes to pick up new or changed
+tools; the test suite (`tests/test_surface.py`) pins the per-tier tool
+counts so surface changes are always deliberate.
 
 ## Compatibility
 
 | MCP Server | xplainable-client | fastmcp |
 |---|---|---|
-| current (main) | >=1.8.0 | >=2.0.0,<3.0.0 |
+| current (main) | >=1.13.0 | >=2.0.0,<3.0.0 |
 
 ## Contributing
 
