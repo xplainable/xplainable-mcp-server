@@ -1,38 +1,51 @@
 """
-Tests for env-gated tool-surface tag filtering.
+Tests for env-gated tool-surface tag filtering (three tiers).
 
-By default the server exposes only the curated surface (tools tagged
-"workflow" or "curated"). Setting XPLAINABLE_ADVANCED_TOOLS to a truthy
-value disables filtering (include_tags=None → full surface).
+- default: direct mode — include_tags={"curated"} (curated tools only)
+- XPLAINABLE_GUIDED_TOOLS truthy: {"curated", "guided"} adds the agentic trio
+- XPLAINABLE_ADVANCED_TOOLS truthy: None disables filtering (full surface)
 """
 
 import pytest
 
 from xplainable_mcp.mcp_instance import resolve_include_tags
 
-CURATED = {"workflow", "curated"}
+DIRECT = {"curated"}
+GUIDED = {"curated", "guided"}
 
 
 class TestResolveIncludeTags:
-    def test_unset_env_returns_curated_set(self):
-        assert resolve_include_tags(None) == CURATED
+    def test_unset_env_returns_direct_set(self):
+        assert resolve_include_tags(None, None) == DIRECT
+
+    def test_default_excludes_workflow_tag(self):
+        # "workflow" must NOT be in the default tags or the demoted guided
+        # trio (still tagged "workflow") would leak back into direct mode.
+        assert "workflow" not in resolve_include_tags(None, None)
 
     @pytest.mark.parametrize("value", ["true", "TRUE", " 1 ", "yes"])
-    def test_truthy_values_return_none_full_surface(self, value):
-        assert resolve_include_tags(value) is None
+    def test_truthy_advanced_returns_none_full_surface(self, value):
+        assert resolve_include_tags(value, None) is None
+
+    @pytest.mark.parametrize("value", ["true", "TRUE", " 1 ", "yes"])
+    def test_truthy_guided_adds_guided_tag(self, value):
+        assert resolve_include_tags(None, value) == GUIDED
+
+    def test_advanced_wins_over_guided(self):
+        assert resolve_include_tags("1", "1") is None
 
     @pytest.mark.parametrize("value", ["false", "", "0", "garbage"])
-    def test_falsy_values_return_curated_set(self, value):
-        assert resolve_include_tags(value) == CURATED
+    def test_falsy_values_stay_direct(self, value):
+        assert resolve_include_tags(value, value) == DIRECT
 
 
 class TestMcpInstanceWiring:
     def test_mcp_instance_include_tags_default(self):
-        """conftest keeps XPLAINABLE_ADVANCED_TOOLS unset, so the shared
-        FastMCP instance must be constructed with the curated tag set."""
+        """conftest keeps both surface env vars unset, so the shared
+        FastMCP instance must be constructed with the direct tag set."""
         from xplainable_mcp.mcp_instance import mcp
 
-        assert mcp.include_tags == CURATED
+        assert mcp.include_tags == DIRECT
 
 
 @pytest.fixture(scope="module")
@@ -51,9 +64,8 @@ class TestTeamToolsCurated:
 
     INSTRUCTIONS tell callers to recover from 'No team selected' via
     select_team / set_active_team; if these were untagged they would be
-    filtered out under include_tags={"workflow", "curated"} and a
-    multi-team user on the hosted OAuth server would have no in-band
-    recovery path.
+    filtered out under include_tags={"curated"} and a multi-team user on
+    the hosted OAuth server would have no in-band recovery path.
     """
 
     @pytest.mark.parametrize(

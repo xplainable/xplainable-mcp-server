@@ -15,16 +15,26 @@ from . import __version__
 load_dotenv()
 
 
-def resolve_include_tags(env_value: Optional[str]) -> Optional[set]:
-    """Resolve FastMCP include_tags from XPLAINABLE_ADVANCED_TOOLS.
+def _truthy(env_value: Optional[str]) -> bool:
+    return (env_value or "").strip().lower() in ("1", "true", "yes")
 
-    Truthy values ("1", "true", "yes") disable tag filtering (return None)
-    so the full tool surface is registered. Anything else restricts the
-    server to the curated surface: tools tagged "workflow" or "curated".
+
+def resolve_include_tags(advanced: Optional[str], guided: Optional[str]) -> Optional[set]:
+    """Resolve FastMCP include_tags for the three-tier tool surface.
+
+    - default: direct mode — curated tools only (~33)
+    - XPLAINABLE_GUIDED_TOOLS truthy: adds the guided agentic trio (~36)
+    - XPLAINABLE_ADVANCED_TOOLS truthy: no filtering — full surface (~105)
+
+    Note: "workflow" must never be in the default set — the guided trio
+    keeps its "workflow" category tag, so including it would leak the
+    trio back into the direct surface.
     """
-    if (env_value or "").strip().lower() in ("1", "true", "yes"):
+    if _truthy(advanced):
         return None  # advanced: full surface
-    return {"workflow", "curated"}
+    if _truthy(guided):
+        return {"curated", "guided"}
+    return {"curated"}
 
 
 # Auth is only configured when running in HTTP transport mode.
@@ -113,7 +123,10 @@ mcp = FastMCP(
         ),
     ],
     instructions=INSTRUCTIONS,
-    include_tags=resolve_include_tags(os.getenv("XPLAINABLE_ADVANCED_TOOLS")),
+    include_tags=resolve_include_tags(
+        os.getenv("XPLAINABLE_ADVANCED_TOOLS"),
+        os.getenv("XPLAINABLE_GUIDED_TOOLS"),
+    ),
 )
 
 # Register bundled skills as MCP resources
