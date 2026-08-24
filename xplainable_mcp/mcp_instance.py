@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from fastmcp import FastMCP
 from mcp.types import Icon
 from . import __version__
+from .branding import XPLAINABLE_ICON_URL, apply_consent_branding
 
 load_dotenv()
 
@@ -60,6 +61,7 @@ if os.getenv("MCP_TRANSPORT") == "streamable-http":
             redirect_path="/auth/callback",
             require_authorization_consent="external",
         )
+        apply_consent_branding()
 
 INSTRUCTIONS = """\
 Xplainable trains inherently explainable ML models server-side. You are the \
@@ -128,11 +130,11 @@ mcp = FastMCP(
     name="Xplainable",
     version=__version__,
     auth=auth_provider,
-    website_url="https://xplainable.io",
+    website_url="https://www.xplainable.io",
     icons=[
         Icon(
-            src="https://xplainable.io/assets/xplainable-icon.png",
-            mimeType="image/png",
+            src=XPLAINABLE_ICON_URL,
+            mimeType="image/svg+xml",
         ),
     ],
     instructions=INSTRUCTIONS,
