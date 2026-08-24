@@ -215,7 +215,7 @@ async def select_team(ctx: Context) -> Dict[str, str]:
 
 
 @mcp.tool(icons=[XP_ICON], tags={"curated", "workflow"})
-def workflow_get_run_charts(run_id: str, max_charts: int = 10):
+async def workflow_get_run_charts(run_id: str, max_charts: int = 10):
     """
     Fetch the rendered charts for a training run as images.
 
@@ -231,9 +231,17 @@ def workflow_get_run_charts(run_id: str, max_charts: int = 10):
     import base64 as _b64
     from fastmcp.utilities.types import Image
 
+    import functools
+
+    import anyio.to_thread
+
     try:
         client = get_client()
-        result = client.workflow.get_run_charts(run_id, max_charts=max_charts)
+        # Blocking chart download can exceed the LB's ~60s idle timeout if it
+        # runs on the event loop (starves SSE keepalive pings) — offload it.
+        result = await anyio.to_thread.run_sync(
+            functools.partial(client.workflow.get_run_charts, run_id, max_charts=max_charts)
+        )
         if result.get("error"):
             return result  # coaching dict from the client
         charts = result.get("charts") or []

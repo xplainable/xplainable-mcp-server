@@ -93,7 +93,8 @@ Returns model_id, version_id, train/test metrics, and feature importances.
    Narrate what you changed and why; show the user the metric movement.
 7. `workflow_deploy_model(model_id)` — deploy once satisfied.
 8. Act on the model:
-   - `workflow_predict` — score rows (no deployment needed).
+   - `workflow_predict` — score rows (requires a deployment; run \
+`workflow_deploy_model` first).
    - `workflow_optimise_model` — prescriptive optimisation toward an objective.
    - `workflow_create_report` — starts report generation and returns a \
 job_id; poll `reports_get_job_status(job_id)` until status is 'done' \

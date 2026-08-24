@@ -118,7 +118,7 @@ class TestStartRunDefaults:
         mock_get_client.return_value = mock_client
         mock_client.agentic.start_run.return_value = {"run_id": "r1"}
 
-        tool_map["agentic_start_run"].fn(model_name="My Model")
+        asyncio.run(tool_map["agentic_start_run"].fn(model_name="My Model"))
 
         mock_client.agentic.start_run.assert_called_once_with(model_name="My Model")
 
@@ -127,12 +127,14 @@ class TestStartRunDefaults:
         mock_get_client.return_value = mock_client
         mock_client.agentic.start_run.return_value = {"run_id": "r1"}
 
-        tool_map["agentic_start_run"].fn(
-            model_name="M",
-            auto_mode=False,
-            algorithm="xplainable",
-            run_id="seeded-run",
-            user_query="predict churn",
+        asyncio.run(
+            tool_map["agentic_start_run"].fn(
+                model_name="M",
+                auto_mode=False,
+                algorithm="xplainable",
+                run_id="seeded-run",
+                user_query="predict churn",
+            )
         )
 
         kwargs = mock_client.agentic.start_run.call_args.kwargs
@@ -148,7 +150,7 @@ class TestLifecycleCalls:
         mock_get_client.return_value = mock_client
         mock_client.agentic.get_run_state.return_value = {"status": "running"}
 
-        result = tool_map["agentic_get_run_state"].fn(run_id="run-1")
+        result = asyncio.run(tool_map["agentic_get_run_state"].fn(run_id="run-1"))
 
         assert result == {"status": "running"}
         mock_client.agentic.get_run_state.assert_called_once_with(run_id="run-1")
@@ -158,10 +160,12 @@ class TestLifecycleCalls:
         mock_get_client.return_value = mock_client
         mock_client.agentic.submit_decision.return_value = {"status": "ok"}
 
-        tool_map["agentic_submit_decision"].fn(
-            run_id="run-1",
-            decision_type="model_deployment",
-            action="approve",
+        asyncio.run(
+            tool_map["agentic_submit_decision"].fn(
+                run_id="run-1",
+                decision_type="model_deployment",
+                action="approve",
+            )
         )
 
         kwargs = mock_client.agentic.submit_decision.call_args.kwargs
@@ -176,8 +180,8 @@ class TestLifecycleCalls:
         reply.model_dump.return_value = {"content": "hi"}
         mock_client.agentic.send_chat.return_value = reply
 
-        result = tool_map["agentic_send_chat"].fn(
-            run_id="run-1", message="explain the metrics"
+        result = asyncio.run(
+            tool_map["agentic_send_chat"].fn(run_id="run-1", message="explain the metrics")
         )
 
         assert result == {"content": "hi"}
@@ -194,11 +198,11 @@ class TestLifecycleCalls:
         mock_client.agentic.get_pending_decision.return_value = None
         mock_client.agentic.retrain.return_value = {"status": "queued"}
 
-        assert tool_map["agentic_cancel_run"].fn(run_id="r") == {"success": True}
-        assert tool_map["agentic_skip_phase"].fn(run_id="r") == {"skipped_phase": "x"}
-        assert tool_map["agentic_get_phases"].fn(run_id="r") == [{"phase": "p"}]
-        assert tool_map["agentic_get_pending_decision"].fn(run_id="r") is None
-        assert tool_map["agentic_retrain"].fn(run_id="r") == {"status": "queued"}
+        assert asyncio.run(tool_map["agentic_cancel_run"].fn(run_id="r")) == {"success": True}
+        assert asyncio.run(tool_map["agentic_skip_phase"].fn(run_id="r")) == {"skipped_phase": "x"}
+        assert asyncio.run(tool_map["agentic_get_phases"].fn(run_id="r")) == [{"phase": "p"}]
+        assert asyncio.run(tool_map["agentic_get_pending_decision"].fn(run_id="r")) is None
+        assert asyncio.run(tool_map["agentic_retrain"].fn(run_id="r")) == {"status": "queued"}
 
 
 if __name__ == "__main__":
