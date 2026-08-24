@@ -13,13 +13,12 @@ from typing import Any, Dict, List, Set
 import anyio.to_thread
 from mcp.types import Icon
 
+from .branding import XPLAINABLE_ICON_URL
 from .client_manager import get_client
 
 logger = logging.getLogger(__name__)
 
-XP_ICON = Icon(
-    src="https://xplainable.io/assets/xplainable-icon.png", mimeType="image/png"
-)
+XP_ICON = Icon(src=XPLAINABLE_ICON_URL, mimeType="image/svg+xml")
 
 # Server-side tag overlays
 # ------------------------
