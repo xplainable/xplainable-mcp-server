@@ -15,57 +15,76 @@ import os
 from pathlib import Path
 
 
+def _registry_tools():
+    """Collect runtime tool metadata from the client @mcp_tool registry."""
+    from xplainable_mcp.runtime_tools import (
+        compute_tags,
+        derive_tool_name,
+        iter_registry_entries,
+    )
+
+    tools = []
+    for entry in iter_registry_entries():
+        name = derive_tool_name(entry)
+        docstring = entry["docstring"] or ""
+        description = next(
+            (line.strip() for line in docstring.splitlines() if line.strip()), ""
+        )
+        tools.append({
+            "name": name,
+            "description": description,
+            "category": entry["category"].value,
+            "tags": sorted(compute_tags(name, entry)),
+            "curated": "curated" in compute_tags(name, entry),
+            "parameters": list(entry["parameters"].keys()),
+        })
+    return sorted(tools, key=lambda t: t["name"])
+
+
+def _tools_markdown(tools):
+    lines = ["# Xplainable MCP Tools", ""]
+    by_category = {}
+    for tool in tools:
+        by_category.setdefault(tool["category"], []).append(tool)
+    for category in sorted(by_category):
+        lines.append(f"## {category.title()}")
+        lines.append("")
+        for tool in by_category[category]:
+            curated = " (curated)" if tool["curated"] else ""
+            lines.append(f"- `{tool['name']}`{curated}: {tool['description']}")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def cmd_list_tools(args):
-    """List all available tools."""
+    """List all runtime-generated tools from the client registry."""
     try:
-        from xplainable_mcp.tool_discovery import get_modular_tools_registry
-        
-        discovery = get_modular_tools_registry()
-        tools = discovery.discovered_tools
-        
+        tools = _registry_tools()
+
         if args.format == "json":
-            # Create JSON-serializable data
-            tools_data = {
-                "summary": discovery.get_summary(),
-                "tools": {name: {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "category": tool.category,
-                    "module": tool.module,
-                    "parameters": tool.parameters,
-                    "enabled": tool.enabled
-                } for name, tool in tools.items()}
-            }
-            print(json.dumps(tools_data, indent=2))
+            print(json.dumps({"total_tools": len(tools), "tools": tools}, indent=2))
         elif args.format == "markdown":
-            print(discovery.generate_markdown_docs())
+            print(_tools_markdown(tools))
         else:  # table format
-            summary = discovery.get_summary()
-            tools_by_category = discovery.get_tools_by_category()
-            
-            print(f"\nXplainable MCP Server - Available Tools")
-            print(f"=" * 60)
-            print(f"Total Tools: {summary['total_tools']}")
-            print(f"Enabled Tools: {summary['enabled_tools']}")
-            print(f"Services: {', '.join(summary['services'])}")
-            print(f"\nTools by Category:")
-            print(f"-" * 60)
-            
-            for category, category_tools in tools_by_category.items():
+            print("\nXplainable MCP Server - Runtime Tools (client registry)")
+            print("=" * 60)
+            print(f"Total Tools: {len(tools)}")
+            by_category = {}
+            for tool in tools:
+                by_category.setdefault(tool["category"], []).append(tool)
+            for category in sorted(by_category):
+                category_tools = by_category[category]
                 print(f"\n{category.upper()} ({len(category_tools)} tools):")
-                for tool in sorted(category_tools, key=lambda t: t.name):
-                    enabled = "✓" if tool.enabled else "✗"
-                    print(f"  [{enabled}] {tool.name} ({tool.module}): {tool.description}")
-            
-            print(f"\n" + "=" * 60)
-            print(f"Category Summary:")
-            for category, count in summary['categories'].items():
-                print(f"  {category.title()}: {count}")
-            
+                for tool in category_tools:
+                    curated = "✓" if tool["curated"] else " "
+                    print(f"  [{curated}] {tool['name']}: {tool['description']}")
+            print("\n" + "=" * 60)
+            print("Legend: ✓ = curated (direct-mode surface)")
+
     except Exception as e:
         print(f"Error listing tools: {e}", file=sys.stderr)
         return 1
-    
+
     return 0
 
 
@@ -180,11 +199,8 @@ def cmd_test_connection(args):
 def cmd_generate_docs(args):
     """Generate documentation."""
     try:
-        from xplainable_mcp.tool_discovery import get_modular_tools_registry
-        
-        discovery = get_modular_tools_registry()
-        docs = discovery.generate_markdown_docs()
-        
+        docs = _tools_markdown(_registry_tools())
+
         if args.output:
             output_path = Path(args.output)
             output_path.parent.mkdir(parents=True, exist_ok=True)
