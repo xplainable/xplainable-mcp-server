@@ -14,8 +14,9 @@ authors = [
 ]
 dependencies = [
     "fastmcp>=2.0.0,<3.0.0",
-    # 1.15.0 ships the flat 36-tool surface (category-only @mcp_tool registry)
-    "xplainable-client>=1.15.0",
+    # 1.16.0 makes inference_predict / datasets_upload_dataset take inline
+    # records instead of caller-side file paths (hosted-caller fix)
+    "xplainable-client>=1.16.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
     "httpx>=0.24.0",
