@@ -11,7 +11,9 @@ import logging
 from typing import Any, Dict, List, Set
 
 import anyio.to_thread
+from fastmcp.exceptions import ToolError
 from mcp.types import Icon
+from xplainable_client.client.base import XplainableAPIError
 
 from .branding import XPLAINABLE_ICON_URL
 from .client_manager import get_client
@@ -91,9 +93,26 @@ def _build_wrapper(entry: Dict[str, Any], tool_name: str, module_attr: str):
         # Offload the blocking client call to a worker thread. Sync tools run
         # directly on the event loop, so a long call (e.g. train, ~70s) starves
         # the SSE keepalive pings and the LB drops the connection at ~60s idle.
-        result = await anyio.to_thread.run_sync(
-            functools.partial(method, **kwargs)
-        )
+        try:
+            result = await anyio.to_thread.run_sync(
+                functools.partial(method, **kwargs)
+            )
+        except XplainableAPIError as e:
+            # Surface the platform's structured error contract to the agent.
+            # getattr-safe: older installed clients lack .code/.error/.suggestion.
+            code = getattr(e, "code", None)
+            if code:
+                error = getattr(e, "error", None)
+                # Prefer the raw platform message: str(e) already has the
+                # client's " Suggestion: ..." appended, which would double up.
+                msg = (error or {}).get("message") or str(e)
+                suggestion = getattr(e, "suggestion", None)
+                formatted = f"[{code}] {msg}"
+                if suggestion:
+                    formatted = f"{formatted} — Suggestion: {suggestion}"
+            else:
+                formatted = str(e)
+            raise ToolError(formatted) from e
         logger.info("Executed %s.%s", module_attr, method_name)
         return _dump(result)
 
