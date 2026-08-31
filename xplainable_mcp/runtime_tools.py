@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Set
 
 import anyio.to_thread
 from fastmcp.exceptions import ToolError
-from mcp.types import Icon
+from mcp.types import Icon, ToolAnnotations
 from xplainable_client.client.base import XplainableAPIError
 
 from .branding import XPLAINABLE_ICON_URL
@@ -21,28 +21,6 @@ from .client_manager import get_client
 logger = logging.getLogger(__name__)
 
 XP_ICON = Icon(src=XPLAINABLE_ICON_URL, mimeType="image/svg+xml")
-
-# Server-side tag overlays
-# ------------------------
-# The agentic trio delegates orchestration to the server-side pipeline
-# (guided mode). It is opt-in via XPLAINABLE_GUIDED_TOOLS, not curated.
-GUIDED_TOOLS = frozenset(
-    {
-        "workflow_train_model",
-        "workflow_wait_for_update",
-        "workflow_decide",
-    }
-)
-
-# Preprocessing tools promoted into the curated (direct-mode) surface so
-# Claude can author, preview, and apply preprocessing before training.
-CURATED_PROMOTIONS = frozenset(
-    {
-        "preprocessing_list_available_transformers",
-        "preprocessing_create_preprocessor_from_spec",
-        "preprocessing_preview_from_data",
-    }
-)
 
 
 def iter_registry_entries() -> List[Dict[str, Any]]:
@@ -66,14 +44,16 @@ def derive_tool_name(entry: Dict[str, Any]) -> str:
     return f"{_module_attr(entry)}_{entry['name']}"
 
 
-def compute_tags(tool_name: str, entry: Dict[str, Any]) -> Set[str]:
-    """Category tag plus server-side curated/guided overlays."""
-    if tool_name in GUIDED_TOOLS:
-        return {entry["category"].value, "guided"}
-    tags = {entry["category"].value}
-    if entry["curated"] or tool_name in CURATED_PROMOTIONS:
-        tags.add("curated")
-    return tags
+def compute_tags(entry: Dict[str, Any]) -> Set[str]:
+    """Informational tag: just the registry category (read/write)."""
+    return {entry["category"].value}
+
+
+def compute_annotations(entry: Dict[str, Any]) -> ToolAnnotations:
+    """MCP tool annotations derived from the registry category."""
+    if entry["category"].value == "read":
+        return ToolAnnotations(readOnlyHint=True)
+    return ToolAnnotations(destructiveHint=True)
 
 
 def _dump(result: Any) -> Any:
@@ -144,7 +124,8 @@ def register_client_tools(mcp) -> int:
         mcp.tool(
             wrapper,
             name=tool_name,
-            tags=compute_tags(tool_name, entry),
+            tags=compute_tags(entry),
+            annotations=compute_annotations(entry),
             icons=[XP_ICON],
         )
     logger.info(

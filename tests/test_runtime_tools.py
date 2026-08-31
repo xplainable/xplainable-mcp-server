@@ -7,21 +7,10 @@ import pytest
 from fastmcp import FastMCP
 
 from xplainable_mcp.runtime_tools import (
-    CURATED_PROMOTIONS,
-    GUIDED_TOOLS,
     compute_tags,
     derive_tool_name,
     iter_registry_entries,
     register_client_tools,
-)
-
-MECHANICAL_WORKFLOW_TOOLS = (
-    "workflow_deploy_model",
-    "workflow_list_assets",
-    "workflow_predict",
-    "workflow_create_report",
-    "workflow_optimise_model",
-    "workflow_explain_model",
 )
 
 
@@ -34,7 +23,7 @@ def _entry_for(tool_name):
 
 @pytest.fixture(scope="module")
 def tool_map():
-    mcp = FastMCP(name="test")  # no include_tags: register everything
+    mcp = FastMCP(name="test")
     register_client_tools(mcp)
     return asyncio.run(mcp.get_tools())
 
@@ -50,31 +39,52 @@ class TestNaming:
 
 
 class TestTags:
-    def test_plain_read_tool(self):
+    """Tags are informational only: exactly the category, no overlays."""
+
+    def test_read_tool_tagged_read(self):
         entry = _entry_for("models_get_model")
-        assert compute_tags("models_get_model", entry) == {"read"}
+        assert compute_tags(entry) == {"read"}
 
-    def test_curated_tool_gets_curated_tag(self):
+    def test_write_tool_tagged_write(self):
         entry = _entry_for("models_train_model")
-        assert compute_tags("models_train_model", entry) == {"write", "curated"}
+        assert compute_tags(entry) == {"write"}
 
-    def test_guided_trio_demoted(self):
-        for name in GUIDED_TOOLS:
-            tags = compute_tags(name, _entry_for(name))
-            assert tags == {"workflow", "guided"}, name
+    def test_no_overlay_tags_anywhere(self):
+        for entry in iter_registry_entries():
+            tags = compute_tags(entry)
+            assert tags in ({"read"}, {"write"}), derive_tool_name(entry)
+            assert not tags & {"curated", "guided", "workflow"}
 
-    def test_mechanical_workflow_tools_stay_curated(self):
-        for name in MECHANICAL_WORKFLOW_TOOLS:
-            assert compute_tags(name, _entry_for(name)) == {"workflow", "curated"}, name
 
-    def test_preprocessing_promotions(self):
-        for name in CURATED_PROMOTIONS:
-            assert "curated" in compute_tags(name, _entry_for(name)), name
+class TestAnnotations:
+    """MCP annotations are derived from the registry category."""
+
+    def test_read_tool_has_read_only_hint(self, tool_map):
+        annotations = tool_map["models_get_model"].annotations
+        assert annotations is not None
+        assert annotations.readOnlyHint is True
+        assert annotations.destructiveHint is not True
+
+    def test_write_tool_has_destructive_hint(self, tool_map):
+        annotations = tool_map["models_train_model"].annotations
+        assert annotations is not None
+        assert annotations.destructiveHint is True
+        assert annotations.readOnlyHint is not True
+
+    def test_every_tool_annotated_by_category(self, tool_map):
+        for entry in iter_registry_entries():
+            name = derive_tool_name(entry)
+            annotations = tool_map[name].annotations
+            assert annotations is not None, name
+            if entry["category"].value == "read":
+                assert annotations.readOnlyHint is True, name
+            else:
+                assert annotations.destructiveHint is True, name
 
 
 class TestRegistration:
     def test_registers_all_registry_tools(self, tool_map):
-        assert len(tool_map) == len(iter_registry_entries())
+        assert len(tool_map) == len(iter_registry_entries()) == 36
 
     def test_signature_copied(self, tool_map):
         t = tool_map["models_train_model"]
@@ -92,9 +102,8 @@ class TestRegistration:
         assert tool_map["models_train_model"].description
 
     def test_tags_applied_on_registered_tool(self, tool_map):
-        assert tool_map["models_train_model"].tags == {"write", "curated"}
-        for name in GUIDED_TOOLS:
-            assert tool_map[name].tags == {"workflow", "guided"}
+        assert tool_map["models_train_model"].tags == {"write"}
+        assert tool_map["models_get_model"].tags == {"read"}
 
     def test_wrapper_calls_client_method(self, tool_map):
         mock_client = MagicMock()

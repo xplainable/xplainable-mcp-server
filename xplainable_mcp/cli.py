@@ -34,8 +34,7 @@ def _registry_tools():
             "name": name,
             "description": description,
             "category": entry["category"].value,
-            "tags": sorted(compute_tags(name, entry)),
-            "curated": "curated" in compute_tags(name, entry),
+            "tags": sorted(compute_tags(entry)),
             "parameters": list(entry["parameters"].keys()),
         })
     return sorted(tools, key=lambda t: t["name"])
@@ -50,8 +49,7 @@ def _tools_markdown(tools):
         lines.append(f"## {category.title()}")
         lines.append("")
         for tool in by_category[category]:
-            curated = " (curated)" if tool["curated"] else ""
-            lines.append(f"- `{tool['name']}`{curated}: {tool['description']}")
+            lines.append(f"- `{tool['name']}`: {tool['description']}")
         lines.append("")
     return "\n".join(lines)
 
@@ -76,10 +74,8 @@ def cmd_list_tools(args):
                 category_tools = by_category[category]
                 print(f"\n{category.upper()} ({len(category_tools)} tools):")
                 for tool in category_tools:
-                    curated = "✓" if tool["curated"] else " "
-                    print(f"  [{curated}] {tool['name']}: {tool['description']}")
+                    print(f"  {tool['name']}: {tool['description']}")
             print("\n" + "=" * 60)
-            print("Legend: ✓ = curated (direct-mode surface)")
 
     except Exception as e:
         print(f"Error listing tools: {e}", file=sys.stderr)
