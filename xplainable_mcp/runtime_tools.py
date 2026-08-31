@@ -51,9 +51,12 @@ def compute_tags(entry: Dict[str, Any]) -> Set[str]:
 
 def compute_annotations(entry: Dict[str, Any]) -> ToolAnnotations:
     """MCP tool annotations derived from the registry category."""
-    if entry["category"].value == "read":
+    category = entry["category"].value
+    if category == "read":
         return ToolAnnotations(readOnlyHint=True)
-    return ToolAnnotations(destructiveHint=True)
+    if category == "write":
+        return ToolAnnotations(destructiveHint=True)
+    raise ValueError(f"Unknown registry category: {category!r}")
 
 
 def _dump(result: Any) -> Any:

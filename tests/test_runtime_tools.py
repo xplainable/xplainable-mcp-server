@@ -7,6 +7,7 @@ import pytest
 from fastmcp import FastMCP
 
 from xplainable_mcp.runtime_tools import (
+    compute_annotations,
     compute_tags,
     derive_tool_name,
     iter_registry_entries,
@@ -80,6 +81,12 @@ class TestAnnotations:
                 assert annotations.readOnlyHint is True, name
             else:
                 assert annotations.destructiveHint is True, name
+
+    def test_unknown_category_raises(self):
+        category = MagicMock()
+        category.value = "banana"
+        with pytest.raises(ValueError, match="Unknown registry category: 'banana'"):
+            compute_annotations({"category": category})
 
 
 class TestRegistration:
