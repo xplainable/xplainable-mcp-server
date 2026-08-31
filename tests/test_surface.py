@@ -1,8 +1,9 @@
 """
-Tool-surface invariants across the three tiers (direct / guided / advanced).
+Flat tool-surface contract: everything in the client @mcp_tool registry
+plus the hand-written server-native tools, with no tag filtering.
 
-Uses the in-memory fastmcp Client because include_tags filtering is applied
-at protocol list time, not by mcp.get_tools().
+Uses the in-memory fastmcp Client so the assertion matches what an MCP
+host actually sees at protocol list time.
 """
 
 import asyncio
@@ -10,79 +11,83 @@ import asyncio
 import pytest
 from fastmcp import Client
 
-from xplainable_mcp.mcp_instance import resolve_include_tags
-from xplainable_mcp.runtime_tools import CURATED_PROMOTIONS, GUIDED_TOOLS
+from xplainable_mcp.runtime_tools import derive_tool_name, iter_registry_entries
 from xplainable_mcp.server import mcp
 
+# Hand-written tools registered by the server itself (team session tools
+# in server.py, docs tools in docs_tools.py).
+SERVER_NATIVE_TOOLS = {
+    "list_user_teams",
+    "set_active_team",
+    "select_team",
+    "docs_list_pages",
+    "docs_get_page",
+    "docs_search",
+}
 
-def _surface(include_tags):
+
+@pytest.fixture(scope="module")
+def surface():
     async def go():
-        saved = mcp.include_tags
-        mcp.include_tags = include_tags
-        try:
-            async with Client(mcp) as client:
-                return {tool.name for tool in await client.list_tools()}
-        finally:
-            mcp.include_tags = saved
+        async with Client(mcp) as client:
+            return {tool.name for tool in await client.list_tools()}
 
     return asyncio.run(go())
 
 
-@pytest.fixture(scope="module")
-def direct():
-    return _surface(resolve_include_tags(None, None))
+class TestFlatSurface:
+    def test_surface_is_registry_plus_server_native(self, surface):
+        expected = {
+            derive_tool_name(e) for e in iter_registry_entries()
+        } | SERVER_NATIVE_TOOLS
+        assert surface == expected
 
+    def test_registry_count(self):
+        assert len(list(iter_registry_entries())) == 36
 
-@pytest.fixture(scope="module")
-def guided():
-    return _surface(resolve_include_tags(None, "1"))
+    def test_total_count(self, surface):
+        assert len(surface) == 42  # 36 registry + 6 server-native
 
-
-@pytest.fixture(scope="module")
-def advanced():
-    return _surface(resolve_include_tags("1", None))
-
-
-class TestDirectSurface:
-    def test_training_loop_tools_present(self, direct):
+    def test_training_loop_tools_present(self, surface):
         for name in (
-            "workflow_list_assets",
+            "datasets_list_team_datasets",
             "datasets_preview_dataset_json",
+            "preprocessing_list_available_transformers",
+            "preprocessing_create_preprocessor_from_spec",
+            "preprocessing_preview_from_data",
             "models_train_model",
             "models_refit_model",
             "models_get_feature_info",
-            "workflow_deploy_model",
-            "workflow_predict",
-            "workflow_create_report",
+            "gpt_explain_model",
+            "deployments_deploy",
+            "inference_predict",
+            "optimisers_run_optimiser",
+            "reports_create_report",
             "reports_get_job_status",
         ):
-            assert name in direct, name
+            assert name in surface, name
 
-    def test_preprocessing_promotions_present(self, direct):
-        assert CURATED_PROMOTIONS <= direct
-
-    def test_team_recovery_tools_present(self, direct):
+    def test_team_recovery_tools_present(self, surface):
         for name in ("select_team", "set_active_team", "list_user_teams"):
-            assert name in direct, name
+            assert name in surface, name
 
-    def test_guided_trio_excluded(self, direct):
-        assert GUIDED_TOOLS.isdisjoint(direct)
-
-    def test_direct_count(self, direct):
-        assert len(direct) == 33
-
-
-class TestGuidedSurface:
-    def test_guided_adds_exactly_the_trio(self, direct, guided):
-        assert guided - direct == set(GUIDED_TOOLS)
-
-
-class TestAdvancedSurface:
-    def test_advanced_is_strict_superset(self, direct, guided, advanced):
-        assert direct < guided < advanced
-
-    def test_advanced_exposes_full_registry(self, advanced):
-        assert len(advanced) >= 105
-        # advanced-only examples
-        for name in ("agentic_start_run", "list_tools", "get_workflows"):
-            assert name in advanced, name
+    def test_removed_tools_absent(self, surface):
+        for name in (
+            # workflow wrappers (WorkflowClient deleted from the client)
+            "workflow_list_assets",
+            "workflow_train_model",
+            "workflow_wait_for_update",
+            "workflow_decide",
+            "workflow_deploy_model",
+            "workflow_predict",
+            "workflow_optimise_model",
+            "workflow_create_report",
+            "workflow_explain_model",
+            "workflow_get_run_charts",
+            # server introspection tools
+            "list_tools",
+            "get_workflows",
+            # raw-blob persistence must never be exposed
+            "models_create_model_v2",
+        ):
+            assert name not in surface, name

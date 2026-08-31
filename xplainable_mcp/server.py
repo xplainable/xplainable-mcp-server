@@ -82,8 +82,6 @@ from .client_manager import get_client
 # Shared icon for all xplainable tools + runtime tool generation
 from .runtime_tools import XP_ICON, register_client_tools
 
-from . import __version__
-
 
 # ============================================================================
 # SESSION TOOLS (team selection)
@@ -99,11 +97,9 @@ def _fetch_user_teams() -> List[Dict[str, Any]]:
     return client.session.get_response_content(response)
 
 
-# The three team-selection tools are tagged "curated" so they stay visible
-# on the default (include_tags={"workflow", "curated"}) surface: INSTRUCTIONS
-# direct callers to recover from 'No team selected' via these tools, so they
-# must be reachable without XPLAINABLE_ADVANCED_TOOLS.
-@mcp.tool(icons=[XP_ICON], tags={"admin", "curated"})
+# The three team-selection tools carry an informational "admin" tag.
+# INSTRUCTIONS direct callers to recover from 'No team selected' via these.
+@mcp.tool(icons=[XP_ICON], tags={"admin"})
 def list_user_teams() -> List[Dict[str, Any]]:
     """
     List all teams the authenticated user belongs to.
@@ -124,7 +120,7 @@ def list_user_teams() -> List[Dict[str, Any]]:
         raise
 
 
-@mcp.tool(icons=[XP_ICON], tags={"admin", "curated"})
+@mcp.tool(icons=[XP_ICON], tags={"admin"})
 def set_active_team(team_id: str) -> Dict[str, str]:
     """
     Set the active team for this session.
@@ -148,7 +144,7 @@ def set_active_team(team_id: str) -> Dict[str, str]:
         raise
 
 
-@mcp.tool(icons=[XP_ICON], tags={"admin", "curated"})
+@mcp.tool(icons=[XP_ICON], tags={"admin"})
 async def select_team(ctx: Context) -> Dict[str, str]:
     """
     Interactively select the active team for this session.
@@ -207,172 +203,6 @@ async def select_team(ctx: Context) -> Dict[str, str]:
     except Exception as e:
         logger.error(f"Error in select_team: {e}")
         raise
-
-
-# ============================================================================
-# CHART TOOLS (hand-written; the sync workflow owns tools/, not this file)
-# ============================================================================
-
-
-@mcp.tool(icons=[XP_ICON], tags={"curated", "workflow"})
-async def workflow_get_run_charts(run_id: str, max_charts: int = 10):
-    """
-    Fetch the rendered charts for a training run as images.
-
-    Call after workflow_wait_for_update shows the plots phase has
-    produced charts (tool_complete events mentioning "Chart N").
-    Returns each successfully rendered chart as an inline PNG image
-    preceded by a caption with the analytical question it answers,
-    so the host can display them directly in the conversation.
-
-    Category: workflow
-    Workflow: Run after: workflow_wait_for_update (plots phase).
-    """
-    import base64 as _b64
-    from fastmcp.utilities.types import Image
-
-    import functools
-
-    import anyio.to_thread
-
-    try:
-        client = get_client()
-        # Blocking chart download can exceed the LB's ~60s idle timeout if it
-        # runs on the event loop (starves SSE keepalive pings) — offload it.
-        result = await anyio.to_thread.run_sync(
-            functools.partial(client.workflow.get_run_charts, run_id, max_charts=max_charts)
-        )
-        if result.get("error"):
-            return result  # coaching dict from the client
-        charts = result.get("charts") or []
-
-        content: List[Any] = []
-        for chart in charts:
-            try:
-                image_bytes = _b64.b64decode(chart["raster"])
-            except Exception:
-                logger.warning(
-                    f"Chart {chart.get('index')} of run {run_id} has an undecodable raster; skipping"
-                )
-                continue
-            content.append(f"Chart {len(content) // 2 + 1}: {chart.get('question')}")
-            content.append(Image(data=image_bytes, format="png"))
-
-        if not content:
-            return {
-                "status": "no_charts",
-                "message": (
-                    "No rendered charts found for this run yet. If the plots "
-                    "phase is still running, poll workflow_wait_for_update and retry."
-                ),
-                "total_charts": result.get("total_charts", 0),
-            }
-
-        logger.info(f"Returning {len(content) // 2} chart image(s) for run {run_id}")
-        return content
-    except Exception as e:
-        logger.error(f"Error in workflow_get_run_charts: {e}")
-        raise
-
-
-# ============================================================================
-# DISCOVERY/METADATA TOOLS
-# ============================================================================
-
-
-def _first_doc_line(text) -> str:
-    if not text:
-        return ""
-    for line in text.strip().splitlines():
-        if line.strip():
-            return line.strip()
-    return ""
-
-
-@mcp.tool(icons=[XP_ICON])
-async def list_tools() -> Dict[str, Any]:
-    """
-    List all registered MCP tools grouped by category with their tags.
-
-    Introspects the live FastMCP registry (unfiltered, i.e. the full
-    surface regardless of the active include_tags tier).
-
-    Returns:
-        Dictionary containing tool information organized by category
-    """
-    tools = await mcp.get_tools()
-    categories: Dict[str, List[Dict[str, Any]]] = {}
-    for name, tool in sorted(tools.items()):
-        tags = set(tool.tags or set())
-        category = next(
-            (t for t in ("read", "write", "workflow", "analysis", "inference", "admin")
-             if t in tags),
-            "other",
-        )
-        categories.setdefault(category, []).append({
-            "name": name,
-            "description": _first_doc_line(tool.description),
-            "tags": sorted(tags),
-        })
-    logger.info(f"Listed {len(tools)} registered tools")
-    return {
-        "server_version": __version__,
-        "total_tools": len(tools),
-        "categories": categories,
-        "summary": {category: len(items) for category, items in categories.items()},
-    }
-
-
-@mcp.tool(icons=[XP_ICON])
-def get_workflows() -> Dict[str, Any]:
-    """
-    Get available tool workflows grouped by service with execution order.
-
-    Use this tool first to understand which tools are available and what
-    order to call them in. Tools with a 'step' are part of a sequential
-    workflow. Tools listed under 'depends_on' must be called before the
-    current tool.
-
-    Returns:
-        Dictionary of services, each containing ordered steps and
-        standalone tools.
-    """
-    from .runtime_tools import derive_tool_name, iter_registry_entries
-
-    try:
-        services: Dict[str, Dict[str, Any]] = {}
-        for entry in iter_registry_entries():
-            tool_name = derive_tool_name(entry)
-            service = tool_name.split("_", 1)[0]
-            bucket = services.setdefault(service, {"steps": [], "tools": []})
-            item = {
-                "tool": tool_name,
-                "description": _first_doc_line(entry["docstring"]),
-                "category": entry["category"].value,
-                "parameters": list(entry["parameters"].keys()),
-            }
-            if entry["step"]:
-                item["step"] = entry["step"]
-            if entry["depends_on"]:
-                item["depends_on"] = entry["depends_on"]
-            bucket["steps" if entry["step"] else "tools"].append(item)
-
-        for service_data in services.values():
-            service_data["steps"].sort(key=lambda x: x["step"])
-            for key in ("steps", "tools"):
-                if not service_data[key]:
-                    del service_data[key]
-
-        return {
-            "total_services": len(services),
-            "services": services,
-            "hint": "Start by calling select_team to pick a team. "
-                    "Then call tools in step order within each service. "
-                    "Tools with depends_on require those tools first.",
-        }
-    except Exception as e:
-        logger.error(f"Error building workflows: {e}")
-        return {"error": str(e)}
 
 
 # ============================================================================

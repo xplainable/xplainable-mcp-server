@@ -51,7 +51,8 @@ variable).
 
 ## The Iterate Loop
 
-1. `workflow_list_assets` — see the team's datasets, models, and deployments.
+1. `datasets_list_team_datasets` / `models_list_team_models` / \
+`deployments_list_deployments` — see the team's assets.
 2. `datasets_preview_dataset_json(dataset_id)` — inspect columns, types, \
 and sample rows. Decide the target column, columns to drop (IDs, leakage), \
 and whether preprocessing is needed.
@@ -64,23 +65,23 @@ synchronous server-side training (may take up to a couple of minutes). \
 Returns model_id, version_id, train/test metrics, and feature importances.
 5. Inspect: compare train vs test metrics (a large gap = overfitting). Use \
 `models_get_feature_info(version_id)` for feature health and \
-`workflow_explain_model` for the importance/profile digest.
+`gpt_explain_model` for the importance/profile digest.
 6. Iterate:
    - Hyperparameter tuning → `models_refit_model` (cheap, same structure).
    - Different features / preprocessing / target → `models_train_model` again.
    Narrate what you changed and why; show the user the metric movement.
-7. `workflow_deploy_model(model_id)` — deploy once satisfied.
+7. `deployments_deploy(version_id)` — deploy once satisfied (then \
+`deployments_activate_deployment`).
 8. Act on the model:
-   - `workflow_predict` — score rows (requires a deployment; run \
-`workflow_deploy_model` first).
-   - `workflow_optimise_model` — prescriptive optimisation toward an objective.
-   - `workflow_create_report` — starts report generation and returns a \
+   - `inference_predict` — score rows against a deployment.
+   - `optimisers_run_optimiser` — prescriptive optimisation toward an \
+objective (create one first via `optimisers_create_optimiser`).
+   - `reports_create_report` — starts report generation and returns a \
 job_id; poll `reports_get_job_status(job_id)` until status is 'done' \
 (or 'error').
 
-Read tools (datasets_*, models_*, deployments_*, optimisers_*, runs_*, \
-agentic_*, misc_get_organisation_usage) are available for inspecting \
-assets at any point.
+Read tools (datasets_*, models_*, deployments_*, optimisers_*, \
+preprocessing_*) are available for inspecting assets at any point.
 
 ## Available Skills
 

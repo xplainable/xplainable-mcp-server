@@ -64,7 +64,7 @@ MODULE_ORDER = [
 ]
 
 # Tool-name prefixes that map to a module section. Anything else
-# (list_tools, get_workflows, select_team, ...) is a session tool.
+# (list_user_teams, set_active_team, select_team, ...) is a session tool.
 _KNOWN_MODULES = set(MODULE_ORDER) - {"session"}
 
 

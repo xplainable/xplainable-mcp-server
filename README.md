@@ -68,15 +68,14 @@ then use `"command": "/path/to/xplainable-mcp-server/.venv/bin/xplainable-mcp"`
 ### 3. Try it
 
 Ask your agent: *"What models and datasets do I have?"* — it should call
-`workflow_list_assets`.
+`models_list_team_models` and `datasets_list_team_datasets`.
 
 ## The Iterate Loop
 
-The default (direct-mode) surface puts the agent in control of every
-training decision:
+The tool surface puts the agent in control of every training decision:
 
-1. `workflow_list_assets` — see the team's datasets, models, and
-   deployments
+1. `datasets_list_team_datasets` / `models_list_team_models` /
+   `deployments_list_deployments` — see the team's assets
 2. `datasets_preview_dataset_json(dataset_id)` — inspect columns, types,
    and sample rows; decide the target, columns to drop, and whether
    preprocessing is needed
@@ -86,13 +85,14 @@ training decision:
 4. `models_train_model(dataset_id, target_column, model_name, ...)` —
    synchronous server-side training; returns model/version IDs,
    train/test metrics, and feature importances
-5. Inspect: `models_get_feature_info` / `workflow_explain_model`; compare
+5. Inspect: `models_get_feature_info` / `gpt_explain_model`; compare
    train vs test metrics
 6. Iterate: `models_refit_model` for hyperparameter tuning, or train
    again with different features / preprocessing
-7. `workflow_deploy_model(model_id)` — deploy once satisfied
-8. Act on the model: `workflow_predict` (no deployment needed) /
-   `workflow_optimise_model` / `workflow_create_report` (+ poll
+7. `deployments_deploy(version_id)` — deploy once satisfied (then
+   `deployments_activate_deployment`)
+8. Act on the model: `inference_predict` /
+   `optimisers_run_optimiser` / `reports_create_report` (+ poll
    `reports_get_job_status`)
 
 ## Tool Surface
