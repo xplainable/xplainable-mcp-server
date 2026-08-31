@@ -8,41 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- XGM v2 as the primary training workflow: 9 `agentic_*` lifecycle tools
-  (`agentic_start_run` defaults to `algorithm="xgm"` and `auto_mode=True`,
-  polling via `agentic_get_run_state`, decisions, chat, cancel, skip,
-  phases, retrain) — training runs server-side on Xplainable's agentic
-  pipeline
-- 8 optimiser tools (policies / versions / batch runs)
+- MCP `readOnlyHint`/`destructiveHint` tool annotations, derived from the
+  client registry's read/write categories
 
 ### Changed
-- Server instructions and README now feature the v2 workflow; legacy v1
-  tools (`models_train_model`, `models_refit_model`) remain for the
-  opensource path
-- Bumped `xplainable-client` pin to >=1.7.0
+- Flat tool surface of 42 tools: 36 generated at runtime from the
+  xplainable-client `@mcp_tool` registry, plus 3 team tools and 3 docs
+  tools
 
 ### Removed
-- `models_create_model_v2` tool (raw-blob persistence stays an internal
-  client method; exposing it would bypass server-side-only v2 training)
-
-### Added (initial release)
-- Initial implementation of Xplainable MCP Server
-- FastMCP-based server architecture
-- Read-only tools for models, deployments, preprocessors, and collections
-- Optional write tools (disabled by default)
-- Comprehensive security features including rate limiting and audit logging
-- Docker support with multi-stage builds
-- Client synchronization utilities to track API compatibility
-- Comprehensive test suite with mocked client
-- Quick start script for easy setup
-- Claude Desktop configuration example
-
-### Security
-- Token-based authentication support
-- Environment-based API key management
-- Rate limiting per tool and principal
-- Audit logging for all operations
-- Input validation using Pydantic models
+- 3-tier tag filtering: the `XPLAINABLE_ADVANCED_TOOLS` and
+  `XPLAINABLE_GUIDED_TOOLS` environment variables are gone; all tools are
+  always exposed
+- `workflow_*` tools, `agentic_*` lifecycle tools,
+  `workflow_get_run_charts`, `get_workflows`, and `list_tools`
 
 ## [0.1.0] - 2024-09-01
 
