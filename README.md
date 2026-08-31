@@ -99,18 +99,9 @@ training decision:
 
 Tools are generated at server startup from `@mcp_tool`-decorated methods
 in the [xplainable-client](https://pypi.org/project/xplainable-client/)
-package — there are no checked-in generated files. Each tool carries tags
-(`curated`, `guided`, `read`, `write`, ...) that drive a three-tier
-surface:
-
-| Tier | Env | Tools | What you get |
-|---|---|---|---|
-| **Direct** (default) | — | 33 | The iterate loop above: curated training, preprocessing, read, and team-selection tools |
-| **Guided** | `XPLAINABLE_GUIDED_TOOLS=1` | 36 | Adds `workflow_train_model` / `workflow_wait_for_update` / `workflow_decide` — a hands-off run of the same agentic pipeline that powers the platform UI |
-| **Advanced** | `XPLAINABLE_ADVANCED_TOOLS=1` | ~107 | The full registry, adding write/admin tools for monitors, GPT reports, inference, and low-level agentic run control |
-
-Env values `1`, `true`, and `yes` are accepted; advanced wins if both are
-set.
+package — there are no checked-in generated files. The surface is flat:
+every registry tool is exposed, with MCP annotations derived from its
+category (`read` → read-only hint, `write` → destructive hint).
 
 ## Configuration
 
@@ -119,8 +110,6 @@ set.
 | `XPLAINABLE_API_KEY` | yes (local) | API key from platform.xplainable.io |
 | `XPLAINABLE_HOST` / `XPLAINABLE_HOSTNAME` | no | Platform host override (defaults to `https://platform.xplainable.io`). Set **both** to the same value. |
 | `XPLAINABLE_ORG_ID` / `XPLAINABLE_TEAM_ID` | no | Org/team binding, if your API key is not bound to a team |
-| `XPLAINABLE_GUIDED_TOOLS` | no | `1`/`true`/`yes` adds the guided workflow trio (36 tools) |
-| `XPLAINABLE_ADVANCED_TOOLS` | no | `1`/`true`/`yes` exposes the full ~107-tool surface |
 | `MCP_TRANSPORT` | no | `stdio` (default) or `streamable-http` |
 | `LOG_LEVEL` | no | `DEBUG`, `INFO` (default), `WARNING`, `ERROR` |
 
@@ -163,8 +152,8 @@ Client-backed tools are generated at import time by
 `xplainable_mcp/runtime_tools.py` from the `@mcp_tool` registry in
 xplainable-client — there is no sync step. Upgrading the pinned
 `xplainable-client` version is all it takes to pick up new or changed
-tools; the test suite (`tests/test_surface.py`) pins the per-tier tool
-counts so surface changes are always deliberate.
+tools; the test suite (`tests/test_surface.py`) pins the tool count so
+surface changes are always deliberate.
 
 ## Compatibility
 

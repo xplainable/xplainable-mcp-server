@@ -6,7 +6,6 @@ all tool modules to ensure proper registration.
 """
 
 import os
-from typing import Optional
 from dotenv import load_dotenv
 from fastmcp import FastMCP
 from mcp.types import Icon
@@ -14,29 +13,6 @@ from . import __version__
 from .branding import XPLAINABLE_ICON_URL, apply_consent_branding
 
 load_dotenv()
-
-
-def _truthy(env_value: Optional[str]) -> bool:
-    return (env_value or "").strip().lower() in ("1", "true", "yes")
-
-
-def resolve_include_tags(advanced: Optional[str], guided: Optional[str]) -> Optional[set]:
-    """Resolve FastMCP include_tags for the three-tier tool surface.
-
-    - default: direct mode — curated tools only (~33)
-    - XPLAINABLE_GUIDED_TOOLS truthy: adds the guided agentic trio (~36)
-    - XPLAINABLE_ADVANCED_TOOLS truthy: no filtering — full surface (~105)
-
-    Note: "workflow" must never be in the default set — the guided trio
-    keeps its "workflow" category tag, so including it would leak the
-    trio back into the direct surface.
-    """
-    if _truthy(advanced):
-        return None  # advanced: full surface
-    if _truthy(guided):
-        return {"curated", "guided"}
-    return {"curated"}
-
 
 # Auth is only configured when running in HTTP transport mode.
 # In stdio mode (local dev), no auth is applied.
@@ -106,19 +82,6 @@ Read tools (datasets_*, models_*, deployments_*, optimisers_*, runs_*, \
 agentic_*, misc_get_organisation_usage) are available for inspecting \
 assets at any point.
 
-## Guided Mode (opt-in)
-
-Set `XPLAINABLE_GUIDED_TOOLS=1` to expose workflow_train_model / \
-workflow_wait_for_update / workflow_decide: a hands-off run of the same \
-agentic pipeline that powers the Xplainable platform UI. Prefer the direct \
-loop above when available — it keeps you in control of every decision.
-
-## Advanced Tool Surface
-
-Set `XPLAINABLE_ADVANCED_TOOLS=1` to expose the full surface (~105 tools) \
-including write/admin tools for monitors, GPT reports, inference, and \
-low-level agentic run control.
-
 ## Available Skills
 
 Pin a skill resource to your project for domain-specific workflow guidance. \
@@ -138,10 +101,6 @@ mcp = FastMCP(
         ),
     ],
     instructions=INSTRUCTIONS,
-    include_tags=resolve_include_tags(
-        os.getenv("XPLAINABLE_ADVANCED_TOOLS"),
-        os.getenv("XPLAINABLE_GUIDED_TOOLS"),
-    ),
 )
 
 # Register bundled skills as MCP resources

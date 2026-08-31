@@ -3,8 +3,8 @@
 # DO dashboard, never here.
 # https://docs.digitalocean.com/products/app-platform/reference/app-spec/
 #
-# Note: the hosted server is OAuth-gated (Auth0) and serves the default
-# 28-tool workflow surface (XPLAINABLE_ADVANCED_TOOLS is not set).
+# Note: the hosted server is OAuth-gated (Auth0) and serves the full
+# flat tool surface (no tag-based filtering).
 name: xplainable-mcp-server
 region: syd
 
@@ -36,10 +36,6 @@ services:
         value: https://xplainable.au.auth0.com/api/v2/
       - key: MCP_SERVER_URL
         value: https://mcp.xplainable.io
-      # Set to "1" to expose the full advanced tool surface instead of the
-      # default workflow + curated set.
-      # - key: XPLAINABLE_ADVANCED_TOOLS
-      #   value: "1"
 
 domains:
   - domain: mcp.xplainable.io
