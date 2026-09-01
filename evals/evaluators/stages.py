@@ -73,6 +73,8 @@ def _check_explore(out: RunOutcome, label: str) -> bool:
 
 
 def _check_select_label(out: RunOutcome, label: str) -> bool:
+    # Substring matching is deliberately fuzzy here; it can match the label in
+    # e.g. ignored_columns entries or a superstring like "ChurnRate".
     if label.lower() in out.final_text.lower():
         return True
     return any(
@@ -89,12 +91,25 @@ def _check_persist_prep(out: RunOutcome, label: str) -> bool:
     return bool(out.created.preprocessors)
 
 
+def _leaf_values(obj):
+    """Yield all leaf values from a nested args structure."""
+    if isinstance(obj, dict):
+        for value in obj.values():
+            yield from _leaf_values(value)
+    elif isinstance(obj, (list, tuple)):
+        for item in obj:
+            yield from _leaf_values(item)
+    else:
+        yield obj
+
+
 def _check_train(out: RunOutcome, label: str) -> bool:
     """Model created AND trained on transformed data (train args reference a
     created preprocessor id or one of its version ids) — the motivating
     trained-on-raw regression. Live train args carry only
     preprocessor_version_id, an independent key, so version ids recorded by
-    inspect() count too."""
+    inspect() count too. Matching is structural (exact leaf values, not
+    substrings) so "pp-1" never matches "pp-12"."""
     if not out.created.models:
         return False
     accepted_ids = set(out.created.preprocessors)
@@ -103,7 +118,7 @@ def _check_train(out: RunOutcome, label: str) -> bool:
     return any(
         call.name in TRAIN_TOOLS
         and _successful(call)
-        and any(ref in json.dumps(call.args) for ref in accepted_ids)
+        and any(str(v) in accepted_ids for v in _leaf_values(call.args))
         for call in out.tool_calls
     )
 
@@ -132,6 +147,8 @@ def _check_optimise(out: RunOutcome, label: str) -> bool:
 _STAGE_CHECKS = {
     Stage.EXPLORE: _check_explore,
     Stage.SELECT_LABEL: _check_select_label,
+    # Shared predicate is intentional: DATA_PREP vs FEATURE_ENG are not yet
+    # semantically distinguished (that refinement lands with Task 8).
     Stage.DATA_PREP: _check_prep,
     Stage.FEATURE_ENG: _check_prep,
     Stage.PERSIST_PREP: _check_persist_prep,

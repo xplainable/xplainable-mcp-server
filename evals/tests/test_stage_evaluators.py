@@ -7,7 +7,13 @@ SpanTree) so we exercise the actual evaluator protocol, not a stub.
 from pydantic_evals.evaluators import EvaluatorContext
 from pydantic_evals.otel.span_tree import SpanTree
 
-from evals.evaluators.stages import READ_TOOLS, WRITE_TOOLS, StageEvaluator
+from evals.evaluators.stages import (
+    PREDICT_TOOLS,
+    READ_TOOLS,
+    TRAIN_TOOLS,
+    WRITE_TOOLS,
+    StageEvaluator,
+)
 from evals.harness.models import CreatedArtifacts, RunOutcome, Stage, ToolCall
 
 ALL_STAGES = list(Stage)
@@ -87,6 +93,12 @@ class TestReadWriteSets:
         assert "set_active_team" not in WRITE_TOOLS
         assert "docs_search" not in WRITE_TOOLS
 
+    def test_train_and_predict_sets_match_registry_exactly(self):
+        """Drift guard: the name-based heuristics must yield exactly these
+        tools; a registry change that breaks them should fail loudly here."""
+        assert TRAIN_TOOLS == {"models_train_model", "models_refit_model"}
+        assert PREDICT_TOOLS == {"inference_predict"}
+
 
 class TestStageEvaluator:
     def test_full_pass(self):
@@ -127,6 +139,22 @@ class TestStageEvaluator:
             ],
             created=CreatedArtifacts(models=["m-1"], preprocessors=["pp-1"]),
             preprocessor_versions={"pp-1": ["ppv-9"]},
+        )
+        result = StageEvaluator(expected_stages=[Stage.TRAIN]).evaluate(make_ctx(outcome))
+        assert result == {Stage.TRAIN.value: False}
+
+    def test_train_fails_on_id_prefix_false_positive(self):
+        """"ppv-1" is a substring of "ppv-12" but a different id: TRAIN must fail."""
+        outcome = RunOutcome(
+            final_text="done",
+            tool_calls=[
+                ToolCall(
+                    name="models_train_model",
+                    args={"preprocessor_version_id": "ppv-12", "target_column": "Churn"},
+                ),
+            ],
+            created=CreatedArtifacts(models=["m-1"], preprocessors=["pp-1"]),
+            preprocessor_versions={"pp-1": ["ppv-1"]},
         )
         result = StageEvaluator(expected_stages=[Stage.TRAIN]).evaluate(make_ctx(outcome))
         assert result == {Stage.TRAIN.value: False}
