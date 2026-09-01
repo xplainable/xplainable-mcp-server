@@ -54,6 +54,8 @@ class RunOutcome(BaseModel):
 
 
 class Scenario(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # typo'd field must raise, not vanish
+
     name: str
     prompt: str                     # user prompt (may reference dataset name)
     fixture: str                    # CSV path relative to evals/scenarios/fixtures/

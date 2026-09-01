@@ -1,0 +1,139 @@
+"""Dataset wiring: scenarios -> pydantic-evals Dataset + task + results JSON.
+
+Design choices (pinned against pydantic-evals 2.37.0):
+- Per-case evaluators: Case(...) accepts an `evaluators` tuple, so the
+  scenario-parametrised StageEvaluator/SemanticEvaluator attach per case;
+  the scenario-independent EfficiencyEvaluator sits at dataset level.
+- Leftovers plumbing: build_task returns (task, leftovers) where leftovers
+  is a mutable list the task closure extends after each case's teardown —
+  the caller evaluates the dataset, then passes the list to write_result.
+  (Chosen over threading it through build_dataset: the Dataset is pure case
+  expansion and separately testable; leftovers belong to task execution.)
+- Fixture cleanup: upload_fixture runs BEFORE run_case (whose snapshot()
+  then includes the fixture in the baseline, so diff() excludes it) — the
+  task adds the fixture dataset id to the teardown ledger explicitly, in a
+  `finally` so failed cases still clean up.
+"""
+import importlib.metadata
+import json
+import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Callable, List, Sequence, Tuple
+from uuid import uuid4
+
+from pydantic_evals import Case, Dataset
+
+from evals.evaluators.semantic import EfficiencyEvaluator, SemanticEvaluator
+from evals.evaluators.stages import StageEvaluator
+from evals.harness.models import CreatedArtifacts, RunConfig, RunOutcome, Scenario
+from evals.harness.runner import run_case
+
+FIXTURES_DIR = Path(__file__).parent.parent / "scenarios" / "fixtures"
+
+
+def build_dataset(scenarios: Sequence[Scenario], config: RunConfig) -> Dataset:
+    """One Case per (scenario x repeat i of config.k), named "name[i]"."""
+    cases = [
+        Case(
+            name=f"{scenario.name}[{i}]",
+            inputs=scenario,
+            metadata={"repeat": i},
+            evaluators=(
+                StageEvaluator(expected_stages=list(scenario.expected_stages)),
+                SemanticEvaluator(immutable_features=list(scenario.immutable_features)),
+            ),
+        )
+        for scenario in scenarios
+        for i in range(config.k)
+    ]
+    return Dataset(name=config.label, cases=cases, evaluators=[EfficiencyEvaluator()])
+
+
+def build_task(
+    config: RunConfig, toolset, session
+) -> Tuple[Callable[[Scenario], "RunOutcome"], List[str]]:
+    """(task, leftovers): the async eval task plus its leftover accumulator.
+
+    Per case: upload the fixture under a unique name, format the scenario
+    prompt with it, run the agent, and ALWAYS tear down (fixture dataset +
+    everything run_case's diff attributed to the run), extending `leftovers`
+    with whatever teardown could not delete.
+    """
+    leftovers: List[str] = []
+
+    async def task(scenario: Scenario) -> RunOutcome:
+        fixture_dataset_id = None
+        outcome = None
+        try:
+            dataset_name = f"{scenario.dataset_name}-{uuid4().hex[:8]}"
+            fixture_dataset_id = session.upload_fixture(
+                str(FIXTURES_DIR / scenario.fixture), dataset_name
+            )
+            live = scenario.model_copy(update={
+                "prompt": scenario.prompt.format(dataset_name=dataset_name),
+                "dataset_name": dataset_name,
+            })
+            outcome = await run_case(live, config, toolset, session)
+            return outcome
+        finally:
+            created = outcome.created if outcome is not None else CreatedArtifacts()
+            if fixture_dataset_id and str(fixture_dataset_id) not in created.datasets:
+                created = created.model_copy(
+                    update={"datasets": [*created.datasets, str(fixture_dataset_id)]}
+                )
+            leftovers.extend(session.teardown(created))
+
+    return task, leftovers
+
+
+def _git_sha() -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=Path(__file__).parent, capture_output=True, text=True, check=True,
+        )
+        return proc.stdout.strip()
+    except Exception:  # noqa: BLE001 — provenance must never sink a write
+        return "unknown"
+
+
+def _client_version() -> str:
+    try:
+        return importlib.metadata.version("xplainable-client")
+    except Exception:  # noqa: BLE001 — provenance must never sink a write
+        return "unknown"
+
+
+def write_result(report, config: RunConfig, path, leftovers=None) -> dict:
+    """Serialise an EvaluationReport (+ run metadata) to JSON at `path`.
+
+    EvaluationResult values are unwrapped: assertions -> {name: bool},
+    scores -> {name: int|float}, labels -> {name: str}.
+    """
+    payload = {
+        "label": config.label,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "config": {
+            "model": config.model,
+            "prompt_id": config.prompt_id,
+            "target": config.target,
+            "k": config.k,
+        },
+        "git": {"mcp_server": _git_sha(), "xplainable_client": _client_version()},
+        "cases": [
+            {
+                "name": case.name,
+                "assertions": {k: r.value for k, r in case.assertions.items()},
+                "scores": {k: r.value for k, r in case.scores.items()},
+                "labels": {k: r.value for k, r in case.labels.items()},
+                "duration": case.task_duration,
+            }
+            for case in report.cases
+        ],
+        "leftovers": list(leftovers or []),
+    }
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2))
+    return payload

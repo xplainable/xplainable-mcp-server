@@ -39,6 +39,15 @@ def test_scenario_requires_expected_stages():
         Scenario(name="s", prompt="p", fixture="f.csv", expected_stages=[])
 
 
+def test_scenario_rejects_unknown_fields():
+    # A typo'd field (e.g. immutable_feature) must raise, not silently vanish.
+    with pytest.raises(ValidationError):
+        Scenario(
+            name="s", prompt="p", fixture="f.csv",
+            expected_stages=[Stage.TRAIN], immutable_feature=["gender"],
+        )
+
+
 def test_run_config_defaults():
     cfg = RunConfig()
     assert cfg.model == "anthropic:claude-sonnet-4-6"

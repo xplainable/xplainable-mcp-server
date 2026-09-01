@@ -9,9 +9,10 @@ pydantic-ai 2.37 facts this module relies on (verified by introspection):
 - UsageLimitExceeded carries no messages; capture_run_messages() is the
   supported way to recover the partial transcript when a run raises.
 """
+import json
 import re
 from pathlib import Path
-from typing import List
+from typing import Dict, List, Tuple
 
 from pydantic_ai import Agent, UsageLimitExceeded, UsageLimits, capture_run_messages
 
@@ -55,6 +56,87 @@ def extract_tool_calls(messages) -> List[ToolCall]:
         ToolCall(name=part.tool_name, args=part.args_as_dict(), error=error)
         for part, error in zip(call_parts, errored)
     ]
+
+
+def _parse_return_content(content):
+    """Tolerant tool-return payload parsing.
+
+    pydantic-ai 2.37 types ToolReturnPart.content as ToolReturnContent
+    (MultiModalContent | Sequence[Any] | Mapping[str, Any] | Any — i.e.
+    effectively Any); MCP servers commonly serialise returns as JSON text.
+    Returns the parsed structure, or None if the content is unusable.
+    """
+    if isinstance(content, str):
+        try:
+            return json.loads(content)
+        except ValueError:
+            return None
+    return content
+
+
+def _dict_rows(value) -> List[Dict]:
+    if isinstance(value, list):
+        return [row for row in value if isinstance(row, dict)]
+    return []
+
+
+def _prediction_rows(payload) -> List[Dict]:
+    """Prediction rows from a predict-tool return (list, keyed dict, or
+    single-row dict). Non-dict rows (e.g. bare probabilities) are dropped:
+    RunOutcome.predictions is List[Dict]."""
+    if isinstance(payload, list):
+        return _dict_rows(payload)
+    if isinstance(payload, dict):
+        for key in ("predictions", "results", "data", "rows"):
+            if isinstance(payload.get(key), list):
+                return _dict_rows(payload[key])
+        return [payload]
+    return []
+
+
+def _prescription_rows(payload) -> List[Dict]:
+    """Prescription rows from an optimiser-run return.
+
+    The client wrapper returns {run_id, batch_id, result} where result is
+    the XGM envelope {"status": ..., "results": [rows]}
+    (xplainable_client/client/optimisers.py::run_optimiser); a bare
+    envelope or a bare row list are tolerated too.
+    """
+    if isinstance(payload, list):
+        return _dict_rows(payload)
+    if not isinstance(payload, dict):
+        return []
+    result = payload.get("result")
+    if isinstance(result, dict) and isinstance(result.get("results"), list):
+        return _dict_rows(result["results"])
+    if isinstance(payload.get("results"), list):
+        return _dict_rows(payload["results"])
+    return []
+
+
+def extract_run_outputs(messages) -> Tuple[List[Dict], List[Dict]]:
+    """(predictions, prescriptions) from 'tool-return' message parts.
+
+    Predict tools are matched by "predict" in the tool name
+    (inference_predict); optimiser runs by "optimis" AND "run"
+    (optimisers_run_optimiser). Tool-return parts only exist for
+    successful calls (failures surface as retry-prompt parts).
+    """
+    predictions: List[Dict] = []
+    prescriptions: List[Dict] = []
+    for message in messages:
+        for part in getattr(message, "parts", []):
+            if getattr(part, "part_kind", None) != "tool-return":
+                continue
+            name = (getattr(part, "tool_name", None) or "").lower()
+            payload = _parse_return_content(getattr(part, "content", None))
+            if payload is None:
+                continue
+            if "predict" in name:
+                predictions.extend(_prediction_rows(payload))
+            elif "optimis" in name and "run" in name:
+                prescriptions.extend(_prescription_rows(payload))
+    return predictions, prescriptions
 
 
 def extract_report_urls(text: str) -> List[str]:
@@ -123,10 +205,13 @@ async def run_case(scenario: Scenario, config: RunConfig, toolset, session) -> R
         if _fmt(e) not in errors:
             errors.append(_fmt(e))
 
+    predictions, prescriptions = extract_run_outputs(messages)
     outcome = RunOutcome(
         final_text=final_text,
         tool_calls=extract_tool_calls(messages),
         created=created,
+        predictions=predictions,
+        prescriptions=prescriptions,
         report_urls=extract_report_urls(final_text),
         usage_limit_hit=usage_hit,
         error="; ".join(errors) or None,

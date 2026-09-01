@@ -95,6 +95,66 @@ def test_extract_handles_empty_messages():
     assert extract_tool_calls([]) == []
 
 
+# ------------------------------------------- predictions / prescriptions
+
+def test_extracts_predictions_from_predict_tool_returns():
+    # pydantic-ai 2.37 ToolReturnPart.content is ToolReturnContent (~Any);
+    # MCP servers commonly serialise returns as JSON text -> both must work.
+    rows = [{"customerID": "c1", "proba": 0.7}, {"customerID": "c2", "proba": 0.2}]
+    messages = _messages(
+        [ToolReturnPart(tool_name="inference_predict", content=rows, tool_call_id="a")],
+        [ToolReturnPart(
+            tool_name="inference_predict",
+            content='{"predictions": [{"customerID": "c3", "proba": 0.9}]}',
+            tool_call_id="b",
+        )],
+    )
+    predictions, prescriptions = runner.extract_run_outputs(messages)
+    assert predictions == rows + [{"customerID": "c3", "proba": 0.9}]
+    assert prescriptions == []
+
+
+def test_extracts_prescriptions_from_optimiser_run_envelope():
+    # run_optimiser returns {run_id, batch_id, result} where result is the
+    # XGM envelope {"status": ..., "results": [rows]} (client optimisers.py).
+    row = {"optimal_features": {"Contract": "Two year"}, "total_cost": 30.0}
+    envelope = {"run_id": "r1", "batch_id": "b1",
+                "result": {"status": "success", "results": [row]}}
+    messages = _messages(
+        [ToolReturnPart(
+            tool_name="optimisers_run_optimiser", content=envelope, tool_call_id="a",
+        )],
+    )
+    predictions, prescriptions = runner.extract_run_outputs(messages)
+    assert prescriptions == [row]
+    assert predictions == []
+
+
+def test_extract_run_outputs_tolerates_junk_content():
+    messages = _messages(
+        [ToolReturnPart(tool_name="inference_predict", content="not json {",
+                        tool_call_id="a")],
+        [ToolReturnPart(tool_name="optimisers_run_optimiser", content=42,
+                        tool_call_id="b")],
+        [ToolReturnPart(tool_name="optimisers_run_optimiser",
+                        content={"result": {"status": "error"}}, tool_call_id="c")],
+        # Non-predict/optimiser returns are ignored entirely.
+        [ToolReturnPart(tool_name="datasets_list_team_datasets",
+                        content=[{"dataset_id": "d1"}], tool_call_id="d")],
+    )
+    assert runner.extract_run_outputs(messages) == ([], [])
+
+
+def test_extract_run_outputs_single_dict_predict_return_is_one_row():
+    messages = _messages(
+        [ToolReturnPart(tool_name="inference_predict",
+                        content={"prediction": "Yes", "proba": 0.83},
+                        tool_call_id="a")],
+    )
+    predictions, _ = runner.extract_run_outputs(messages)
+    assert predictions == [{"prediction": "Yes", "proba": 0.83}]
+
+
 # ------------------------------------------------------------------- urls
 
 def test_extract_report_urls_finds_report_links_only():
@@ -322,3 +382,35 @@ async def test_run_case_returns_outcome_when_prompt_missing(monkeypatch):
     assert "FileNotFoundError" in outcome.error
     assert outcome.created == CreatedArtifacts()
     assert constructed == []  # Agent never constructed
+
+# ---------------------------------------- run_case output extraction wiring
+
+async def test_run_case_populates_predictions_and_prescriptions(monkeypatch):
+    # The OPTIMISE stage + semantic detectors read outcome.predictions /
+    # .prescriptions — run_case must populate them from the transcript.
+    row = {"feature_changes": {"Contract": {"from": "Monthly", "to": "Two year"}},
+           "total_cost": 25.0}
+
+    class _ReturnResult(_StubResult):
+        def all_messages(self):
+            return _messages(
+                [ToolReturnPart(tool_name="inference_predict",
+                                content=[{"proba": 0.4}], tool_call_id="a")],
+                [ToolReturnPart(
+                    tool_name="optimisers_run_optimiser",
+                    content={"run_id": "r", "batch_id": "b",
+                             "result": {"status": "success", "results": [row]}},
+                    tool_call_id="b",
+                )],
+            )
+
+    class _ReturnAgent(_StubAgent):
+        async def run(self, prompt, usage_limits=None):
+            return _ReturnResult()
+
+    monkeypatch.setattr(runner, "Agent", _ReturnAgent)
+    outcome = await run_case(
+        _SCENARIO, RunConfig(), toolset=object(), session=_StubSession()
+    )
+    assert outcome.predictions == [{"proba": 0.4}]
+    assert outcome.prescriptions == [row]
