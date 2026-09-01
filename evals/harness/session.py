@@ -7,7 +7,12 @@ method — they are skipped and reported as leftovers.
 """
 from typing import Dict, List, Optional, Set
 
-from evals.harness.models import CreatedArtifacts
+from evals.harness.models import CreatedArtifacts, RunOutcome
+
+# The client has no list-versions-per-preprocessor wrapper; this is the real
+# API route (see xplainable-api preprocessing endpoints), called through the
+# BaseClient raw `get` accessor.
+_PREPROCESSOR_VERSIONS_ENDPOINT = "/v1/preprocessors/{preprocessor_id}/versions"
 
 
 def _id_of(item, *keys) -> Optional[str]:
@@ -81,6 +86,57 @@ class EvalSession:
             file_path=path, name=name, team_id=self.team_id
         )
         return response.dataset_id
+
+    def inspect(self, outcome: RunOutcome) -> None:
+        """Best-effort enrichment of outcome with platform state.
+
+        Every fetch is wrapped: a failed lookup leaves that key absent rather
+        than crashing the run. Accessors used (verified against the client):
+        - models.list_model_versions(model_id) / models.get_feature_info(version_id)
+        - deployments.list_deployments(team_id) -> DeploymentInfo.active
+        - preprocessing.get(<versions endpoint>) -> version dicts with a
+          PipelineSpec ({"version": "2.0", "steps": [...]}).
+        """
+        c = self.client
+        for model_id in outcome.created.models:
+            try:
+                versions = c.models.list_model_versions(model_id)
+                latest = max(versions, key=lambda v: v.version_number)
+                info = c.models.get_feature_info(latest.version_id)
+                features: List[str] = []
+                for items in (info or {}).values():
+                    for item in items or []:
+                        name = item.get("feature")
+                        if name and name not in features:
+                            features.append(name)
+                outcome.model_features[model_id] = features
+            except Exception:
+                continue
+
+        if outcome.created.deployments:
+            try:
+                by_id = {
+                    _id_of(d, "deployment_id"): d
+                    for d in c.deployments.list_deployments(team_id=self.team_id)
+                }
+                for dep_id in outcome.created.deployments:
+                    dep = by_id.get(dep_id)
+                    active = getattr(dep, "active", None)
+                    if active is not None:
+                        outcome.deployment_active[dep_id] = bool(active)
+            except Exception:
+                pass
+
+        for pp_id in outcome.created.preprocessors:
+            try:
+                versions = c.preprocessing.get(
+                    _PREPROCESSOR_VERSIONS_ENDPOINT, preprocessor_id=pp_id
+                )
+                latest = max(versions, key=lambda v: str(v.get("created") or ""))
+                spec = latest.get("spec") or {}
+                outcome.preprocessor_steps[pp_id] = len(spec.get("steps") or [])
+            except Exception:
+                continue
 
     def teardown(self, created: CreatedArtifacts) -> List[str]:
         """Best-effort delete of created artifacts; returns leftovers.

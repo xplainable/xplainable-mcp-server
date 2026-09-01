@@ -29,7 +29,7 @@ from xplainable_client.client.py_models.deployments import DeploymentInfo
 from xplainable_client.client.py_models.models import ModelInfo
 from xplainable_client.client.py_models.preprocessing import PreprocessorInfo
 
-from evals.harness.models import CreatedArtifacts
+from evals.harness.models import CreatedArtifacts, RunOutcome
 from evals.harness.session import EvalSession
 
 
@@ -148,3 +148,80 @@ def test_teardown_continues_past_delete_failures():
     leftovers = session.teardown(created)
     client.datasets.delete_dataset.assert_called_once_with("d2")
     assert "deployment:dep2 (RuntimeError: boom)" in leftovers
+
+
+# ---------------------------------------------------------------- inspect
+# Real accessors used by inspect() (verified against xplainable-client):
+# - models.list_model_versions(model_id) -> List[ModelVersion] (version_number)
+# - models.get_feature_info(version_id) -> {partition: [{"feature": ...}, ...]}
+# - deployments.list_deployments(team_id) -> List[DeploymentInfo] (.active)
+# - preprocessing has NO list-versions wrapper; inspect uses the BaseClient
+#   raw accessor preprocessing.get("/v1/preprocessors/{preprocessor_id}/versions",
+#   preprocessor_id=...) -> list of version dicts with spec {"version","steps"}.
+
+from xplainable_client.client.py_models.models import ModelVersion
+
+
+def _model_version(version_id, n):
+    return ModelVersion(
+        version_id=version_id, model_id="m1", version_number=n,
+        created="2026-01-01T00:00:00", xplainable_version="3.0", python_version="3.13",
+    )
+
+
+def _outcome(**created):
+    return RunOutcome(final_text="", created=CreatedArtifacts(**created))
+
+
+def test_inspect_fetches_model_features_from_latest_version():
+    client = _client()
+    client.models.list_model_versions.return_value = [
+        _model_version("v1", 1), _model_version("v2", 2),
+    ]
+    client.models.get_feature_info.return_value = {
+        "__dataset__": [{"feature": "tenure"}, {"feature": "contract"}],
+    }
+    outcome = _outcome(models=["m1"])
+    EvalSession(client, team_id="t1").inspect(outcome)
+    client.models.list_model_versions.assert_called_once_with("m1")
+    client.models.get_feature_info.assert_called_once_with("v2")  # latest version
+    assert outcome.model_features == {"m1": ["tenure", "contract"]}
+
+
+def test_inspect_sets_deployment_active_flags():
+    client = _client()
+    active = _deployment("dep1")
+    inactive = _deployment("dep2")
+    inactive.active = False
+    client.deployments.list_deployments.return_value = [active, inactive]
+    outcome = _outcome(deployments=["dep1", "dep2"])
+    EvalSession(client, team_id="t1").inspect(outcome)
+    client.deployments.list_deployments.assert_called_once_with(team_id="t1")
+    assert outcome.deployment_active == {"dep1": True, "dep2": False}
+
+
+def test_inspect_counts_preprocessor_steps_from_latest_version_spec():
+    client = _client()
+    client.preprocessing.get.return_value = [
+        {"created": "2026-01-01", "spec": {"version": "2.0", "steps": [{"id": "a"}]}},
+        {"created": "2026-01-02",
+         "spec": {"version": "2.0", "steps": [{"id": "a"}, {"id": "b"}]}},
+    ]
+    outcome = _outcome(preprocessors=["p1"])
+    EvalSession(client, team_id="t1").inspect(outcome)
+    client.preprocessing.get.assert_called_once_with(
+        "/v1/preprocessors/{preprocessor_id}/versions", preprocessor_id="p1"
+    )
+    assert outcome.preprocessor_steps == {"p1": 2}
+
+
+def test_inspect_swallows_fetch_failures_leaving_keys_absent():
+    client = _client()
+    client.models.list_model_versions.side_effect = RuntimeError("api down")
+    client.deployments.list_deployments.side_effect = RuntimeError("api down")
+    client.preprocessing.get.side_effect = RuntimeError("api down")
+    outcome = _outcome(models=["m1"], deployments=["dep1"], preprocessors=["p1"])
+    EvalSession(client, team_id="t1").inspect(outcome)  # must not raise
+    assert outcome.model_features == {}
+    assert outcome.deployment_active == {}
+    assert outcome.preprocessor_steps == {}
