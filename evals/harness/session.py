@@ -5,7 +5,7 @@ Brackets each eval case: snapshot() before the agent runs, diff() after
 teardown(created) deletes everything deletable. Models have no client delete
 method — they are skipped and reported as leftovers.
 """
-from typing import Dict, Optional, Set
+from typing import Dict, List, Optional, Set
 
 from evals.harness.models import CreatedArtifacts
 
@@ -36,6 +36,8 @@ class EvalSession:
             _id_of(d, "dataset_id", "id")
             for d in c.datasets.list_team_datasets(team_id=self.team_id)
         }
+        # Scoping asymmetry: list_team_models() scopes by the client session's
+        # active team — the harness must construct the client on the eval team.
         models = {_id_of(m, "model_id") for m in c.models.list_team_models()}
         preprocessors = {
             _id_of(p, "id", "preprocessor_id")
@@ -80,7 +82,7 @@ class EvalSession:
         )
         return response.dataset_id
 
-    def teardown(self, created: CreatedArtifacts) -> list:
+    def teardown(self, created: CreatedArtifacts) -> List[str]:
         """Best-effort delete of created artifacts; returns leftovers.
 
         Order: deployments -> optimisers -> preprocessors -> datasets.
@@ -97,7 +99,7 @@ class EvalSession:
             for artifact_id in ids:
                 try:
                     delete(artifact_id)
-                except Exception:
-                    leftovers.append(f"{kind}:{artifact_id}")
+                except Exception as e:
+                    leftovers.append(f"{kind}:{artifact_id} ({type(e).__name__}: {e})")
         leftovers.extend(f"model:{model_id}" for model_id in created.models)
         return leftovers

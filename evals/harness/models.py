@@ -2,7 +2,7 @@
 from enum import Enum
 from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Stage(str, Enum):
@@ -26,6 +26,8 @@ class ToolCall(BaseModel):
 
 class CreatedArtifacts(BaseModel):
     """Ids created during a run (before/after diff of the eval team)."""
+    model_config = ConfigDict(extra="forbid")  # typo'd kind must raise, not vanish
+
     datasets: List[str] = Field(default_factory=list)
     models: List[str] = Field(default_factory=list)
     preprocessors: List[str] = Field(default_factory=list)

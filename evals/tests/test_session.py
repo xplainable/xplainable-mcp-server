@@ -1,6 +1,8 @@
 """EvalSession: artifact ledger (before/after diff) and teardown.
 
-Mocks mirror the real xplainable-client API:
+Sub-client mocks are autospecced from the real xplainable-client classes,
+so method renames or signature changes fail these tests. Return values are
+the real pydantic response models:
 - datasets.list_team_datasets(team_id=None) -> List[DatasetInfo] (id in
   `dataset_id` or `id`, both Optional)
 - models.list_team_models() -> List[ModelInfo] (`model_id`), no delete method
@@ -11,9 +13,14 @@ Mocks mirror the real xplainable-client API:
 - datasets.upload_dataset_file(file_path, name, description=None, team_id=None)
   -> DatasetUploadResponse (`dataset_id`)
 """
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, create_autospec
 
 import pytest
+from xplainable_client.client.datasets import DatasetsClient
+from xplainable_client.client.deployments import DeploymentsClient
+from xplainable_client.client.models import ModelsClient
+from xplainable_client.client.optimisers import OptimisersClient
+from xplainable_client.client.preprocessing import PreprocessingClient
 from xplainable_client.client.py_models.datasets import (
     DatasetInfo,
     DatasetUploadResponse,
@@ -43,6 +50,11 @@ def _deployment(i):
 
 def _client(datasets=(), models=(), preprocessors=(), deployments=(), optimisers=()):
     c = MagicMock()
+    c.datasets = create_autospec(DatasetsClient, instance=True)
+    c.models = create_autospec(ModelsClient, instance=True)
+    c.preprocessing = create_autospec(PreprocessingClient, instance=True)
+    c.deployments = create_autospec(DeploymentsClient, instance=True)
+    c.optimisers = create_autospec(OptimisersClient, instance=True)
     c.datasets.list_team_datasets.return_value = [_dataset(i) for i in datasets]
     c.models.list_team_models.return_value = [ModelInfo(model_id=i) for i in models]
     c.preprocessing.list_preprocessors.return_value = [_preprocessor(i) for i in preprocessors]
@@ -53,16 +65,29 @@ def _client(datasets=(), models=(), preprocessors=(), deployments=(), optimisers
 
 
 def test_diff_reports_only_new_artifacts():
-    client = _client(datasets=["d1"], models=["m1"])
+    client = _client(
+        datasets=["d1"], models=["m1"], preprocessors=["p1"],
+        deployments=["dep1"], optimisers=["o1"],
+    )
     session = EvalSession(client, team_id="t1")
     session.snapshot()
     client.datasets.list_team_datasets.return_value = [_dataset("d1"), _dataset("d2")]
     client.models.list_team_models.return_value = [
         ModelInfo(model_id="m1"), ModelInfo(model_id="m2"),
     ]
+    client.preprocessing.list_preprocessors.return_value = [
+        _preprocessor("p1"), _preprocessor("p2"),
+    ]
+    client.deployments.list_deployments.return_value = [
+        _deployment("dep1"), _deployment("dep2"),
+    ]
+    client.optimisers.list_optimisers.return_value = [{"id": "o1"}, {"id": "o2"}]
     created = session.diff()
     assert created.datasets == ["d2"]
     assert created.models == ["m2"]
+    assert created.preprocessors == ["p2"]
+    assert created.deployments == ["dep2"]
+    assert created.optimisers == ["o2"]
     # list-scoping: team-scoped list methods get the session team_id
     client.datasets.list_team_datasets.assert_called_with(team_id="t1")
     client.preprocessing.list_preprocessors.assert_called_with(team_id="t1")
@@ -122,4 +147,4 @@ def test_teardown_continues_past_delete_failures():
     created = CreatedArtifacts(deployments=["dep2"], datasets=["d2"])
     leftovers = session.teardown(created)
     client.datasets.delete_dataset.assert_called_once_with("d2")
-    assert "deployment:dep2" in leftovers
+    assert "deployment:dep2 (RuntimeError: boom)" in leftovers

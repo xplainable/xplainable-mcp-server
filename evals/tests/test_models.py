@@ -3,7 +3,7 @@ import pytest
 from pydantic import ValidationError
 
 from evals.harness.models import (
-    Stage, ToolCall, RunOutcome, Scenario, RunConfig,
+    CreatedArtifacts, Stage, ToolCall, RunOutcome, Scenario, RunConfig,
 )
 
 
@@ -17,6 +17,13 @@ def test_stage_enum_covers_full_analyst_flow():
 def test_tool_call_records_error_flag():
     tc = ToolCall(name="autotrain_train_model", args={"dataset_id": "x"}, error=True)
     assert tc.error is True
+
+
+def test_created_artifacts_rejects_unknown_kinds():
+    # A typo'd kind (e.g. from EvalSession._list_ids) must raise, not
+    # silently produce an empty ledger.
+    with pytest.raises(ValidationError):
+        CreatedArtifacts(datasts=["x"])
 
 
 def test_run_outcome_defaults_are_empty():
