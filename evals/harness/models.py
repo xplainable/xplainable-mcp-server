@@ -69,7 +69,7 @@ class RunConfig(BaseModel):
     prompt_id: str = "default"
     target: Literal["local", "hosted"] = "local"
     scenarios: Optional[List[str]] = None   # None = all
-    k: int = 3
+    k: int = Field(default=3, ge=1)
     label: str = "run"
     tool_calls_limit: int = 80
     request_limit: int = 60
