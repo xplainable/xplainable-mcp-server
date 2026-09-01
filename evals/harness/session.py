@@ -5,9 +5,12 @@ Brackets each eval case: snapshot() before the agent runs, diff() after
 teardown(created) deletes everything deletable. Models have no client delete
 method — they are skipped and reported as leftovers.
 """
+import logging
 from typing import Dict, List, Optional, Set
 
 from evals.harness.models import CreatedArtifacts, RunOutcome
+
+logger = logging.getLogger(__name__)
 
 # The client has no list-versions-per-preprocessor wrapper; this is the real
 # API route (see xplainable-api preprocessing endpoints), called through the
@@ -111,6 +114,7 @@ class EvalSession:
                             features.append(name)
                 outcome.model_features[model_id] = features
             except Exception:
+                logger.debug("inspect: model features fetch failed for %s", model_id, exc_info=True)
                 continue
 
         if outcome.created.deployments:
@@ -125,7 +129,7 @@ class EvalSession:
                     if active is not None:
                         outcome.deployment_active[dep_id] = bool(active)
             except Exception:
-                pass
+                logger.debug("inspect: deployment activity fetch failed", exc_info=True)
 
         for pp_id in outcome.created.preprocessors:
             try:
@@ -136,6 +140,7 @@ class EvalSession:
                 spec = latest.get("spec") or {}
                 outcome.preprocessor_steps[pp_id] = len(spec.get("steps") or [])
             except Exception:
+                logger.debug("inspect: preprocessor versions fetch failed for %s", pp_id, exc_info=True)
                 continue
 
     def teardown(self, created: CreatedArtifacts) -> List[str]:

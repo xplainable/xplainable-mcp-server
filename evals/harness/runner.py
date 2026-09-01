@@ -58,31 +58,49 @@ def extract_tool_calls(messages) -> List[ToolCall]:
 
 
 def extract_report_urls(text: str) -> List[str]:
-    return [u for u in URL_RE.findall(text or "") if "/report" in u]
+    """URLs containing "/report", trailing sentence punctuation stripped.
+
+    Note: the "/report" substring filter is deliberately loose — it also
+    matches paths like /reporting/ or /report-builder/.
+    """
+    urls = (u.rstrip(".,;:!?") for u in URL_RE.findall(text or ""))
+    return [u for u in urls if "/report" in u]
 
 
 def load_prompt(prompt_id: str) -> str:
     return (PROMPTS_DIR / f"{prompt_id}.md").read_text()
 
 
+def _fmt(e: BaseException) -> str:
+    return f"{type(e).__name__}: {e}"
+
+
 async def run_case(scenario: Scenario, config: RunConfig, toolset, session) -> RunOutcome:
     """Execute one agent run and inspect resulting platform state.
 
-    Contract: always returns a RunOutcome — agent, diff and inspect failures
-    are captured in outcome.error so the caller can still run teardown from
-    outcome.created (Task 9 wires that).
+    Contract: always returns a RunOutcome — setup (snapshot/prompt/agent
+    construction), agent, diff and inspect failures are all captured in
+    outcome.error so the caller can still run teardown from outcome.created
+    (Task 9 wires that). If setup fails, nothing was created: the outcome
+    carries an empty CreatedArtifacts and diff/inspect are skipped. Distinct
+    failure messages are joined with "; ".
     """
-    session.snapshot()
-    agent = Agent(
-        config.model,
-        toolsets=[toolset],
-        system_prompt=load_prompt(config.prompt_id),
-    )
+    try:
+        session.snapshot()
+        agent = Agent(
+            config.model,
+            toolsets=[toolset],
+            system_prompt=load_prompt(config.prompt_id),
+        )
+    except Exception as e:  # noqa: BLE001 — setup failed, nothing created
+        return RunOutcome(final_text="", error=_fmt(e))
+
     limits = UsageLimits(
         request_limit=config.request_limit,
         tool_calls_limit=config.tool_calls_limit,
     )
-    final_text, usage_hit, error = "", False, None
+    final_text, usage_hit = "", False
+    errors: List[str] = []
     messages: list = []
     captured: list = []
     try:
@@ -95,14 +113,15 @@ async def run_case(scenario: Scenario, config: RunConfig, toolset, session) -> R
         usage_hit = True
         messages = list(captured)
     except Exception as e:  # noqa: BLE001 — outcome must always be returned
-        error = f"{type(e).__name__}: {e}"
+        errors.append(_fmt(e))
         messages = list(captured)
 
     created = CreatedArtifacts()
     try:
         created = session.diff()
     except Exception as e:  # noqa: BLE001 — never forfeit the outcome
-        error = error or f"{type(e).__name__}: {e}"
+        if _fmt(e) not in errors:
+            errors.append(_fmt(e))
 
     outcome = RunOutcome(
         final_text=final_text,
@@ -110,10 +129,12 @@ async def run_case(scenario: Scenario, config: RunConfig, toolset, session) -> R
         created=created,
         report_urls=extract_report_urls(final_text),
         usage_limit_hit=usage_hit,
-        error=error,
+        error="; ".join(errors) or None,
     )
     try:
         session.inspect(outcome)
     except Exception as e:  # noqa: BLE001 — inspection is best-effort
-        outcome.error = outcome.error or f"{type(e).__name__}: {e}"
+        if _fmt(e) not in errors:
+            errors.append(_fmt(e))
+        outcome.error = "; ".join(errors)
     return outcome

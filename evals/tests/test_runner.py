@@ -115,6 +115,19 @@ def test_extract_report_urls_empty_and_none():
     assert extract_report_urls("no urls here") == []
 
 
+def test_extract_report_urls_strips_trailing_sentence_punctuation():
+    text = (
+        "See https://platform.xplainable.io/reports/abc. "
+        "Or https://platform.xplainable.io/reports/def, then done! "
+        "Finally https://platform.xplainable.io/reports/ghi?"
+    )
+    assert extract_report_urls(text) == [
+        "https://platform.xplainable.io/reports/abc",
+        "https://platform.xplainable.io/reports/def",
+        "https://platform.xplainable.io/reports/ghi",
+    ]
+
+
 # ------------------------------------------------------------------ prompt
 
 def test_load_prompt_default_returns_file_content():
@@ -149,15 +162,19 @@ class _StubAgent:
 
 
 class _StubSession:
-    def __init__(self, diff_raises=False, inspect_raises=False):
+    def __init__(self, diff_raises=False, inspect_raises=False, snapshot_raises=False):
         self.diff_raises = diff_raises
         self.inspect_raises = inspect_raises
+        self.snapshot_raises = snapshot_raises
         self.inspected = None
+        self.diff_called = False
 
     def snapshot(self):
-        pass
+        if self.snapshot_raises:
+            raise ConnectionError("api unreachable")
 
     def diff(self):
+        self.diff_called = True
         if self.diff_raises:
             raise RuntimeError("diff boom")
         return CreatedArtifacts(models=["m1"])
@@ -247,3 +264,61 @@ async def test_run_case_captures_agent_failure_as_error(monkeypatch):
     assert outcome.error == "ValueError: model exploded"
     assert outcome.final_text == ""
     assert outcome.created.models == ["m1"]  # diff still ran -> teardown possible
+
+
+async def test_run_case_joins_agent_and_diff_failures(monkeypatch):
+    # Later failures must not be dropped: agent AND diff errors both surface.
+    class _BoomAgent(_StubAgent):
+        async def run(self, prompt, usage_limits=None):
+            raise ValueError("model exploded")
+
+    monkeypatch.setattr(runner, "Agent", _BoomAgent)
+    outcome = await run_case(
+        _SCENARIO, RunConfig(), toolset=object(), session=_StubSession(diff_raises=True)
+    )
+    assert "ValueError: model exploded" in outcome.error
+    assert "RuntimeError: diff boom" in outcome.error
+
+
+# ------------------------------------------------------- run_case setup guard
+
+async def test_run_case_returns_outcome_when_snapshot_raises(monkeypatch):
+    # Setup failure before the agent runs: never raise, return an outcome with
+    # error set and empty created; skip diff/inspect (no snapshot to diff).
+    ran = []
+
+    class _TrackingAgent(_StubAgent):
+        async def run(self, prompt, usage_limits=None):
+            ran.append(prompt)
+            return _StubResult()
+
+    monkeypatch.setattr(runner, "Agent", _TrackingAgent)
+    session = _StubSession(snapshot_raises=True)
+    outcome = await run_case(_SCENARIO, RunConfig(), toolset=object(), session=session)
+    assert isinstance(outcome, RunOutcome)
+    assert "ConnectionError: api unreachable" in outcome.error
+    assert outcome.created == CreatedArtifacts()
+    assert ran == []  # agent never ran
+    assert session.diff_called is False  # diff skipped: snapshot never happened
+    assert session.inspected is None  # inspect skipped too
+
+
+async def test_run_case_returns_outcome_when_prompt_missing(monkeypatch):
+    # Bad prompt_id -> load_prompt raises during setup. Same contract: outcome
+    # with error, empty created, agent never constructed.
+    constructed = []
+
+    class _TrackingAgent(_StubAgent):
+        def __init__(self, *args, **kwargs):
+            constructed.append(args)
+
+    monkeypatch.setattr(runner, "Agent", _TrackingAgent)
+    session = _StubSession()
+    outcome = await run_case(
+        _SCENARIO, RunConfig(prompt_id="does-not-exist"), toolset=object(),
+        session=session,
+    )
+    assert isinstance(outcome, RunOutcome)
+    assert "FileNotFoundError" in outcome.error
+    assert outcome.created == CreatedArtifacts()
+    assert constructed == []  # Agent never constructed

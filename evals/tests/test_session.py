@@ -26,7 +26,7 @@ from xplainable_client.client.py_models.datasets import (
     DatasetUploadResponse,
 )
 from xplainable_client.client.py_models.deployments import DeploymentInfo
-from xplainable_client.client.py_models.models import ModelInfo
+from xplainable_client.client.py_models.models import ModelInfo, ModelVersion
 from xplainable_client.client.py_models.preprocessing import PreprocessorInfo
 
 from evals.harness.models import CreatedArtifacts, RunOutcome
@@ -158,9 +158,6 @@ def test_teardown_continues_past_delete_failures():
 # - preprocessing has NO list-versions wrapper; inspect uses the BaseClient
 #   raw accessor preprocessing.get("/v1/preprocessors/{preprocessor_id}/versions",
 #   preprocessor_id=...) -> list of version dicts with spec {"version","steps"}.
-
-from xplainable_client.client.py_models.models import ModelVersion
-
 
 def _model_version(version_id, n):
     return ModelVersion(
