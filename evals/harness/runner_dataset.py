@@ -14,15 +14,17 @@ Design choices (pinned against pydantic-evals 2.37.0):
   task adds the fixture dataset id to the teardown ledger explicitly, in a
   `finally` so failed cases still clean up.
 """
+import asyncio
 import importlib.metadata
 import json
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, List, Sequence, Tuple
+from typing import Awaitable, Callable, List, Sequence, Tuple, Union
 from uuid import uuid4
 
 from pydantic_evals import Case, Dataset
+from pydantic_evals.reporting import EvaluationReport
 
 from evals.evaluators.semantic import EfficiencyEvaluator, SemanticEvaluator
 from evals.evaluators.stages import StageEvaluator
@@ -52,37 +54,50 @@ def build_dataset(scenarios: Sequence[Scenario], config: RunConfig) -> Dataset:
 
 def build_task(
     config: RunConfig, toolset, session
-) -> Tuple[Callable[[Scenario], "RunOutcome"], List[str]]:
+) -> Tuple[Callable[[Scenario], Awaitable[RunOutcome]], List[str]]:
     """(task, leftovers): the async eval task plus its leftover accumulator.
 
     Per case: upload the fixture under a unique name, format the scenario
     prompt with it, run the agent, and ALWAYS tear down (fixture dataset +
     everything run_case's diff attributed to the run), extending `leftovers`
     with whatever teardown could not delete.
+
+    Cases MUST NOT overlap: pydantic-evals evaluates cases concurrently by
+    default, but the closure shares one EvalSession whose single _snapshot
+    slot and upload-between-snapshot-and-diff behavior corrupt overlapping
+    cases (baseline overwrite; cross-case artifact deletion). Callers MUST
+    evaluate with `max_concurrency=1`; as a backstop, the task holds an
+    internal lock for the whole case (upload -> run -> teardown), so
+    overlapping invocations serialise rather than corrupt.
     """
     leftovers: List[str] = []
+    lock = asyncio.Lock()
 
     async def task(scenario: Scenario) -> RunOutcome:
-        fixture_dataset_id = None
-        outcome = None
-        try:
-            dataset_name = f"{scenario.dataset_name}-{uuid4().hex[:8]}"
-            fixture_dataset_id = session.upload_fixture(
-                str(FIXTURES_DIR / scenario.fixture), dataset_name
-            )
-            live = scenario.model_copy(update={
-                "prompt": scenario.prompt.format(dataset_name=dataset_name),
-                "dataset_name": dataset_name,
-            })
-            outcome = await run_case(live, config, toolset, session)
-            return outcome
-        finally:
-            created = outcome.created if outcome is not None else CreatedArtifacts()
-            if fixture_dataset_id and str(fixture_dataset_id) not in created.datasets:
-                created = created.model_copy(
-                    update={"datasets": [*created.datasets, str(fixture_dataset_id)]}
+        async with lock:
+            fixture_dataset_id = None
+            outcome = None
+            try:
+                dataset_name = f"{scenario.dataset_name}-{uuid4().hex[:8]}"
+                fixture_dataset_id = session.upload_fixture(
+                    str(FIXTURES_DIR / scenario.fixture), dataset_name
                 )
-            leftovers.extend(session.teardown(created))
+                live = scenario.model_copy(update={
+                    "prompt": scenario.prompt.format(dataset_name=dataset_name),
+                    "dataset_name": dataset_name,
+                })
+                outcome = await run_case(live, config, toolset, session)
+                return outcome
+            finally:
+                # run_case always returns (agent errors land in outcome.error),
+                # so outcome is None only if its contract broke mid-flight —
+                # any artifacts leaked on that path are not reported here.
+                created = outcome.created if outcome is not None else CreatedArtifacts()
+                if fixture_dataset_id and str(fixture_dataset_id) not in created.datasets:
+                    created = created.model_copy(
+                        update={"datasets": [*created.datasets, str(fixture_dataset_id)]}
+                    )
+                leftovers.extend(session.teardown(created))
 
     return task, leftovers
 
@@ -105,7 +120,9 @@ def _client_version() -> str:
         return "unknown"
 
 
-def write_result(report, config: RunConfig, path, leftovers=None) -> dict:
+def write_result(
+    report: EvaluationReport, config: RunConfig, path: Union[Path, str], leftovers=None
+) -> dict:
     """Serialise an EvaluationReport (+ run metadata) to JSON at `path`.
 
     EvaluationResult values are unwrapped: assertions -> {name: bool},

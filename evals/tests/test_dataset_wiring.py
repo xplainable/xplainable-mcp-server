@@ -3,6 +3,8 @@
 The task closure is tested with a monkeypatched run_case and a stub session —
 no network, no agent. build_dataset is pure case expansion, tested directly.
 """
+import asyncio
+
 import pytest
 from pydantic_evals import Dataset
 
@@ -199,3 +201,34 @@ async def test_leftovers_accumulate_across_cases(monkeypatch):
     await task(TELCO_FULL)
 
     assert leftovers == ["model:m1", "model:m1"]
+
+
+async def test_task_serialises_concurrent_cases(monkeypatch):
+    # pydantic-evals evaluates cases CONCURRENTLY by default, but the task
+    # closure shares one EvalSession whose single _snapshot slot corrupts
+    # overlapping cases (baseline overwrite; cross-case artifact deletion).
+    # The task must serialise: a case's upload must not start until the
+    # previous case's teardown has completed.
+    events = []
+
+    async def yielding_run_case(scenario, config, toolset, session):
+        await asyncio.sleep(0)  # yield so an unlocked second case interleaves
+        return RunOutcome(final_text="ok")
+
+    monkeypatch.setattr(runner_dataset, "run_case", yielding_run_case)
+
+    class _RecordingSession(_StubSession):
+        def upload_fixture(self, path, name):
+            events.append("upload")
+            return super().upload_fixture(path, name)
+
+        def teardown(self, created):
+            events.append("teardown")
+            return super().teardown(created)
+
+    session = _RecordingSession()
+    task, _ = build_task(RunConfig(), toolset=object(), session=session)
+
+    await asyncio.gather(task(TELCO_MINIMAL), task(TELCO_FULL))
+
+    assert events == ["upload", "teardown", "upload", "teardown"]
