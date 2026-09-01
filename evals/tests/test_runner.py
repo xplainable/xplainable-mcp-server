@@ -208,6 +208,34 @@ async def test_run_case_returns_outcome_when_inspect_raises(monkeypatch):
     assert outcome.created.models == ["m1"]  # diff result kept
 
 
+async def test_run_case_usage_limit_recovers_partial_transcript(monkeypatch):
+    # Spec: usage limit -> usage_limit_hit True with partial tool_calls.
+    # UsageLimitExceeded carries no messages; the transcript must be recovered
+    # via capture_run_messages(). The stub feeds the REAL capture mechanism:
+    # it appends real message objects to the contextvar-held list that
+    # capture_run_messages() yields (same list the real agent internals use),
+    # then raises — exactly what an interrupted run looks like.
+    from pydantic_ai import UsageLimitExceeded, _agent_graph
+
+    class _LimitAgent(_StubAgent):
+        async def run(self, prompt, usage_limits=None):
+            captured = _agent_graph._messages_ctx_var.get().messages
+            captured.append(
+                ModelResponse(parts=[ToolCallPart(tool_name="list_datasets", args={})])
+            )
+            raise UsageLimitExceeded("The next request would exceed the request_limit of 1")
+
+    monkeypatch.setattr(runner, "Agent", _LimitAgent)
+    session = _StubSession()
+    outcome = await run_case(_SCENARIO, RunConfig(), toolset=object(), session=session)
+    assert isinstance(outcome, RunOutcome)  # did not raise
+    assert outcome.usage_limit_hit is True
+    assert [c.name for c in outcome.tool_calls] == ["list_datasets"]  # partial transcript
+    assert outcome.error is None  # limit hit is signalled by the flag, not error
+    assert outcome.final_text == ""
+    assert outcome.created.models == ["m1"]  # diff still ran -> teardown possible
+
+
 async def test_run_case_captures_agent_failure_as_error(monkeypatch):
     class _BoomAgent(_StubAgent):
         async def run(self, prompt, usage_limits=None):
