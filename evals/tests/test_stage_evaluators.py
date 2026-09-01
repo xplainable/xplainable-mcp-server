@@ -4,9 +4,6 @@ Uses a real pydantic-evals EvaluatorContext (constructible with an empty
 SpanTree) so we exercise the actual evaluator protocol, not a stub.
 """
 
-from pydantic_evals.evaluators import EvaluatorContext
-from pydantic_evals.otel.span_tree import SpanTree
-
 from evals.evaluators.stages import (
     PREDICT_TOOLS,
     READ_TOOLS,
@@ -15,22 +12,9 @@ from evals.evaluators.stages import (
     StageEvaluator,
 )
 from evals.harness.models import CreatedArtifacts, RunOutcome, Stage, ToolCall
+from evals.tests.helpers import make_ctx
 
 ALL_STAGES = list(Stage)
-
-
-def make_ctx(outcome: RunOutcome) -> EvaluatorContext:
-    return EvaluatorContext(
-        name="case",
-        inputs=None,
-        metadata=None,
-        expected_output=None,
-        output=outcome,
-        duration=0.0,
-        _span_tree=SpanTree(),
-        attributes={},
-        metrics={},
-    )
 
 
 def full_pass_outcome() -> RunOutcome:

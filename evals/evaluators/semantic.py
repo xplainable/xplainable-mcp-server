@@ -122,6 +122,8 @@ def _probabilities(predictions: Iterable) -> List[float]:
 
     Numeric values in [0, 1] under keys containing "proba"/"probability"/
     "score" (searched recursively), or bare numbers for non-dict rows.
+    A matching key propagates into container values, so multiclass shapes
+    like ``{"proba": {"Yes": 0.7, "No": 0.3}}`` yield each class value.
     Values outside [0, 1] are not probabilities and are excluded.
     """
     probs: List[float] = []
@@ -129,7 +131,9 @@ def _probabilities(predictions: Iterable) -> List[float]:
     def visit(obj, key_matches: bool = False):
         if isinstance(obj, dict):
             for key, value in obj.items():
-                matches = any(tok in key.lower() for tok in _PROB_KEY_TOKENS)
+                matches = key_matches or any(
+                    tok in key.lower() for tok in _PROB_KEY_TOKENS
+                )
                 visit(value, matches)
         elif isinstance(obj, (list, tuple)):
             for item in obj:

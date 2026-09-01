@@ -13,15 +13,13 @@ run (see evals/evaluators/semantic.py module docstring for pointers):
 Polarity: every detector returns True when the failure IS detected.
 """
 
-from pydantic_evals.evaluators import EvaluatorContext
-from pydantic_evals.otel.span_tree import SpanTree
-
 from evals.evaluators.semantic import (
     EfficiencyEvaluator,
     SemanticEvaluator,
     _probabilities,
 )
 from evals.harness.models import RunOutcome, ToolCall
+from evals.tests.helpers import make_ctx
 
 DETECTORS = {
     "degenerate_prescriptions",
@@ -29,20 +27,6 @@ DETECTORS = {
     "immutable_drift",
     "saturated_probabilities",
 }
-
-
-def make_ctx(outcome: RunOutcome) -> EvaluatorContext:
-    return EvaluatorContext(
-        name="case",
-        inputs=None,
-        metadata=None,
-        expected_output=None,
-        output=outcome,
-        duration=0.0,
-        _span_tree=SpanTree(),
-        attributes={},
-        metrics={},
-    )
 
 
 def cost_config_call() -> ToolCall:
@@ -268,6 +252,33 @@ class TestSaturatedProbabilities:
     def test_empty_predictions_is_no_evidence(self):
         result = SemanticEvaluator().evaluate(make_ctx(RunOutcome(final_text="")))
         assert result["saturated_probabilities"] is False
+
+    def test_multiclass_proba_dict_all_pinned(self):
+        """Multiclass shape: proba maps class -> probability. A matching key
+        whose value is a dict must propagate into the dict's values."""
+        outcome = RunOutcome(
+            final_text="",
+            predictions=[
+                {"proba": {"Yes": 0.997, "No": 0.003}},
+                {"proba": {"Yes": 0.995, "No": 0.005}},
+            ],
+        )
+        result = SemanticEvaluator().evaluate(make_ctx(outcome))
+        assert result["saturated_probabilities"] is True
+
+    def test_multiclass_proba_dict_mixed_not_flagged(self):
+        outcome = RunOutcome(
+            final_text="",
+            predictions=[
+                {"proba": {"Yes": 0.997, "No": 0.003}},
+                {"proba": {"Yes": 0.55, "No": 0.45}},
+            ],
+        )
+        result = SemanticEvaluator().evaluate(make_ctx(outcome))
+        assert result["saturated_probabilities"] is False
+
+    def test_multiclass_dict_values_extracted(self):
+        assert _probabilities([{"proba": {"Yes": 0.7, "No": 0.3}}]) == [0.7, 0.3]
 
     def test_bare_floats_supported_by_extraction(self):
         assert _probabilities([0.999, 0.005]) == [0.999, 0.005]
