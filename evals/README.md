@@ -89,10 +89,12 @@ With `--png-dir`, also emits `stage_pass.png` and `step_count_hist.png`.
 pytest evals/tests -m smoke
 ```
 
-- `test_local_toolset_lists_42_tools` always runs: local target lists the
+- `test_local_toolset_exposes_42_tools` always runs: local target lists the
   42-tool surface in-process with a dummy API key (no LLM, no platform).
 - `test_live_minimal` runs `telco_churn_minimal` at k=1 end-to-end; it
-  skips unless `XPLAINABLE_TEAM_ID` and `ANTHROPIC_API_KEY` are set.
+  skips unless `XPLAINABLE_TEAM_ID`, `ANTHROPIC_API_KEY` and a real
+  `XPLAINABLE_API_KEY` are set. These must be exported in the shell:
+  `evals/.env` is only read by `python -m evals.run`, not by pytest.
 
 ## Known limitations
 

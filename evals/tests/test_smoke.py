@@ -1,28 +1,23 @@
 """Smoke tests: `pytest evals/tests -m smoke`.
 
 Two tiers:
-- test_local_toolset_lists_42_tools: always runnable — the local target
-  serves the full 42-tool surface in-process with a dummy
-  XPLAINABLE_API_KEY (pinned by conftest). No LLM, no live platform.
+- test_targets.py::test_local_toolset_exposes_42_tools (also marked smoke):
+  always runnable — the local target serves the full 42-tool surface
+  in-process with a dummy XPLAINABLE_API_KEY (pinned by conftest). No LLM,
+  no live platform.
 - test_live_minimal: the REAL end-to-end path (telco_churn_minimal, k=1)
-  against the live platform with a real model. Skipped unless both
-  XPLAINABLE_TEAM_ID and ANTHROPIC_API_KEY are set: it costs real LLM
-  money and creates/deletes artifacts in the eval team.
+  against the live platform with a real model. Skipped unless
+  XPLAINABLE_TEAM_ID, ANTHROPIC_API_KEY and a REAL XPLAINABLE_API_KEY are
+  all exported in the shell: it costs real LLM money and creates/deletes
+  artifacts in the eval team. (evals/.env is only read by
+  `python -m evals.run`, never by pytest — and conftest pins the dummy
+  "test-api-key", which must not reach the live platform.)
 """
 import os
 
 import pytest
 
 pytestmark = pytest.mark.smoke
-
-
-async def test_local_toolset_lists_42_tools():
-    from evals.harness.targets import get_toolset
-
-    toolset = get_toolset("local")
-    async with toolset:
-        tools = await toolset.list_tools()
-    assert len(tools) == 42
 
 
 @pytest.mark.skipif(
@@ -33,17 +28,27 @@ async def test_local_toolset_lists_42_tools():
     not os.environ.get("ANTHROPIC_API_KEY"),
     reason="live smoke needs ANTHROPIC_API_KEY (runs cost real LLM money)",
 )
+@pytest.mark.skipif(
+    os.environ.get("XPLAINABLE_API_KEY") in (None, "test-api-key"),
+    reason=(
+        "live smoke needs a real XPLAINABLE_API_KEY exported in the shell "
+        "(evals/.env is not read by pytest; conftest's 'test-api-key' "
+        "sentinel counts as absent)"
+    ),
+)
 async def test_live_minimal():
     """One telco_churn_minimal case end-to-end.
 
     Mirrors evals.run.run_cell's orchestration but writes no results JSON.
-    Assertions stay minimal (report produced, one case per scenario,
-    leftovers accumulator returned) — live quirks get debugged at the gate.
+    Prints the report and leftovers for the operator, then asserts the run
+    actually worked: run_case captures agent errors into outcome.error and
+    stage failures land as report assertions (never exceptions), so a green
+    evaluate() proves nothing by itself.
     """
     # Lazy: these transitively import xplainable_mcp.server (env-gated).
     from xplainable_client.client.client import XplainableClient
 
-    from evals.harness.models import RunConfig
+    from evals.harness.models import RunConfig, Stage
     from evals.harness.runner_dataset import build_dataset, build_task
     from evals.harness.session import EvalSession
     from evals.harness.targets import get_toolset
@@ -64,5 +69,28 @@ async def test_live_minimal():
     # max_concurrency=1 is a hard requirement: cases share one EvalSession.
     report = await dataset.evaluate(task, max_concurrency=1)
 
+    report.print()                       # operator-visible stage results
+    print(f"leftovers: {leftovers}")     # artifacts teardown could not delete
+
     assert len(report.cases) == 1       # one case per scenario at k=1
     assert isinstance(leftovers, list)  # leftover accumulator returned
+
+    # Same access pattern as runner_dataset.write_result: assertion results
+    # unwrap to {name: bool}. Polarity split mirrors reporting.compare:
+    # Stage keys and `completed` must be True; everything else is a semantic
+    # detector where True = failure detected.
+    assertions = {k: r.value for k, r in report.cases[0].assertions.items()}
+    stage_keys = {stage.value for stage in Stage}
+    stages = {k: v for k, v in assertions.items() if k in stage_keys}
+    detectors = {
+        k: v for k, v in assertions.items()
+        if k not in stage_keys and k != "completed"
+    }
+    assert stages, f"no stage assertions on the case: {assertions}"
+    failed_stages = [k for k, v in stages.items() if not v]
+    assert not failed_stages, f"stages failed: {failed_stages}"
+    assert assertions.get("completed") is True, (
+        "run did not complete (agent error or usage limit)"
+    )
+    fired = [k for k, v in detectors.items() if v]
+    assert not fired, f"semantic failure detectors fired: {fired}"
