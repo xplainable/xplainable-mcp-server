@@ -22,7 +22,7 @@ import argparse
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Sequence, Union
+from typing import Dict, List, Optional, Sequence, Union
 
 from evals.harness.models import Stage
 
@@ -38,6 +38,18 @@ def load_results(paths: Sequence[Union[str, Path]]) -> List[dict]:
 
 def _group_name(case_name: str) -> str:
     return _REPEAT_SUFFIX.sub("", case_name)
+
+
+def _row_sort_key(row: dict):
+    return (row["label"], row["model"], row["prompt_id"])
+
+
+def present_stages(rows: Sequence[dict]) -> List[str]:
+    """Stage columns (in Stage enum order) present in at least one row."""
+    return [
+        stage for stage in STAGE_VALUES
+        if any(stage in row["stage_rates"] for row in rows)
+    ]
 
 
 def comparison_rows(results: Sequence[dict]) -> List[dict]:
@@ -62,7 +74,8 @@ def comparison_rows(results: Sequence[dict]) -> List[dict]:
                     continue
                 flags[key] = flags.get(key, 0) + bool(value)
             groups.setdefault(_group_name(case["name"]), []).append(
-                all(assertions[key] for key in stage_keys)
+                # Guard: a case with NO stage keys must not pass via all([]).
+                bool(stage_keys) and all(assertions[key] for key in stage_keys)
             )
             steps.append(case["scores"].get("step_count", 0))
             wasted.append(case["scores"].get("wasted_calls", 0))
@@ -83,17 +96,14 @@ def comparison_rows(results: Sequence[dict]) -> List[dict]:
             "mean_wasted_calls": sum(wasted) / n_cases if n_cases else 0.0,
             "flags": flags,
         })
-    rows.sort(key=lambda row: (row["label"], row["model"], row["prompt_id"]))
+    rows.sort(key=_row_sort_key)
     return rows
 
 
 def print_comparison(rows: Sequence[dict]) -> str:
     """Render (and print) an aligned text table; stdlib only."""
-    rows = sorted(rows, key=lambda row: (row["label"], row["model"], row["prompt_id"]))
-    stage_cols = [
-        stage for stage in STAGE_VALUES
-        if any(stage in row["stage_rates"] for row in rows)
-    ]
+    rows = sorted(rows, key=_row_sort_key)
+    stage_cols = present_stages(rows)
     flag_cols = sorted({key for row in rows for key in row["flags"]})
     header = (
         ["label", "model", "prompt", "pass@k", "steps", "wasted"]
@@ -132,7 +142,7 @@ def print_comparison(rows: Sequence[dict]) -> str:
     return text
 
 
-def main(argv: Sequence[str] = None) -> None:
+def main(argv: Optional[Sequence[str]] = None) -> None:
     parser = argparse.ArgumentParser(
         prog="python -m evals.reporting.compare",
         description="Compare eval result JSON files across runs.",

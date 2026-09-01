@@ -152,6 +152,20 @@ def test_completed_and_semantic_keys_excluded_from_full_flow():
     assert b["pass_at_k"] == pytest.approx(0.5)
 
 
+def test_vacuous_group_without_stage_keys_is_not_a_pass():
+    # A malformed case whose assertions carry NO stage keys must not count
+    # its group as a full-flow pass via all([]) == True.
+    case = {
+        "name": "ghost[0]",
+        "assertions": {"completed": True},
+        "scores": {"step_count": 1, "wasted_calls": 0},
+        "labels": {},
+        "duration": 1.0,
+    }
+    (row,) = comparison_rows([_result("v", "m1", [case])])
+    assert row["pass_at_k"] == pytest.approx(0.0)
+
+
 def test_stage_rate_only_averages_cases_with_the_stage():
     # "report" exists on 2 of a's 4 cases (both True) -> 1.0, not 0.5.
     (a,) = comparison_rows([result_a()])
@@ -180,6 +194,24 @@ def test_print_comparison_table(capsys):
 
     flag = header.index("flags:degenerate_prescriptions")
     assert by_label["a"][flag] == "0" and by_label["b"][flag] == "1"
+
+
+def test_print_comparison_renders_dash_for_absent_stage():
+    # Result "c" has a deploy-bearing case; result "a" has no deploy stage
+    # anywhere -> a's deploy cell renders as "-", c's as a rate.
+    with_deploy = _result("c", "m1", [
+        _case("deployflow[0]", {"explore": True, "deploy": True}, 4, 0),
+    ])
+    text = print_comparison(comparison_rows([result_a(), with_deploy]))
+    lines = text.splitlines()
+    header = lines[0].split()
+    assert "deploy" in header
+
+    body = [line.split() for line in lines[1:] if line.strip()]
+    by_label = {tokens[header.index("label")]: tokens for tokens in body}
+    deploy = header.index("deploy")
+    assert by_label["a"][deploy] == "-"
+    assert float(by_label["c"][deploy]) == pytest.approx(1.0)
 
 
 def test_cli_main_prints_table_and_emits_plots(tmp_path, capsys):

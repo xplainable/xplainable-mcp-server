@@ -10,19 +10,16 @@ matplotlib.use("Agg")
 from pathlib import Path
 from typing import Sequence, Union
 
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt  # noqa: E402  (must follow matplotlib.use)
 
-from evals.reporting.compare import STAGE_VALUES, comparison_rows
+from evals.reporting.compare import comparison_rows, present_stages
 
 
 def stage_pass_bars(results: Sequence[dict], out_png: Union[str, Path]) -> None:
     """Grouped bar chart: per-stage pass rate, one bar group per stage,
     one bar per result (legend = result label)."""
     rows = comparison_rows(results)
-    stage_cols = [
-        stage for stage in STAGE_VALUES
-        if any(stage in row["stage_rates"] for row in rows)
-    ]
+    stage_cols = present_stages(rows)
     fig, ax = plt.subplots(figsize=(10, 5))
     n = max(len(rows), 1)
     width = 0.8 / n
