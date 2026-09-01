@@ -42,7 +42,9 @@ def full_pass_outcome() -> RunOutcome:
                 args={
                     "dataset_id": "ds-1",
                     "target_column": "Churn",
-                    "preprocessor_version_id": "pp-1",
+                    # LIVE shape: train takes only the *version* id, which is an
+                    # independent key never containing the preprocessor id.
+                    "preprocessor_version_id": "ppv-9",
                 },
             ),
             ToolCall(name="deployments_deploy", args={"model_id": "m-1"}),
@@ -58,6 +60,7 @@ def full_pass_outcome() -> RunOutcome:
         ),
         deployment_active={"d-1": True},
         preprocessor_steps={"pp-1": 3},
+        preprocessor_versions={"pp-1": ["ppv-9"]},
         predictions=[{"score": 0.7}],
         prescriptions=[{"action": "discount"}],
         report_urls=["https://app.xplainable.io/reports/r-1"],
@@ -111,6 +114,22 @@ class TestStageEvaluator:
         # explore + select_label still pass on this transcript
         assert result[Stage.EXPLORE.value] is True
         assert result[Stage.SELECT_LABEL.value] is True
+
+    def test_train_fails_when_version_arg_matches_no_created_preprocessor(self):
+        """Train call references a version id belonging to no created preprocessor."""
+        outcome = RunOutcome(
+            final_text="done",
+            tool_calls=[
+                ToolCall(
+                    name="models_train_model",
+                    args={"preprocessor_version_id": "ppv-other", "target_column": "Churn"},
+                ),
+            ],
+            created=CreatedArtifacts(models=["m-1"], preprocessors=["pp-1"]),
+            preprocessor_versions={"pp-1": ["ppv-9"]},
+        )
+        result = StageEvaluator(expected_stages=[Stage.TRAIN]).evaluate(make_ctx(outcome))
+        assert result == {Stage.TRAIN.value: False}
 
     def test_train_requires_successful_train_call_referencing_preprocessor(self):
         """Preprocessor exists but the train call that referenced it errored."""

@@ -91,13 +91,19 @@ def _check_persist_prep(out: RunOutcome, label: str) -> bool:
 
 def _check_train(out: RunOutcome, label: str) -> bool:
     """Model created AND trained on transformed data (train args reference a
-    created preprocessor id) — the motivating trained-on-raw regression."""
+    created preprocessor id or one of its version ids) — the motivating
+    trained-on-raw regression. Live train args carry only
+    preprocessor_version_id, an independent key, so version ids recorded by
+    inspect() count too."""
     if not out.created.models:
         return False
+    accepted_ids = set(out.created.preprocessors)
+    for pid in out.created.preprocessors:
+        accepted_ids.update(out.preprocessor_versions.get(pid, []))
     return any(
         call.name in TRAIN_TOOLS
         and _successful(call)
-        and any(pid in json.dumps(call.args) for pid in out.created.preprocessors)
+        and any(ref in json.dumps(call.args) for ref in accepted_ids)
         for call in out.tool_calls
     )
 

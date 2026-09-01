@@ -199,9 +199,12 @@ def test_inspect_sets_deployment_active_flags():
 
 def test_inspect_counts_preprocessor_steps_from_latest_version_spec():
     client = _client()
+    # Version dicts are PreprocessorVersion.model_dump(): id key is "id"
+    # (xplainable-api database_models.PreprocessorVersion, __primarykey__="id").
     client.preprocessing.get.return_value = [
-        {"created": "2026-01-01", "spec": {"version": "2.0", "steps": [{"id": "a"}]}},
-        {"created": "2026-01-02",
+        {"id": "ppv-1", "created": "2026-01-01",
+         "spec": {"version": "2.0", "steps": [{"id": "a"}]}},
+        {"id": "ppv-2", "created": "2026-01-02",
          "spec": {"version": "2.0", "steps": [{"id": "a"}, {"id": "b"}]}},
     ]
     outcome = _outcome(preprocessors=["p1"])
@@ -210,6 +213,8 @@ def test_inspect_counts_preprocessor_steps_from_latest_version_spec():
         "/v1/preprocessors/{preprocessor_id}/versions", preprocessor_id="p1"
     )
     assert outcome.preprocessor_steps == {"p1": 2}
+    # Live train args carry only the version id — evaluators need this mapping.
+    assert outcome.preprocessor_versions == {"p1": ["ppv-1", "ppv-2"]}
 
 
 def test_inspect_swallows_fetch_failures_leaving_keys_absent():

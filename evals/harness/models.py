@@ -43,6 +43,9 @@ class RunOutcome(BaseModel):
     model_features: Dict[str, List[str]] = Field(default_factory=dict)  # model_id -> feature names
     deployment_active: Dict[str, bool] = Field(default_factory=dict)    # deployment_id -> active
     preprocessor_steps: Dict[str, int] = Field(default_factory=dict)    # preprocessor_id -> n pipeline steps
+    # preprocessor_id -> version ids: live train args carry only the *version*
+    # id (train_model(preprocessor_version_id=...)), an independent key.
+    preprocessor_versions: Dict[str, List[str]] = Field(default_factory=dict)
     predictions: List[Dict] = Field(default_factory=list)
     prescriptions: List[Dict] = Field(default_factory=list)
     report_urls: List[str] = Field(default_factory=list)

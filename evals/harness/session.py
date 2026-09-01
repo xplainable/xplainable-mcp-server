@@ -139,6 +139,12 @@ class EvalSession:
                 latest = max(versions, key=lambda v: str(v.get("created") or ""))
                 spec = latest.get("spec") or {}
                 outcome.preprocessor_steps[pp_id] = len(spec.get("steps") or [])
+                # Version dicts are PreprocessorVersion.model_dump(); the id
+                # key is "id". Train args reference these version ids, so
+                # evaluators need the pp_id -> version-ids mapping.
+                version_ids = [str(v["id"]) for v in versions if v.get("id") is not None]
+                if version_ids:
+                    outcome.preprocessor_versions[pp_id] = version_ids
             except Exception:
                 logger.debug("inspect: preprocessor versions fetch failed for %s", pp_id, exc_info=True)
                 continue
