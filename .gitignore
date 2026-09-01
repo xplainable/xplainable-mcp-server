@@ -177,3 +177,7 @@ mcp_sync_report_*.json
 
 # Git worktrees
 .worktrees/
+
+# Evals
+evals/results/
+evals/.env

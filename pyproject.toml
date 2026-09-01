@@ -34,6 +34,11 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
 ]
+evals = [
+    "pydantic-ai>=2.37.0",
+    "pydantic-evals>=2.37.0",
+    "matplotlib>=3.8.0",
+]
 
 [project.scripts]
 xplainable-mcp = "xplainable_mcp.server:main"
@@ -67,3 +72,4 @@ minversion = "7.0"
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+markers = ["smoke: cheap eval cases safe for CI (requires live API key + model key)"]
