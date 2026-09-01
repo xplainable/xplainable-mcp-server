@@ -1,11 +1,6 @@
 """Local target must expose the full 42-tool surface in-process."""
 
-import os
-
-os.environ.setdefault("XPLAINABLE_API_KEY", "test-api-key")
-os.environ["ENABLE_WRITE_TOOLS"] = "true"
-
-from evals.harness.targets import local_toolset  # noqa: E402
+from evals.harness.targets import local_toolset
 
 
 async def test_local_toolset_exposes_42_tools():
