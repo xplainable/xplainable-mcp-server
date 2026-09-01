@@ -25,6 +25,9 @@ from evals.harness.models import RunConfig
 from evals.scenarios.telco_churn import ALL
 
 EVALS_DIR = Path(__file__).parent
+# Same location as evals.harness.runner.PROMPTS_DIR, computed directly so
+# module top stays free of server-stack imports (runner pulls pydantic_ai).
+PROMPTS_DIR = EVALS_DIR / "prompts"
 RESULTS_DIR = EVALS_DIR / "results"
 _DEFAULTS = RunConfig()
 
@@ -41,12 +44,15 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
                         help=f"prompt id in evals/prompts/, repeatable "
                              f"(default: {_DEFAULTS.prompt_id})")
     parser.add_argument("--target", choices=["local", "hosted"],
-                        default=_DEFAULTS.target)
+                        default=_DEFAULTS.target,
+                        help=f"MCP target (default: {_DEFAULTS.target})")
     parser.add_argument("--scenario", action="append", choices=sorted(ALL),
                         help="scenario name, repeatable (default: all)")
     parser.add_argument("-k", type=int, default=_DEFAULTS.k,
-                        help="repeats per scenario")
-    parser.add_argument("--label", default=_DEFAULTS.label)
+                        help=f"repeats per scenario (default: {_DEFAULTS.k})")
+    parser.add_argument("--label", default=_DEFAULTS.label,
+                        help=f"result filename prefix "
+                             f"(default: {_DEFAULTS.label})")
     return parser.parse_args(argv)
 
 
@@ -67,7 +73,8 @@ def result_path(config: RunConfig, timestamp: Optional[str] = None,
     """Unique, informative filename per cell: label_model_prompt_timestamp."""
     ts = timestamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     model = config.model.replace(":", "-").replace("/", "-")
-    return results_dir / f"{config.label}_{model}_{config.prompt_id}_{ts}.json"
+    label = config.label.replace(":", "-").replace("/", "-")
+    return results_dir / f"{label}_{model}_{config.prompt_id}_{ts}.json"
 
 
 async def run_cell(config: RunConfig) -> Path:
@@ -79,9 +86,8 @@ async def run_cell(config: RunConfig) -> Path:
     from evals.harness.session import EvalSession
     from evals.harness.targets import get_toolset
 
-    team_id = os.environ.get("XPLAINABLE_TEAM_ID")
-    if not team_id:
-        raise RuntimeError("Set XPLAINABLE_TEAM_ID (eval team) in evals/.env")
+    # Env presence is validated once in main() before any cell runs.
+    team_id = os.environ["XPLAINABLE_TEAM_ID"]
     client = XplainableClient(
         api_key=os.environ["XPLAINABLE_API_KEY"],
         hostname=os.environ.get("XPLAINABLE_HOST", "https://platform.xplainable.io"),
@@ -105,6 +111,23 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
     from dotenv import load_dotenv  # before any server-stack import
     load_dotenv(EVALS_DIR / ".env")
+
+    # Pre-flight: fail once, before any cell, with a friendly message —
+    # not once per cell with a traceback.
+    for var, message in [
+        ("XPLAINABLE_API_KEY", "Set XPLAINABLE_API_KEY in evals/.env"),
+        ("XPLAINABLE_TEAM_ID", "Set XPLAINABLE_TEAM_ID (eval team) in evals/.env"),
+    ]:
+        if not os.environ.get(var):
+            print(message, file=sys.stderr)
+            return 1
+    unknown = [p for p in (args.prompt or [_DEFAULTS.prompt_id])
+               if not (PROMPTS_DIR / f"{p}.md").exists()]
+    if unknown:
+        available = sorted(p.stem for p in PROMPTS_DIR.glob("*.md"))
+        print(f"unknown prompt(s): {', '.join(unknown)} — "
+              f"available: {', '.join(available)}", file=sys.stderr)
+        return 1
 
     failed = []
     for config in build_configs(args):

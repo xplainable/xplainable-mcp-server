@@ -5,6 +5,7 @@ pure pieces (build_configs, result_path, parse_args) plus a --help smoke
 test that proves module import does not require server env.
 """
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -13,7 +14,7 @@ import pytest
 from pydantic import ValidationError
 
 from evals.harness.models import RunConfig
-from evals.run import build_configs, parse_args, result_path
+from evals.run import build_configs, main, parse_args, result_path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -105,12 +106,12 @@ def test_build_configs_defaults_single_cell():
 
 def test_result_path_sanitises_and_is_informative(tmp_path):
     config = RunConfig(model="anthropic:claude/sonnet-4-6", prompt_id="terse",
-                       label="ab")
+                       label="ab:v1/x")
     path = result_path(config, timestamp="20260901T120000Z",
                        results_dir=tmp_path)
     assert path.parent == tmp_path
     assert ":" not in path.name and "/" not in path.name
-    assert path.name == "ab_anthropic-claude-sonnet-4-6_terse_20260901T120000Z.json"
+    assert path.name == "ab-v1-x_anthropic-claude-sonnet-4-6_terse_20260901T120000Z.json"
 
 
 def test_result_path_defaults_to_results_dir():
@@ -121,7 +122,7 @@ def test_result_path_defaults_to_results_dir():
 
 def test_result_path_generates_timestamp():
     a = result_path(RunConfig())
-    assert a.name.endswith("Z.json")
+    assert re.search(r"_\d{8}T\d{6}Z\.json$", a.name)
 
 
 # --- RunConfig.k validation (controller amendment 1) -----------------------
@@ -144,3 +145,62 @@ def test_help_runs_without_xplainable_env():
     assert proc.returncode == 0, proc.stderr
     assert "usage" in proc.stdout.lower()
     assert "--model" in proc.stdout
+    # -k, --target, --label all advertise their defaults (issue 4).
+    assert "(default: local)" in proc.stdout
+    assert "(default: 3)" in proc.stdout
+    assert "(default: run)" in proc.stdout
+
+
+# --- main() pre-flight: env + prompt validation before any cell ------------
+
+@pytest.fixture
+def no_dotenv(monkeypatch, tmp_path):
+    """Point main()'s load_dotenv at an empty dir so a real evals/.env
+    cannot repopulate env vars the test deleted."""
+    monkeypatch.setattr("evals.run.EVALS_DIR", tmp_path)
+
+
+@pytest.fixture
+def run_cell_calls(monkeypatch):
+    """Record run_cell invocations; pre-flight failures must leave this empty."""
+    calls = []
+
+    async def _recorder(config):
+        calls.append(config)
+        return Path("/dev/null")
+
+    monkeypatch.setattr("evals.run.run_cell", _recorder)
+    return calls
+
+
+def test_main_missing_api_key_fast_fails(monkeypatch, capsys, no_dotenv,
+                                         run_cell_calls):
+    monkeypatch.delenv("XPLAINABLE_API_KEY", raising=False)
+    monkeypatch.setenv("XPLAINABLE_TEAM_ID", "team-1")
+    assert main([]) == 1
+    err = capsys.readouterr().err
+    assert "Set XPLAINABLE_API_KEY in evals/.env" in err
+    assert "Traceback" not in err
+    assert run_cell_calls == []
+
+
+def test_main_missing_team_id_fast_fails(monkeypatch, capsys, no_dotenv,
+                                         run_cell_calls):
+    monkeypatch.setenv("XPLAINABLE_API_KEY", "test-api-key")
+    monkeypatch.delenv("XPLAINABLE_TEAM_ID", raising=False)
+    assert main([]) == 1
+    err = capsys.readouterr().err
+    assert "Set XPLAINABLE_TEAM_ID (eval team) in evals/.env" in err
+    assert "Traceback" not in err
+    assert run_cell_calls == []
+
+
+def test_main_unknown_prompt_fast_fails(monkeypatch, capsys, no_dotenv,
+                                        run_cell_calls):
+    monkeypatch.setenv("XPLAINABLE_API_KEY", "test-api-key")
+    monkeypatch.setenv("XPLAINABLE_TEAM_ID", "team-1")
+    assert main(["--prompt", "defualt"]) == 1
+    err = capsys.readouterr().err
+    assert "defualt" in err
+    assert "default" in err  # lists available prompt ids
+    assert run_cell_calls == []
