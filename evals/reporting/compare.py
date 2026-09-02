@@ -40,6 +40,17 @@ def _group_name(case_name: str) -> str:
     return _REPEAT_SUFFIX.sub("", case_name)
 
 
+def case_full_flow_pass(case: dict) -> bool:
+    """A case passes the full flow when ALL its stage assertions are True.
+
+    Only stage keys count — semantic detectors and `completed` are separate
+    signals. A case with NO stage keys must not pass via all([]).
+    """
+    assertions = case["assertions"]
+    stage_keys = [k for k in assertions if k in _STAGE_SET]
+    return bool(stage_keys) and all(assertions[key] for key in stage_keys)
+
+
 def _row_sort_key(row: dict):
     return (row["label"], row["model"], row["prompt_id"])
 
@@ -74,8 +85,7 @@ def comparison_rows(results: Sequence[dict]) -> List[dict]:
                     continue
                 flags[key] = flags.get(key, 0) + bool(value)
             groups.setdefault(_group_name(case["name"]), []).append(
-                # Guard: a case with NO stage keys must not pass via all([]).
-                bool(stage_keys) and all(assertions[key] for key in stage_keys)
+                case_full_flow_pass(case)
             )
             steps.append(case["scores"].get("step_count", 0))
             wasted.append(case["scores"].get("wasted_calls", 0))
@@ -158,10 +168,15 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     print_comparison(comparison_rows(results))
 
     if args.png_dir:
-        from evals.reporting.plots import stage_pass_bars, step_count_hist
+        from evals.reporting.plots import (
+            pass_at_k_curve,
+            stage_pass_bars,
+            step_count_hist,
+        )
 
         png_dir = Path(args.png_dir)
         png_dir.mkdir(parents=True, exist_ok=True)
+        pass_at_k_curve(results, png_dir / "pass_at_k.png")
         stage_pass_bars(results, png_dir / "stage_pass.png")
         step_count_hist(results, png_dir / "step_count_hist.png")
 

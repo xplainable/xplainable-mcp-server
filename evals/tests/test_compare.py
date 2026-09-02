@@ -222,9 +222,9 @@ def test_cli_main_prints_table_and_emits_plots(tmp_path, capsys):
 
     out = capsys.readouterr().out
     assert "data_prep" in out and "pass@k" in out
-    pngs = sorted(png_dir.glob("*.png"))
-    assert len(pngs) == 2
-    assert all(p.stat().st_size > 0 for p in pngs)
+    pngs = sorted(p.name for p in png_dir.glob("*.png"))
+    assert pngs == ["pass_at_k.png", "stage_pass.png", "step_count_hist.png"]
+    assert all((png_dir / p).stat().st_size > 0 for p in pngs)
 
 
 def test_cli_main_requires_paths():
@@ -247,3 +247,52 @@ def test_step_count_hist_creates_png(tmp_path):
     out = tmp_path / "steps.png"
     step_count_hist([result_a(), result_b()], out)
     assert out.exists() and out.stat().st_size > 0
+
+
+def test_pass_at_k_estimate_known_values():
+    from evals.reporting.plots import pass_at_k_estimate
+
+    # n=3 samples, c=1 pass: pass@1 = 1/3, pass@2 = 2/3, pass@3 = 1.
+    assert pass_at_k_estimate(3, 1, 1) == pytest.approx(1 / 3)
+    assert pass_at_k_estimate(3, 1, 2) == pytest.approx(2 / 3)
+    assert pass_at_k_estimate(3, 1, 3) == pytest.approx(1.0)
+    assert pass_at_k_estimate(2, 0, 1) == 0.0
+    assert pass_at_k_estimate(2, 2, 1) == 1.0
+
+
+def test_pass_at_k_curves_uses_full_flow_rule():
+    from evals.reporting.plots import pass_at_k_curves
+
+    # result_a: both groups n=2, c=1 (full[1] train False; minimal[0] train
+    # False, minimal[1] passes despite completed=False).
+    # result_b: full c=0 (data_prep False in both), minimal c=1 (semantic
+    # flag never fails a case; minimal[1] data_prep False).
+    curves = pass_at_k_curves([result_a(), result_b()])
+    assert [label for label, _ in curves] == ["a", "b"]
+    a_points = dict(curves[0][1])
+    b_points = dict(curves[1][1])
+    assert a_points[1] == pytest.approx(0.5)   # mean(1/2, 1/2)
+    assert a_points[2] == pytest.approx(1.0)   # mean(1, 1)
+    assert b_points[1] == pytest.approx(0.25)  # mean(0, 1/2)
+    assert b_points[2] == pytest.approx(0.5)   # mean(0, 1)
+
+
+def test_pass_at_k_curve_creates_png(tmp_path):
+    from evals.reporting.plots import pass_at_k_curve
+
+    out = tmp_path / "pass_at_k.png"
+    pass_at_k_curve([result_a(), result_b()], out)
+    assert out.exists() and out.stat().st_size > 0
+
+
+def test_duplicate_labels_deduped_for_legends():
+    from evals.reporting.plots import dedupe_labels
+
+    assert dedupe_labels(["a", "a", "b", "a"]) == ["a", "a (2)", "b", "a (3)"]
+
+
+def test_cli_emits_pass_at_k_png(tmp_path):
+    png_dir = tmp_path / "pngs"
+    pa, pb = _write(tmp_path, result_a()), _write(tmp_path, result_b())
+    main([str(pa), str(pb), "--png-dir", str(png_dir)])
+    assert (png_dir / "pass_at_k.png").stat().st_size > 0
