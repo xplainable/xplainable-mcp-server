@@ -34,6 +34,7 @@ class CreatedArtifacts(BaseModel):
     preprocessors: List[str] = Field(default_factory=list)
     deployments: List[str] = Field(default_factory=list)
     optimisers: List[str] = Field(default_factory=list)
+    reports: List[str] = Field(default_factory=list)
 
 
 class RunOutcome(BaseModel):

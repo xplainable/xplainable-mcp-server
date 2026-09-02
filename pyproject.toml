@@ -14,10 +14,10 @@ authors = [
 ]
 dependencies = [
     "fastmcp>=2.0.0,<3.0.0",
-    # 1.16.1 makes inference_predict / datasets_upload_dataset take inline
-    # records instead of caller-side file paths (hosted-caller fix), with
-    # the CSV part named so the platform's extension sniffing accepts it
-    "xplainable-client>=1.16.1",
+    # 1.17.0 adds reports_delete_report (the only agent-visible delete;
+    # reports are cheap to recreate and agents need to remove drafts),
+    # growing the tool surface to 43
+    "xplainable-client>=1.17.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
     "httpx>=0.24.0",

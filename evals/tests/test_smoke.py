@@ -1,8 +1,8 @@
 """Smoke tests: `pytest evals/tests -m smoke`.
 
 Two tiers:
-- test_targets.py::test_local_toolset_exposes_42_tools (also marked smoke):
-  always runnable — the local target serves the full 42-tool surface
+- test_targets.py::test_local_toolset_exposes_43_tools (also marked smoke):
+  always runnable — the local target serves the full 43-tool surface
   in-process with a dummy XPLAINABLE_API_KEY (pinned by conftest). No LLM,
   no live platform.
 - test_live_minimal: the REAL end-to-end path (telco_churn_minimal, k=1)
