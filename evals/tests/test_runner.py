@@ -340,6 +340,42 @@ async def test_run_case_usage_limit_recovers_partial_transcript(monkeypatch):
     assert outcome.created.models == ["m1"]  # diff still ran -> teardown possible
 
 
+async def test_run_case_agent_gets_relaxed_tool_retry_cap(monkeypatch):
+    # pydantic-ai's default retries=1 aborts the whole run (UnexpectedModelBehavior)
+    # on a tool's second consecutive failure — unrepresentative of real MCP
+    # consumers, which just see the error text and continue. run_case must
+    # construct the Agent with retries=5 (runs stay bounded by UsageLimits).
+    kwargs_seen = {}
+
+    class _RecordingAgent(_StubAgent):
+        def __init__(self, *args, **kwargs):
+            kwargs_seen.update(kwargs)
+
+    monkeypatch.setattr(runner, "Agent", _RecordingAgent)
+    await run_case(_SCENARIO, RunConfig(), toolset=object(), session=_StubSession())
+    assert kwargs_seen.get("retries") == 5
+
+
+async def test_run_case_generic_failure_recovers_partial_transcript(monkeypatch):
+    # Generic exceptions (e.g. UnexpectedModelBehavior) carry no messages;
+    # the partial transcript must be recovered via capture_run_messages(),
+    # same as the usage-limit path.
+    from pydantic_ai import _agent_graph
+
+    class _BoomAgent(_StubAgent):
+        async def run(self, prompt, usage_limits=None):
+            captured = _agent_graph._messages_ctx_var.get().messages
+            captured.append(
+                ModelResponse(parts=[ToolCallPart(tool_name="inference_predict", args={})])
+            )
+            raise RuntimeError("Tool 'inference_predict' exceeded max retries count of 1")
+
+    monkeypatch.setattr(runner, "Agent", _BoomAgent)
+    outcome = await run_case(_SCENARIO, RunConfig(), toolset=object(), session=_StubSession())
+    assert "exceeded max retries" in outcome.error
+    assert [(c.name, c.error) for c in outcome.tool_calls] == [("inference_predict", True)]
+
+
 async def test_run_case_captures_agent_failure_as_error(monkeypatch):
     class _BoomAgent(_StubAgent):
         async def run(self, prompt, usage_limits=None):

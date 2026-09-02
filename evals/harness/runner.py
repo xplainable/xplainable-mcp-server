@@ -182,6 +182,12 @@ async def run_case(scenario: Scenario, config: RunConfig, toolset, session) -> R
             config.model,
             toolsets=[toolset],
             system_prompt=load_prompt(config.prompt_id),
+            # pydantic-ai's default tool-retry cap (1) raises
+            # UnexpectedModelBehavior and aborts the run on a tool's second
+            # consecutive failure. Real MCP consumers just see the error text
+            # and continue; runs are already bounded by UsageLimits, so relax
+            # the per-tool cap.
+            retries=5,
         )
     except Exception as e:  # noqa: BLE001 — setup failed, nothing created
         return RunOutcome(final_text="", error=_fmt(e))
