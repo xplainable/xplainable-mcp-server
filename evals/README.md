@@ -105,8 +105,10 @@ pytest evals/tests -m smoke
 
 ## Known limitations
 
-- Models and reports are NOT torn down by the session; anything teardown
-  could not delete is logged in the result's `leftovers` list.
+- Models ARE deleted in teardown (via the raw `/v1/models/{model_id}` route;
+  the client has no delete_model wrapper). Reports are still not torn down;
+  anything teardown could not delete is logged in the result's `leftovers`
+  list.
 - The hosted target needs OAuth browser consent on first run (token cached
   under `/tmp/xp-mcp-oauth`).
 - Runs cost real LLM money — keep `-k` low while iterating.

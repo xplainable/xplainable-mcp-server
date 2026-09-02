@@ -2,8 +2,8 @@
 
 Brackets each eval case: snapshot() before the agent runs, diff() after
 (-> CreatedArtifacts of new platform ids), upload_fixture() for setup,
-teardown(created) deletes everything deletable. Models have no client delete
-method — they are skipped and reported as leftovers.
+teardown(created) deletes everything created (models via the raw
+/v1/models/{model_id} route — the client has no delete_model wrapper).
 """
 import logging
 from typing import Dict, List, Optional, Set
@@ -152,13 +152,17 @@ class EvalSession:
     def teardown(self, created: CreatedArtifacts) -> List[str]:
         """Best-effort delete of created artifacts; returns leftovers.
 
-        Order: deployments -> optimisers -> preprocessors -> datasets.
-        Models have no client delete method and are always leftovers.
+        Order: deployments -> optimisers -> models -> preprocessors -> datasets
+        (deployments reference model versions; model versions reference
+        preprocessor versions). The client has no delete_model wrapper, so
+        models go through the BaseClient raw `delete` accessor with the real
+        API route (verified live).
         """
         leftovers = []
         deletes = [
             ("deployment", created.deployments, self.client.deployments.delete_deployment),
             ("optimiser", created.optimisers, self.client.optimisers.delete_optimiser),
+            ("model", created.models, self._delete_model),
             ("preprocessor", created.preprocessors, self.client.preprocessing.delete_preprocessor),
             ("dataset", created.datasets, self.client.datasets.delete_dataset),
         ]
@@ -168,5 +172,7 @@ class EvalSession:
                     delete(artifact_id)
                 except Exception as e:
                     leftovers.append(f"{kind}:{artifact_id} ({type(e).__name__}: {e})")
-        leftovers.extend(f"model:{model_id}" for model_id in created.models)
         return leftovers
+
+    def _delete_model(self, model_id: str) -> None:
+        self.client.models.delete(f"/v1/models/{model_id}")

@@ -5,7 +5,8 @@ so method renames or signature changes fail these tests. Return values are
 the real pydantic response models:
 - datasets.list_team_datasets(team_id=None) -> List[DatasetInfo] (id in
   `dataset_id` or `id`, both Optional)
-- models.list_team_models() -> List[ModelInfo] (`model_id`), no delete method
+- models.list_team_models() -> List[ModelInfo] (`model_id`); no delete_model
+  wrapper — teardown uses the inherited BaseClient `delete(endpoint)` accessor
 - preprocessing.list_preprocessors(team_id=None) -> List[PreprocessorInfo] (`id`)
 - deployments.list_deployments(team_id=None) -> List[DeploymentInfo]
   (`deployment_id`)
@@ -125,7 +126,7 @@ def test_upload_fixture_returns_new_dataset_id(tmp_path):
     assert dataset_id == "d-new"
 
 
-def test_teardown_deletes_deletables_and_skips_models():
+def test_teardown_deletes_all_kinds_including_models():
     client = _client()
     session = EvalSession(client, team_id="t1")
     created = CreatedArtifacts(
@@ -135,9 +136,12 @@ def test_teardown_deletes_deletables_and_skips_models():
     leftovers = session.teardown(created)
     client.deployments.delete_deployment.assert_called_once_with("dep2")
     client.optimisers.delete_optimiser.assert_called_once_with("o2")
+    # No delete_model wrapper in the client; teardown uses the BaseClient
+    # raw HTTP accessor with the real API route (verified live).
+    client.models.delete.assert_called_once_with("/v1/models/m2")
     client.preprocessing.delete_preprocessor.assert_called_once_with("p2")
     client.datasets.delete_dataset.assert_called_once_with("d2")
-    assert leftovers == ["model:m2"]  # models have no client delete
+    assert leftovers == []
 
 
 def test_teardown_continues_past_delete_failures():
@@ -148,6 +152,38 @@ def test_teardown_continues_past_delete_failures():
     leftovers = session.teardown(created)
     client.datasets.delete_dataset.assert_called_once_with("d2")
     assert "deployment:dep2 (RuntimeError: boom)" in leftovers
+
+
+def test_teardown_model_delete_failure_goes_to_leftovers():
+    client = _client()
+    client.models.delete.side_effect = RuntimeError("boom")
+    session = EvalSession(client, team_id="t1")
+    created = CreatedArtifacts(models=["m2"], datasets=["d2"], deployments=["dep2"])
+    leftovers = session.teardown(created)
+    # Other kinds are still deleted despite the model failure.
+    client.deployments.delete_deployment.assert_called_once_with("dep2")
+    client.datasets.delete_dataset.assert_called_once_with("d2")
+    assert leftovers == ["model:m2 (RuntimeError: boom)"]
+
+
+def test_teardown_deletes_deployments_before_models_before_preprocessors():
+    # Dependency chain: deployments reference model versions, model versions
+    # reference preprocessor versions — safe order is dep -> model -> pp.
+    client = _client()
+    order = []
+    client.deployments.delete_deployment.side_effect = (
+        lambda i: order.append(("deployment", i))
+    )
+    client.models.delete.side_effect = lambda route: order.append(("model", route))
+    client.preprocessing.delete_preprocessor.side_effect = (
+        lambda i: order.append(("preprocessor", i))
+    )
+    session = EvalSession(client, team_id="t1")
+    created = CreatedArtifacts(
+        models=["m2"], preprocessors=["p2"], deployments=["dep2"]
+    )
+    session.teardown(created)
+    assert [kind for kind, _ in order] == ["deployment", "model", "preprocessor"]
 
 
 # ---------------------------------------------------------------- inspect
