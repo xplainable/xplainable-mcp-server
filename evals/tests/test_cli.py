@@ -204,3 +204,44 @@ def test_main_unknown_prompt_fast_fails(monkeypatch, capsys, no_dotenv,
     assert "defualt" in err
     assert "default" in err  # lists available prompt ids
     assert run_cell_calls == []
+
+
+# --- prepare_env: hermetic env pinning before server-stack import ----------
+
+def test_prepare_env_pins_hostname_to_default_host(monkeypatch, no_dotenv):
+    """Neither var set: both resolve to the production platform host."""
+    from evals.run import prepare_env
+    monkeypatch.delenv("XPLAINABLE_HOST", raising=False)
+    monkeypatch.delenv("XPLAINABLE_HOSTNAME", raising=False)
+    prepare_env()
+    assert os.environ["XPLAINABLE_HOST"] == "https://platform.xplainable.io"
+    assert os.environ["XPLAINABLE_HOSTNAME"] == "https://platform.xplainable.io"
+
+
+def test_prepare_env_respects_exported_host(monkeypatch, no_dotenv):
+    """An explicitly exported XPLAINABLE_HOST is the user-facing knob."""
+    from evals.run import prepare_env
+    monkeypatch.setenv("XPLAINABLE_HOST", "https://example.test")
+    monkeypatch.delenv("XPLAINABLE_HOSTNAME", raising=False)
+    prepare_env()
+    assert os.environ["XPLAINABLE_HOST"] == "https://example.test"
+    assert os.environ["XPLAINABLE_HOSTNAME"] == "https://example.test"
+
+
+def test_prepare_env_forces_write_tools_on(monkeypatch, no_dotenv):
+    """Evals require write tools even if ambient env disabled them."""
+    from evals.run import prepare_env
+    monkeypatch.setenv("ENABLE_WRITE_TOOLS", "false")
+    prepare_env()
+    assert os.environ["ENABLE_WRITE_TOOLS"] == "true"
+
+
+def test_prepare_env_overrides_leaked_hostname(monkeypatch, no_dotenv):
+    """Guard against the parent-repo .env leak: a pre-existing localhost
+    XPLAINABLE_HOSTNAME (derived var) must be overridden by the resolved
+    XPLAINABLE_HOST — single-host assumption."""
+    from evals.run import prepare_env
+    monkeypatch.setenv("XPLAINABLE_HOSTNAME", "http://localhost:8000")
+    monkeypatch.delenv("XPLAINABLE_HOST", raising=False)
+    prepare_env()
+    assert os.environ["XPLAINABLE_HOSTNAME"] == "https://platform.xplainable.io"

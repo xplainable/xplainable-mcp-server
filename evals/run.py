@@ -32,6 +32,29 @@ RESULTS_DIR = EVALS_DIR / "results"
 _DEFAULTS = RunConfig()
 
 
+def prepare_env() -> None:
+    """Make the eval env hermetic before any server-stack import.
+
+    xplainable_mcp modules call bare load_dotenv() at import, which walks
+    up and can adopt a stale parent-repo .env (localhost host, write tools
+    off). Pin everything the server reads so evals/.env + these defaults
+    are authoritative regardless of parent .env files.
+
+    XPLAINABLE_HOST is the user-facing knob and is respected if exported.
+    XPLAINABLE_HOSTNAME (read by the server's client_manager) is a derived
+    var and is always overridden with the resolved host — single-host
+    assumption: evals talk to exactly one platform, so a pre-existing
+    HOSTNAME (e.g. leaked from a parent .env already loaded by an earlier
+    server import in this process) must not diverge from HOST.
+    """
+    from dotenv import load_dotenv  # before any server-stack import
+    load_dotenv(EVALS_DIR / ".env")
+    host = os.environ.get("XPLAINABLE_HOST", "https://platform.xplainable.io")
+    os.environ["XPLAINABLE_HOST"] = host
+    os.environ["XPLAINABLE_HOSTNAME"] = host   # server's client_manager reads this
+    os.environ["ENABLE_WRITE_TOOLS"] = "true"  # evals require write tools
+
+
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="evals.run",
@@ -109,8 +132,7 @@ async def run_cell(config: RunConfig) -> Path:
 
 def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
-    from dotenv import load_dotenv  # before any server-stack import
-    load_dotenv(EVALS_DIR / ".env")
+    prepare_env()
 
     # Pre-flight: fail once, before any cell, with a friendly message —
     # not once per cell with a traceback.

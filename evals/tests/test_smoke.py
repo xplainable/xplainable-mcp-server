@@ -45,6 +45,16 @@ async def test_live_minimal():
     stage failures land as report assertions (never exceptions), so a green
     evaluate() proves nothing by itself.
     """
+    # Pin host/write-tools BEFORE the server-stack imports below: those
+    # modules call bare load_dotenv(), which walks up and can adopt the
+    # stale parent-repo .env (localhost XPLAINABLE_HOSTNAME, write tools
+    # off). Safe here: prepare_env's load_dotenv(evals/.env) uses the
+    # default override=False, so real exported creds (required by the skip
+    # guards above) always win; conftest's "test-api-key" sentinel is a
+    # setdefault, and sentinel runs are already skipped by the guards.
+    from evals.run import prepare_env
+    prepare_env()
+
     # Lazy: these transitively import xplainable_mcp.server (env-gated).
     from xplainable_client.client.client import XplainableClient
 
