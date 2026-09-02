@@ -147,8 +147,9 @@ def _check_optimise(out: RunOutcome, label: str) -> bool:
 _STAGE_CHECKS = {
     Stage.EXPLORE: _check_explore,
     Stage.SELECT_LABEL: _check_select_label,
-    # Shared predicate is intentional: DATA_PREP vs FEATURE_ENG are not yet
-    # semantically distinguished (that refinement lands with Task 8).
+    # Shared predicate is intentional: DATA_PREP vs FEATURE_ENG are not
+    # semantically distinguished — both pass when preprocessing activity
+    # occurred, per the plan's stage table.
     Stage.DATA_PREP: _check_prep,
     Stage.FEATURE_ENG: _check_prep,
     Stage.PERSIST_PREP: _check_persist_prep,

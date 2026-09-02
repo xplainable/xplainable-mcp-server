@@ -18,7 +18,20 @@ def local_toolset() -> MCPToolset:
 
 
 def hosted_toolset() -> MCPToolset:
-    """Hosted server via OAuth (browser consent on first run, token cached)."""
+    """Hosted server via OAuth (browser consent on first run, token cached).
+
+    Currently broken: pydantic-ai 2.37 passes ``verify=`` to fastmcp
+    2.14.7's StreamableHttpTransport, which rejects it. Fail fast with an
+    explanation instead of a TypeError deep inside transport setup. Remove
+    the guard once the dep pair is upgraded; the OAuth wiring below is the
+    intended implementation.
+    """
+    raise RuntimeError(
+        "The hosted target is broken with the current pydantic-ai/fastmcp "
+        "pair (pydantic-ai 2.37 passes verify= to fastmcp 2.14.7's "
+        "StreamableHttpTransport, which rejects it). Use --target local — "
+        "the in-process server hits the same live platform API."
+    )
     from fastmcp.client.auth.oauth import OAuth
     from key_value.aio.stores.disk import DiskStore
 

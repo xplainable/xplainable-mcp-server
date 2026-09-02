@@ -24,7 +24,9 @@ ANTHROPIC_API_KEY=...      # or creds for whichever --model you use
 
 **Use a dedicated eval team.** Evals create AND DELETE datasets, models,
 deployments, and reports. Never point `XPLAINABLE_TEAM_ID` at a team you
-work in.
+work in. **One run at a time per team:** teardown deletes everything created
+after its pre-run snapshot, so two simultaneous runs against the same team
+would delete each other's artifacts.
 
 ## Running
 
