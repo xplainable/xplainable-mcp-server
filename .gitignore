@@ -181,3 +181,9 @@ mcp_sync_report_*.json
 # Evals
 evals/results/
 evals/.env
+
+# Internal engineering docs (not user-facing)
+docs/plans/
+docs/drafts/
+docs/transcripts/
+CLAUDE.md
