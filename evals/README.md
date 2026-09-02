@@ -20,6 +20,7 @@ Create `evals/.env`:
 XPLAINABLE_API_KEY=...     # key for the eval team
 XPLAINABLE_TEAM_ID=...     # dedicated "MCP Evals" team
 ANTHROPIC_API_KEY=...      # or creds for whichever --model you use
+OPENROUTER_API_KEY=...     # only needed for --model openrouter:...
 ```
 
 **Use a dedicated eval team.** Evals create AND DELETE datasets, models,
@@ -46,6 +47,21 @@ Config axes:
 `--model` x `--prompt` forms a cross-product; each cell runs serially and
 writes one results JSON to `evals/results/`
 (`{label}_{model}_{prompt}_{timestamp}.json`).
+
+### Testing other models via OpenRouter
+
+pydantic-ai supports OpenRouter natively — no harness changes needed. Set
+`OPENROUTER_API_KEY` in `evals/.env` and pass
+`--model openrouter:<vendor>/<model>`:
+
+```bash
+python -m evals.run --model openrouter:openai/gpt-5.2 \
+                    --model anthropic:claude-sonnet-4-6 \
+                    --scenario telco_churn_minimal -k 1 --label model-shootout
+```
+
+Prefer native `anthropic:` ids for Claude models (direct API, no
+provider-routing variance); use `openrouter:` for everything else.
 
 ## Results format
 
