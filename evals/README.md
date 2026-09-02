@@ -121,6 +121,29 @@ pytest evals/tests -m smoke
   `XPLAINABLE_API_KEY` are set. These must be exported in the shell:
   `evals/.env` is only read by `python -m evals.run`, not by pytest.
 
+## When the tool surface changes
+
+The harness derives its tool knowledge from the client's `@mcp_tool`
+registry (the same source the server uses), so adding an endpoint + client
+wrapper usually needs almost nothing here:
+
+- **Automatic:** the local target exposes the new tool immediately;
+  read/write classification comes from the decorator's `category`; the
+  train/predict tool sets are name-derived; stage evaluators check platform
+  outcomes, not tool names — existing assertions don't break.
+- **Always:** bump the count in
+  `test_targets.py::test_local_toolset_exposes_42_tools` (and this README).
+  It fails on every surface change by design — a tripwire so the surface
+  never changes silently.
+- **If the tool creates a new artifact type** (not a
+  dataset/model/preprocessor/deployment/optimiser): extend the session
+  ledger's snapshot + teardown (`evals/harness/session.py`), or the new
+  artifacts leak past teardown into `leftovers`.
+- **If it represents a new workflow stage** you want evaluated: add a
+  `Stage` enum value, a check in `_STAGE_CHECKS`
+  (`evals/evaluators/stages.py`), and a scenario that expects it — existing
+  scenarios never exercise tools their prompts don't ask for.
+
 ## Known limitations
 
 - Models ARE deleted in teardown (via the raw `/v1/models/{model_id}` route;
