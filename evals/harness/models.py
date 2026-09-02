@@ -22,6 +22,7 @@ class ToolCall(BaseModel):
     name: str
     args: Dict = Field(default_factory=dict)
     error: bool = False
+    error_text: Optional[str] = None
 
 
 class CreatedArtifacts(BaseModel):

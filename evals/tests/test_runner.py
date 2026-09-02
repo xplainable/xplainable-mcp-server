@@ -122,6 +122,28 @@ def test_dangling_tool_call_without_return_or_retry_is_error():
     ]
 
 
+def test_error_text_captured_from_retry_string_content():
+    # Failed calls must persist the ToolError message (the platform's
+    # structured "[CODE] msg — Suggestion: ..." envelope) — not just a bool.
+    ok = ToolCallPart(tool_name="list_models", args={}, tool_call_id="c1")
+    ok_ret = ToolReturnPart(tool_name="list_models", content="ok", tool_call_id="c1")
+    bad = ToolCallPart(tool_name="train_model", args={}, tool_call_id="c2")
+    retry = RetryPromptPart(content="E42 boom", tool_name="train_model",
+                            tool_call_id="c2")
+    calls = extract_tool_calls(_messages([ok], [ok_ret], [bad], [retry]))
+    assert [(c.name, c.error, c.error_text) for c in calls] == [
+        ("list_models", False, None),
+        ("train_model", True, "E42 boom"),
+    ]
+
+
+def test_error_text_for_dangling_call_is_sentinel():
+    dangling = ToolCallPart(tool_name="inference_predict", args={}, tool_call_id="c1")
+    (call,) = extract_tool_calls(_messages([dangling]))
+    assert call.error is True
+    assert call.error_text == "(no tool return — run aborted or transcript truncated)"
+
+
 # ------------------------------------------- predictions / prescriptions
 
 def test_extracts_predictions_from_predict_tool_returns():

@@ -123,8 +123,8 @@ def _client_version() -> str:
 def _case_diagnostics(output) -> dict:
     """Minimal per-case diagnostics from a ReportCase output (a RunOutcome).
 
-    Tool-call entries carry name + error marker ONLY — args can be huge and
-    may contain data rows. Degrades (per this module's provenance convention)
+    Tool-call entries carry name + error marker + error text ONLY — args can
+    be huge and may contain data rows. Degrades (per this module's provenance convention)
     if the output is not a RunOutcome — defensive: pydantic-evals 2.37 routes
     raised tasks to report.failures, so report.cases outputs should always be
     the task's return value.
@@ -135,7 +135,8 @@ def _case_diagnostics(output) -> dict:
         "error": output.error,
         "usage_limit_hit": output.usage_limit_hit,
         "tool_calls": [
-            {"name": call.name, "error": call.error} for call in output.tool_calls
+            {"name": call.name, "error": call.error, "error_text": call.error_text}
+            for call in output.tool_calls
         ],
     }
 

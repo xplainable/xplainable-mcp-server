@@ -33,7 +33,10 @@ def extract_tool_calls(messages) -> List[ToolCall]:
 
     A RetryPromptPart also marks the call it retried: matched by
     tool_call_id; if the id matches no call (defensive), the last call with
-    the retry's tool_name is marked instead.
+    the retry's tool_name is marked instead. Its content (the ToolError
+    message — str, or list[ErrorDetails] for validation failures in
+    pydantic-ai 2.37) is captured as error_text; dangling calls get a
+    sentinel explaining the missing return.
     """
     call_parts = []
     retry_parts = []
@@ -50,20 +53,32 @@ def extract_tool_calls(messages) -> List[ToolCall]:
 
     ids = [getattr(p, "tool_call_id", None) for p in call_parts]
     errored = [call_id not in return_ids for call_id in ids]
+    error_texts: List = [
+        "(no tool return — run aborted or transcript truncated)" if error else None
+        for error in errored
+    ]
     for retry in retry_parts:
+        content = getattr(retry, "content", None)
+        text = content if isinstance(content, str) else str(content)
         retry_id = getattr(retry, "tool_call_id", None)
         if retry_id is not None and retry_id in ids:
-            errored[ids.index(retry_id)] = True
-            continue
-        # Fallback: mark the last call with the same tool name.
-        for i in range(len(call_parts) - 1, -1, -1):
-            if call_parts[i].tool_name == retry.tool_name:
-                errored[i] = True
-                break
+            i = ids.index(retry_id)
+        else:
+            # Fallback: mark the last call with the same tool name.
+            i = next(
+                (j for j in range(len(call_parts) - 1, -1, -1)
+                 if call_parts[j].tool_name == retry.tool_name),
+                None,
+            )
+            if i is None:
+                continue
+        errored[i] = True
+        error_texts[i] = text
 
     return [
-        ToolCall(name=part.tool_name, args=part.args_as_dict(), error=error)
-        for part, error in zip(call_parts, errored)
+        ToolCall(name=part.tool_name, args=part.args_as_dict(), error=error,
+                 error_text=text)
+        for part, error, text in zip(call_parts, errored, error_texts)
     ]
 
 

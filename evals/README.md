@@ -61,14 +61,14 @@ writes one results JSON to `evals/results/`
      "duration": 84.2,
      "error": null,
      "usage_limit_hit": false,
-     "tool_calls": [{"name": "train_model", "error": false}]}
+     "tool_calls": [{"name": "train_model", "error": false, "error_text": null}]}
   ],
   "leftovers": ["model:123", "..."]
 }
 ```
 
 Per-case diagnostics: `error` (RunOutcome error string or null),
-`usage_limit_hit`, and `tool_calls` (name + error marker only, no args) —
+`usage_limit_hit`, and `tool_calls` (name + error marker + error_text only, no args) —
 enough to see why `completed: false` happened without a rerun.
 
 ## Comparing runs

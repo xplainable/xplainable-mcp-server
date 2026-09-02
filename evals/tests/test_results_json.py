@@ -97,7 +97,8 @@ async def test_write_result_persists_case_diagnostics(tmp_path):
             error="boom",
             usage_limit_hit=True,
             tool_calls=[
-                ToolCall(name="x", args={"huge": "payload"}, error=True),
+                ToolCall(name="x", args={"huge": "payload"}, error=True,
+                         error_text="[E42] boom — Suggestion: fix it"),
                 ToolCall(name="y", error=False),
             ],
         )
@@ -111,8 +112,9 @@ async def test_write_result_persists_case_diagnostics(tmp_path):
     assert case["error"] == "boom"
     assert case["usage_limit_hit"] is True
     assert case["tool_calls"] == [
-        {"name": "x", "error": True},
-        {"name": "y", "error": False},
+        {"name": "x", "error": True,
+         "error_text": "[E42] boom — Suggestion: fix it"},
+        {"name": "y", "error": False, "error_text": None},
     ]
     assert payload["cases"][0]["tool_calls"] == case["tool_calls"]
 
