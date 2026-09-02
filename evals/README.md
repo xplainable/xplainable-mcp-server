@@ -109,8 +109,12 @@ pytest evals/tests -m smoke
   the client has no delete_model wrapper). Reports are still not torn down;
   anything teardown could not delete is logged in the result's `leftovers`
   list.
-- The hosted target needs OAuth browser consent on first run (token cached
-  under `/tmp/xp-mcp-oauth`).
+- The hosted target is currently broken: pydantic-ai 2.37 passes a
+  `verify=` kwarg that fastmcp 2.14.7's `StreamableHttpTransport` does not
+  accept (`TypeError` at connect). All live validation used `--target local`
+  (in-process server against the live platform API). When it works, hosted
+  needs OAuth browser consent on first run (token cached under
+  `/tmp/xp-mcp-oauth`).
 - Runs cost real LLM money — keep `-k` low while iterating.
 - Optimiser cost blind spot: persisted optimisation config is invisible to
   the semantic detectors.
