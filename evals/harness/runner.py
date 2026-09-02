@@ -23,14 +23,21 @@ URL_RE = re.compile(r"https://[^\s)\"']+")
 
 
 def extract_tool_calls(messages) -> List[ToolCall]:
-    """Tool calls in transcript order, with retried calls marked error=True.
+    """Tool calls in transcript order, with failed calls marked error=True.
 
-    A RetryPromptPart marks the call it retried: matched by tool_call_id;
-    if the id matches no call (defensive), the last call with the retry's
-    tool_name is marked instead.
+    A call is only evidenced successful by a matching tool-return part
+    (matched by tool_call_id). A dangling call — no tool-return AND no
+    retry-prompt — means the run aborted on that call's failure (e.g.
+    UnexpectedModelBehavior when the retry cap is exceeded) or was truncated
+    mid-call; evaluators must fail safe, so it is marked error=True.
+
+    A RetryPromptPart also marks the call it retried: matched by
+    tool_call_id; if the id matches no call (defensive), the last call with
+    the retry's tool_name is marked instead.
     """
     call_parts = []
     retry_parts = []
+    return_ids = set()
     for message in messages:
         for part in getattr(message, "parts", []):
             kind = getattr(part, "part_kind", None)
@@ -38,9 +45,11 @@ def extract_tool_calls(messages) -> List[ToolCall]:
                 call_parts.append(part)
             elif kind == "retry-prompt" and getattr(part, "tool_name", None):
                 retry_parts.append(part)
+            elif kind == "tool-return":
+                return_ids.add(getattr(part, "tool_call_id", None))
 
-    errored = [False] * len(call_parts)
     ids = [getattr(p, "tool_call_id", None) for p in call_parts]
+    errored = [call_id not in return_ids for call_id in ids]
     for retry in retry_parts:
         retry_id = getattr(retry, "tool_call_id", None)
         if retry_id is not None and retry_id in ids:

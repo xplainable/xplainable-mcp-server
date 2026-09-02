@@ -48,9 +48,12 @@ def _messages(*parts_per_message):
 def test_extracts_tool_calls_in_order_with_dict_args():
     messages = _messages(
         [UserPromptPart(content="hi")],
-        [ToolCallPart(tool_name="list_datasets", args={"team_id": "t1"})],
-        [ToolReturnPart(tool_name="list_datasets", content="ok", tool_call_id="x")],
-        [ToolCallPart(tool_name="train_model", args='{"dataset_id": "d1"}')],
+        [ToolCallPart(tool_name="list_datasets", args={"team_id": "t1"},
+                      tool_call_id="c1")],
+        [ToolReturnPart(tool_name="list_datasets", content="ok", tool_call_id="c1")],
+        [ToolCallPart(tool_name="train_model", args='{"dataset_id": "d1"}',
+                      tool_call_id="c2")],
+        [ToolReturnPart(tool_name="train_model", content="ok", tool_call_id="c2")],
         [TextPart(content="done")],
     )
     calls = extract_tool_calls(messages)
@@ -64,11 +67,12 @@ def test_retry_marks_errored_call_by_tool_call_id_not_name():
     # Two calls to the same tool; the SECOND failed. Name-based matching would
     # mismark the first — id-based matching must mark the second only.
     first = ToolCallPart(tool_name="train_model", args={"try": 1}, tool_call_id="c1")
+    first_ret = ToolReturnPart(tool_name="train_model", content="ok", tool_call_id="c1")
     second = ToolCallPart(tool_name="train_model", args={"try": 2}, tool_call_id="c2")
     retry = RetryPromptPart(
         content="boom", tool_name="train_model", tool_call_id="c2"
     )
-    calls = extract_tool_calls(_messages([first], [retry], [second]))
+    calls = extract_tool_calls(_messages([first], [first_ret], [second], [retry]))
     assert [(c.args["try"], c.error) for c in calls] == [(1, False), (2, True)]
 
 
@@ -77,14 +81,18 @@ def test_retry_without_matching_id_falls_back_to_name():
     # marking the last call with that tool name.
     call = ToolCallPart(tool_name="deploy", args={}, tool_call_id="c1")
     other = ToolCallPart(tool_name="predict", args={}, tool_call_id="c2")
+    other_ret = ToolReturnPart(tool_name="predict", content="ok", tool_call_id="c2")
     retry = RetryPromptPart(content="bad", tool_name="deploy", tool_call_id="zz")
-    calls = extract_tool_calls(_messages([call, other], [retry]))
+    calls = extract_tool_calls(_messages([call, other], [other_ret, retry]))
     assert [(c.name, c.error) for c in calls] == [("deploy", True), ("predict", False)]
 
 
-def test_calls_without_retry_are_not_errors():
+def test_returned_calls_without_retry_are_not_errors():
     calls = extract_tool_calls(
-        _messages([ToolCallPart(tool_name="list_models", args=None)])
+        _messages(
+            [ToolCallPart(tool_name="list_models", args=None, tool_call_id="c1")],
+            [ToolReturnPart(tool_name="list_models", content="ok", tool_call_id="c1")],
+        )
     )
     assert len(calls) == 1
     assert calls[0].error is False
@@ -93,6 +101,25 @@ def test_calls_without_retry_are_not_errors():
 
 def test_extract_handles_empty_messages():
     assert extract_tool_calls([]) == []
+
+
+def test_dangling_tool_call_without_return_or_retry_is_error():
+    # Live-run bug: when a tool exceeds pydantic-ai's retry cap the run raises
+    # UnexpectedModelBehavior and the final ToolCallPart gets neither a
+    # tool-return nor a retry-prompt part. No tool-return = no evidence of
+    # success — evaluators must fail safe, so the dangling call is an error.
+    ok = ToolCallPart(
+        tool_name="deployments_get_deployment_payload", args={}, tool_call_id="c1"
+    )
+    ret = ToolReturnPart(
+        tool_name="deployments_get_deployment_payload", content="ok", tool_call_id="c1"
+    )
+    dangling = ToolCallPart(tool_name="inference_predict", args={}, tool_call_id="c2")
+    calls = extract_tool_calls(_messages([ok], [ret], [dangling]))
+    assert [(c.name, c.error) for c in calls] == [
+        ("deployments_get_deployment_payload", False),  # has return -> success
+        ("inference_predict", True),                    # dangling -> error
+    ]
 
 
 # ------------------------------------------- predictions / prescriptions
