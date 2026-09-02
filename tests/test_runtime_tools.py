@@ -91,7 +91,7 @@ class TestAnnotations:
 
 class TestRegistration:
     def test_registers_all_registry_tools(self, tool_map):
-        assert len(tool_map) == len(iter_registry_entries()) == 36
+        assert len(tool_map) == len(iter_registry_entries()) == 37
 
     def test_signature_copied(self, tool_map):
         t = tool_map["models_train_model"]
