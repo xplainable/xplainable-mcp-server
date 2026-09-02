@@ -12,9 +12,10 @@ pydantic-ai 2.37 facts this module relies on (verified by introspection):
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from pydantic_ai import Agent, UsageLimitExceeded, UsageLimits, capture_run_messages
+from pydantic_ai.models.openrouter import OpenRouterModelSettings
 
 from evals.harness.models import CreatedArtifacts, RunConfig, RunOutcome, Scenario, ToolCall
 
@@ -173,6 +174,40 @@ def extract_report_urls(text: str) -> List[str]:
     return [u for u in urls if "/report" in u]
 
 
+def extract_usage(messages) -> Tuple[int, int, Optional[float]]:
+    """(input_tokens, output_tokens, cost_usd) summed over the transcript.
+
+    Tokens come from ModelResponse.usage (requests carry no usage). Cost
+    comes from provider_details["cost"] — where pydantic-ai 2.37 puts
+    OpenRouter's per-request cost when openrouter_usage {"include": True}
+    is set — with usage.cost as a fallback. cost_usd is None (not 0.0)
+    when no message reported a cost, so untracked providers stay
+    distinguishable from free runs.
+    """
+    input_tokens, output_tokens = 0, 0
+    cost: Optional[float] = None
+    for message in messages:
+        usage = getattr(message, "usage", None)
+        if usage is None:
+            continue
+        input_tokens += usage.input_tokens or 0
+        output_tokens += usage.output_tokens or 0
+        details = getattr(message, "provider_details", None) or {}
+        message_cost = details.get("cost")
+        if message_cost is None:
+            message_cost = getattr(usage, "cost", None)
+        if message_cost is not None:
+            cost = (cost or 0.0) + message_cost
+    return input_tokens, output_tokens, cost
+
+
+def usage_model_settings(model: str) -> Optional[OpenRouterModelSettings]:
+    """Per-request cost accounting settings for OpenRouter models, else None."""
+    if model.startswith("openrouter:"):
+        return OpenRouterModelSettings(openrouter_usage={"include": True})
+    return None
+
+
 def load_prompt(prompt_id: str) -> str:
     return (PROMPTS_DIR / f"{prompt_id}.md").read_text()
 
@@ -203,6 +238,7 @@ async def run_case(scenario: Scenario, config: RunConfig, toolset, session) -> R
             # and continue; runs are already bounded by UsageLimits, so relax
             # the per-tool cap.
             retries=5,
+            model_settings=usage_model_settings(config.model),
         )
     except Exception as e:  # noqa: BLE001 — setup failed, nothing created
         return RunOutcome(final_text="", error=_fmt(e))
@@ -236,6 +272,7 @@ async def run_case(scenario: Scenario, config: RunConfig, toolset, session) -> R
             errors.append(_fmt(e))
 
     predictions, prescriptions = extract_run_outputs(messages)
+    input_tokens, output_tokens, cost_usd = extract_usage(messages)
     outcome = RunOutcome(
         final_text=final_text,
         tool_calls=extract_tool_calls(messages),
@@ -245,6 +282,9 @@ async def run_case(scenario: Scenario, config: RunConfig, toolset, session) -> R
         report_urls=extract_report_urls(final_text),
         usage_limit_hit=usage_hit,
         error="; ".join(errors) or None,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cost_usd=cost_usd,
     )
     try:
         session.inspect(outcome)

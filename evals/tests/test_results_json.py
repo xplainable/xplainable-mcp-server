@@ -127,3 +127,28 @@ async def test_write_result_healthy_case_diagnostics_are_empty(tmp_path):
         assert case["usage_limit_hit"] is False
         assert case["tool_calls"] == []
     assert payload["cases"][0]["error"] is None
+
+
+async def test_write_result_persists_usage(tmp_path):
+    async def task(scenario):
+        return RunOutcome(final_text="ok", input_tokens=1200,
+                          output_tokens=340, cost_usd=0.0123)
+
+    dataset = build_dataset([TELCO_MINIMAL], RunConfig(k=1))
+    report = await dataset.evaluate(task, progress=False)
+    payload = write_result(report, RunConfig(k=1), tmp_path / "r.json")
+
+    (case,) = json.loads((tmp_path / "r.json").read_text())["cases"]
+    assert case["usage"] == {
+        "input_tokens": 1200, "output_tokens": 340, "cost_usd": 0.0123,
+    }
+    assert payload["cases"][0]["usage"] == case["usage"]
+
+
+async def test_write_result_usage_defaults_when_untracked(tmp_path):
+    report = await _make_report()  # stub outcomes carry no usage
+    payload = write_result(report, RunConfig(k=2), tmp_path / "r.json")
+    for case in payload["cases"]:
+        assert case["usage"] == {
+            "input_tokens": 0, "output_tokens": 0, "cost_usd": None,
+        }

@@ -130,7 +130,10 @@ def _case_diagnostics(output) -> dict:
     the task's return value.
     """
     if not isinstance(output, RunOutcome):
-        return {"error": "unknown", "usage_limit_hit": False, "tool_calls": []}
+        return {
+            "error": "unknown", "usage_limit_hit": False, "tool_calls": [],
+            "usage": {"input_tokens": 0, "output_tokens": 0, "cost_usd": None},
+        }
     return {
         "error": output.error,
         "usage_limit_hit": output.usage_limit_hit,
@@ -138,6 +141,11 @@ def _case_diagnostics(output) -> dict:
             {"name": call.name, "error": call.error, "error_text": call.error_text}
             for call in output.tool_calls
         ],
+        "usage": {
+            "input_tokens": output.input_tokens,
+            "output_tokens": output.output_tokens,
+            "cost_usd": output.cost_usd,
+        },
     }
 
 

@@ -72,8 +72,12 @@ def comparison_rows(results: Sequence[dict]) -> List[dict]:
         groups: Dict[str, List[bool]] = {}
         steps: List[float] = []
         wasted: List[float] = []
+        costs: List[float] = []  # only cases that reported a cost
 
         for case in result["cases"]:
+            case_cost = case.get("usage", {}).get("cost_usd")
+            if case_cost is not None:
+                costs.append(case_cost)
             assertions = case["assertions"]
             stage_keys = [k for k in assertions if k in _STAGE_SET]
             for key in stage_keys:
@@ -104,6 +108,9 @@ def comparison_rows(results: Sequence[dict]) -> List[dict]:
             ),
             "mean_step_count": sum(steps) / n_cases if n_cases else 0.0,
             "mean_wasted_calls": sum(wasted) / n_cases if n_cases else 0.0,
+            # None (not 0.0) when no case reported cost: old result files
+            # predate usage capture, and non-OpenRouter providers report none.
+            "total_cost_usd": sum(costs) if costs else None,
             "flags": flags,
         })
     rows.sort(key=_row_sort_key)
@@ -116,7 +123,7 @@ def print_comparison(rows: Sequence[dict]) -> str:
     stage_cols = present_stages(rows)
     flag_cols = sorted({key for row in rows for key in row["flags"]})
     header = (
-        ["label", "model", "prompt", "pass@k", "steps", "wasted"]
+        ["label", "model", "prompt", "pass@k", "steps", "wasted", "cost"]
         + stage_cols
         + [f"flags:{key}" for key in flag_cols]
     )
@@ -130,6 +137,7 @@ def print_comparison(rows: Sequence[dict]) -> str:
             f"{row['pass_at_k']:.2f}",
             f"{row['mean_step_count']:.2f}",
             f"{row['mean_wasted_calls']:.2f}",
+            "-" if row["total_cost_usd"] is None else f"{row['total_cost_usd']:.2f}",
         ]
         cells += [
             f"{row['stage_rates'][stage]:.2f}" if stage in row["stage_rates"] else "-"

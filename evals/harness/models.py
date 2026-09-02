@@ -52,6 +52,9 @@ class RunOutcome(BaseModel):
     report_urls: List[str] = Field(default_factory=list)
     usage_limit_hit: bool = False
     error: Optional[str] = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: Optional[float] = None  # None = provider did not report cost
 
 
 class Scenario(BaseModel):

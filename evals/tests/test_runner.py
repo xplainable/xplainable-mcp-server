@@ -499,3 +499,48 @@ async def test_run_case_populates_predictions_and_prescriptions(monkeypatch):
     )
     assert outcome.predictions == [{"proba": 0.4}]
     assert outcome.prescriptions == [row]
+
+
+# ------------------------------------------------------------------- usage
+
+def test_extract_usage_sums_tokens_and_cost():
+    import pytest
+    from pydantic_ai.usage import RequestUsage
+    from evals.harness.runner import extract_usage
+
+    messages = [
+        ModelRequest(parts=[UserPromptPart(content="hi")]),  # no usage attr
+        ModelResponse(parts=[TextPart(content="a")],
+                      usage=RequestUsage(input_tokens=100, output_tokens=10),
+                      provider_details={"cost": 0.01}),
+        ModelResponse(parts=[TextPart(content="b")],
+                      usage=RequestUsage(input_tokens=200, output_tokens=20),
+                      provider_details={"cost": 0.02}),
+    ]
+    input_t, output_t, cost = extract_usage(messages)
+    assert (input_t, output_t) == (300, 30)
+    assert cost == pytest.approx(0.03)
+
+
+def test_extract_usage_without_cost_reports_none():
+    from pydantic_ai.usage import RequestUsage
+    from evals.harness.runner import extract_usage
+
+    messages = [
+        ModelResponse(parts=[TextPart(content="a")],
+                      usage=RequestUsage(input_tokens=5, output_tokens=1)),
+    ]
+    assert extract_usage(messages) == (5, 1, None)
+
+
+def test_usage_model_settings_openrouter_enables_cost_accounting():
+    from evals.harness.runner import usage_model_settings
+
+    settings = usage_model_settings("openrouter:z-ai/glm-5.3")
+    assert settings["openrouter_usage"] == {"include": True}
+
+
+def test_usage_model_settings_other_providers_none():
+    from evals.harness.runner import usage_model_settings
+
+    assert usage_model_settings("anthropic:claude-sonnet-4-6") is None

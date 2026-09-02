@@ -296,3 +296,35 @@ def test_cli_emits_pass_at_k_png(tmp_path):
     pa, pb = _write(tmp_path, result_a()), _write(tmp_path, result_b())
     main([str(pa), str(pb), "--png-dir", str(png_dir)])
     assert (png_dir / "pass_at_k.png").stat().st_size > 0
+
+
+def _with_costs(result, cost_per_case):
+    for case in result["cases"]:
+        case["usage"] = {"input_tokens": 100, "output_tokens": 10,
+                         "cost_usd": cost_per_case}
+    return result
+
+
+def test_comparison_rows_total_cost():
+    (row,) = comparison_rows([_with_costs(result_a(), 0.05)])
+    assert row["total_cost_usd"] == pytest.approx(0.20)
+
+
+def test_comparison_rows_cost_none_when_absent():
+    # Old result files have no "usage" key at all -> cost is None, not 0.
+    (row,) = comparison_rows([result_a()])
+    assert row["total_cost_usd"] is None
+
+
+def test_print_comparison_renders_cost_column_with_dash_for_absent():
+    rows = comparison_rows([_with_costs(result_a(), 0.05), result_b()])
+    text = print_comparison(rows)
+    lines = text.splitlines()
+    header = lines[0].split()
+    assert "cost" in header
+
+    body = [line.split() for line in lines[1:] if line.strip()]
+    by_label = {tokens[header.index("label")]: tokens for tokens in body}
+    cost = header.index("cost")
+    assert by_label["a"][cost] == "0.20"
+    assert by_label["b"][cost] == "-"
