@@ -1,6 +1,6 @@
 # MCP server evals
 
-Regression evals for the [xplainable MCP server](../README.md)'s 42-tool
+Regression evals for the [xplainable MCP server](../README.md)'s 43-tool
 surface. An LLM agent (pydantic-ai) drives end-to-end ML flows — upload
 data, preprocess, train, deploy, predict — through the MCP tools, and each
 run is scored with pydantic-evals: stage assertions (did the expected
@@ -132,8 +132,8 @@ With `--png-dir`, also emits `pass_at_k.png`, `stage_pass.png` and
 pytest evals/tests -m smoke
 ```
 
-- `test_local_toolset_exposes_42_tools` always runs: local target lists the
-  42-tool surface in-process with a dummy API key (no LLM, no platform).
+- `test_local_toolset_exposes_43_tools` always runs: local target lists the
+  43-tool surface in-process with a dummy API key (no LLM, no platform).
 - `test_live_minimal` runs `telco_churn_minimal` at k=1 end-to-end; it
   skips unless `XPLAINABLE_TEAM_ID`, `ANTHROPIC_API_KEY` and a real
   `XPLAINABLE_API_KEY` are set. These must be exported in the shell:
@@ -150,7 +150,7 @@ wrapper usually needs almost nothing here:
   train/predict tool sets are name-derived; stage evaluators check platform
   outcomes, not tool names — existing assertions don't break.
 - **Always:** bump the count in
-  `test_targets.py::test_local_toolset_exposes_42_tools` (and this README).
+  `test_targets.py::test_local_toolset_exposes_43_tools` (and this README).
   It fails on every surface change by design — a tripwire so the surface
   never changes silently.
 - **If the tool creates a new artifact type** (not a
@@ -164,10 +164,10 @@ wrapper usually needs almost nothing here:
 
 ## Known limitations
 
-- Models ARE deleted in teardown (via the raw `/v1/models/{model_id}` route;
-  the client has no delete_model wrapper). Reports are still not torn down;
-  anything teardown could not delete is logged in the result's `leftovers`
-  list.
+- All artifact kinds are torn down, including models (via the raw
+  `/v1/models/{model_id}` route; the client has no delete_model wrapper)
+  and reports (via `reports.delete_report`, client >=1.17.0). Anything
+  teardown could not delete is logged in the result's `leftovers` list.
 - The hosted target is currently broken: pydantic-ai 2.37 passes a
   `verify=` kwarg that fastmcp 2.14.7's `StreamableHttpTransport` does not
   accept (`TypeError` at connect). All live validation used `--target local`

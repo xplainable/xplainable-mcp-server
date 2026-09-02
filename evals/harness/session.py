@@ -3,7 +3,8 @@
 Brackets each eval case: snapshot() before the agent runs, diff() after
 (-> CreatedArtifacts of new platform ids), upload_fixture() for setup,
 teardown(created) deletes everything created (models via the raw
-/v1/models/{model_id} route — the client has no delete_model wrapper).
+/v1/models/{model_id} route — the client has no delete_model wrapper;
+reports via reports.delete_report, added in client 1.17.0).
 """
 import logging
 from typing import Dict, List, Optional, Set
@@ -16,6 +17,10 @@ logger = logging.getLogger(__name__)
 # API route (see xplainable-api preprocessing endpoints), called through the
 # BaseClient raw `get` accessor.
 _PREPROCESSOR_VERSIONS_ENDPOINT = "/v1/preprocessors/{preprocessor_id}/versions"
+
+# No list-reports wrapper in the client either; real route returns
+# ShareableReport.to_response_format() dicts (primary key "id").
+_TEAM_REPORTS_ENDPOINT = "/v1/reports/teams/{team_id}"
 
 
 def _id_of(item, *keys) -> Optional[str]:
@@ -65,12 +70,17 @@ class EvalSession:
             except Exception:
                 continue  # e.g. model type without optimiser support
             optimisers.update(_id_of(o, "id", "optimiser_id") for o in items)
+        reports = {
+            _id_of(r, "id", "report_id")
+            for r in c.reports.get(_TEAM_REPORTS_ENDPOINT, team_id=self.team_id)
+        }
         return {
             "datasets": datasets - {None},
             "models": models - {None},
             "preprocessors": preprocessors - {None},
             "deployments": deployments - {None},
             "optimisers": optimisers - {None},
+            "reports": reports - {None},
         }
 
     def snapshot(self) -> None:
@@ -152,16 +162,18 @@ class EvalSession:
     def teardown(self, created: CreatedArtifacts) -> List[str]:
         """Best-effort delete of created artifacts; returns leftovers.
 
-        Order: deployments -> optimisers -> models -> preprocessors -> datasets
-        (deployments reference model versions; model versions reference
-        preprocessor versions). The client has no delete_model wrapper, so
-        models go through the BaseClient raw `delete` accessor with the real
-        API route (verified live).
+        Order: deployments -> optimisers -> reports -> models ->
+        preprocessors -> datasets (deployments and reports reference model
+        versions; model versions reference preprocessor versions). The
+        client has no delete_model wrapper, so models go through the
+        BaseClient raw `delete` accessor with the real API route (verified
+        live).
         """
         leftovers = []
         deletes = [
             ("deployment", created.deployments, self.client.deployments.delete_deployment),
             ("optimiser", created.optimisers, self.client.optimisers.delete_optimiser),
+            ("report", created.reports, self.client.reports.delete_report),
             ("model", created.models, self._delete_model),
             ("preprocessor", created.preprocessors, self.client.preprocessing.delete_preprocessor),
             ("dataset", created.datasets, self.client.datasets.delete_dataset),

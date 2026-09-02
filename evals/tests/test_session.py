@@ -22,6 +22,7 @@ from xplainable_client.client.deployments import DeploymentsClient
 from xplainable_client.client.models import ModelsClient
 from xplainable_client.client.optimisers import OptimisersClient
 from xplainable_client.client.preprocessing import PreprocessingClient
+from xplainable_client.client.reports import ReportsClient
 from xplainable_client.client.py_models.datasets import (
     DatasetInfo,
     DatasetUploadResponse,
@@ -49,26 +50,31 @@ def _deployment(i):
     )
 
 
-def _client(datasets=(), models=(), preprocessors=(), deployments=(), optimisers=()):
+def _client(datasets=(), models=(), preprocessors=(), deployments=(), optimisers=(),
+            reports=()):
     c = MagicMock()
     c.datasets = create_autospec(DatasetsClient, instance=True)
     c.models = create_autospec(ModelsClient, instance=True)
     c.preprocessing = create_autospec(PreprocessingClient, instance=True)
     c.deployments = create_autospec(DeploymentsClient, instance=True)
     c.optimisers = create_autospec(OptimisersClient, instance=True)
+    c.reports = create_autospec(ReportsClient, instance=True)
     c.datasets.list_team_datasets.return_value = [_dataset(i) for i in datasets]
     c.models.list_team_models.return_value = [ModelInfo(model_id=i) for i in models]
     c.preprocessing.list_preprocessors.return_value = [_preprocessor(i) for i in preprocessors]
     c.deployments.list_deployments.return_value = [_deployment(i) for i in deployments]
     # Real API is model-scoped (list_optimisers(model_id) -> List[Dict]).
     c.optimisers.list_optimisers.return_value = [{"id": i} for i in optimisers]
+    # No list-reports wrapper in the client; the session uses the BaseClient
+    # raw `get` accessor on the real route (ShareableReport dicts, key "id").
+    c.reports.get.return_value = [{"id": i} for i in reports]
     return c
 
 
 def test_diff_reports_only_new_artifacts():
     client = _client(
         datasets=["d1"], models=["m1"], preprocessors=["p1"],
-        deployments=["dep1"], optimisers=["o1"],
+        deployments=["dep1"], optimisers=["o1"], reports=["r1"],
     )
     session = EvalSession(client, team_id="t1")
     session.snapshot()
@@ -83,16 +89,21 @@ def test_diff_reports_only_new_artifacts():
         _deployment("dep1"), _deployment("dep2"),
     ]
     client.optimisers.list_optimisers.return_value = [{"id": "o1"}, {"id": "o2"}]
+    client.reports.get.return_value = [{"id": "r1"}, {"id": "r2"}]
     created = session.diff()
     assert created.datasets == ["d2"]
     assert created.models == ["m2"]
     assert created.preprocessors == ["p2"]
     assert created.deployments == ["dep2"]
     assert created.optimisers == ["o2"]
+    assert created.reports == ["r2"]
     # list-scoping: team-scoped list methods get the session team_id
     client.datasets.list_team_datasets.assert_called_with(team_id="t1")
     client.preprocessing.list_preprocessors.assert_called_with(team_id="t1")
     client.deployments.list_deployments.assert_called_with(team_id="t1")
+    client.reports.get.assert_called_with(
+        "/v1/reports/teams/{team_id}", team_id="t1"
+    )
 
 
 def test_diff_reports_new_optimisers_across_models():
@@ -131,11 +142,12 @@ def test_teardown_deletes_all_kinds_including_models():
     session = EvalSession(client, team_id="t1")
     created = CreatedArtifacts(
         datasets=["d2"], models=["m2"], preprocessors=["p2"],
-        deployments=["dep2"], optimisers=["o2"],
+        deployments=["dep2"], optimisers=["o2"], reports=["r2"],
     )
     leftovers = session.teardown(created)
     client.deployments.delete_deployment.assert_called_once_with("dep2")
     client.optimisers.delete_optimiser.assert_called_once_with("o2")
+    client.reports.delete_report.assert_called_once_with("r2")
     # No delete_model wrapper in the client; teardown uses the BaseClient
     # raw HTTP accessor with the real API route (verified live).
     client.models.delete.assert_called_once_with("/v1/models/m2")
@@ -167,12 +179,16 @@ def test_teardown_model_delete_failure_goes_to_leftovers():
 
 
 def test_teardown_deletes_deployments_before_models_before_preprocessors():
-    # Dependency chain: deployments reference model versions, model versions
-    # reference preprocessor versions — safe order is dep -> model -> pp.
+    # Dependency chain: deployments and reports reference model versions,
+    # model versions reference preprocessor versions — safe order is
+    # dep -> report -> model -> pp.
     client = _client()
     order = []
     client.deployments.delete_deployment.side_effect = (
         lambda i: order.append(("deployment", i))
+    )
+    client.reports.delete_report.side_effect = (
+        lambda i: order.append(("report", i))
     )
     client.models.delete.side_effect = lambda route: order.append(("model", route))
     client.preprocessing.delete_preprocessor.side_effect = (
@@ -180,10 +196,12 @@ def test_teardown_deletes_deployments_before_models_before_preprocessors():
     )
     session = EvalSession(client, team_id="t1")
     created = CreatedArtifacts(
-        models=["m2"], preprocessors=["p2"], deployments=["dep2"]
+        models=["m2"], preprocessors=["p2"], deployments=["dep2"], reports=["r2"]
     )
     session.teardown(created)
-    assert [kind for kind, _ in order] == ["deployment", "model", "preprocessor"]
+    assert [kind for kind, _ in order] == [
+        "deployment", "report", "model", "preprocessor"
+    ]
 
 
 # ---------------------------------------------------------------- inspect
