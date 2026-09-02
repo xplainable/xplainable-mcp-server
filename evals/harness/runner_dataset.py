@@ -120,6 +120,26 @@ def _client_version() -> str:
         return "unknown"
 
 
+def _case_diagnostics(output) -> dict:
+    """Minimal per-case diagnostics from a ReportCase output (a RunOutcome).
+
+    Tool-call entries carry name + error marker ONLY — args can be huge and
+    may contain data rows. Degrades (per this module's provenance convention)
+    if the output is not a RunOutcome — defensive: pydantic-evals 2.37 routes
+    raised tasks to report.failures, so report.cases outputs should always be
+    the task's return value.
+    """
+    if not isinstance(output, RunOutcome):
+        return {"error": "unknown", "usage_limit_hit": False, "tool_calls": []}
+    return {
+        "error": output.error,
+        "usage_limit_hit": output.usage_limit_hit,
+        "tool_calls": [
+            {"name": call.name, "error": call.error} for call in output.tool_calls
+        ],
+    }
+
+
 def write_result(
     report: EvaluationReport, config: RunConfig, path: Union[Path, str], leftovers=None
 ) -> dict:
@@ -145,6 +165,7 @@ def write_result(
                 "scores": {k: r.value for k, r in case.scores.items()},
                 "labels": {k: r.value for k, r in case.labels.items()},
                 "duration": case.task_duration,
+                **_case_diagnostics(case.output),
             }
             for case in report.cases
         ],

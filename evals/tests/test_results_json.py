@@ -9,7 +9,7 @@ import re
 from datetime import datetime
 
 from evals.harness import runner_dataset
-from evals.harness.models import RunConfig, RunOutcome, Stage
+from evals.harness.models import RunConfig, RunOutcome, Stage, ToolCall
 from evals.harness.runner_dataset import build_dataset, write_result
 from evals.scenarios.telco_churn import TELCO_MINIMAL
 
@@ -85,3 +85,43 @@ async def test_write_result_defaults_leftovers_to_empty(tmp_path):
     report = await _make_report()
     payload = write_result(report, RunConfig(k=2), tmp_path / "r.json")
     assert payload["leftovers"] == []
+
+
+async def test_write_result_persists_case_diagnostics(tmp_path):
+    # A failed/limited case must be diagnosable from the JSON alone:
+    # error, usage_limit_hit, and minimal tool-call info (name + error
+    # marker ONLY — no args, which can be huge / contain data rows).
+    async def failing_task(scenario):
+        return RunOutcome(
+            final_text="",
+            error="boom",
+            usage_limit_hit=True,
+            tool_calls=[
+                ToolCall(name="x", args={"huge": "payload"}, error=True),
+                ToolCall(name="y", error=False),
+            ],
+        )
+
+    dataset = build_dataset([TELCO_MINIMAL], RunConfig(k=1))
+    report = await dataset.evaluate(failing_task, progress=False)
+
+    payload = write_result(report, RunConfig(k=1), tmp_path / "r.json")
+
+    (case,) = json.loads((tmp_path / "r.json").read_text())["cases"]
+    assert case["error"] == "boom"
+    assert case["usage_limit_hit"] is True
+    assert case["tool_calls"] == [
+        {"name": "x", "error": True},
+        {"name": "y", "error": False},
+    ]
+    assert payload["cases"][0]["tool_calls"] == case["tool_calls"]
+
+
+async def test_write_result_healthy_case_diagnostics_are_empty(tmp_path):
+    report = await _make_report()  # stub task: no error, no tool calls
+    payload = write_result(report, RunConfig(k=2), tmp_path / "r.json")
+    for case in json.loads((tmp_path / "r.json").read_text())["cases"]:
+        assert case["error"] is None
+        assert case["usage_limit_hit"] is False
+        assert case["tool_calls"] == []
+    assert payload["cases"][0]["error"] is None
