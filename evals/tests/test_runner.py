@@ -533,6 +533,30 @@ def test_extract_usage_without_cost_reports_none():
     assert extract_usage(messages) == (5, 1, None)
 
 
+def test_extract_usage_mixes_decimal_and_float_costs():
+    # RequestUsage.cost is typed Decimal | None in pydantic-ai 2.37 while
+    # OpenRouter's provider_details["cost"] is a float. A transcript mixing
+    # both paths crashed a real run (float + Decimal TypeError); the sum
+    # must coerce to float and stay JSON-serialisable.
+    from decimal import Decimal
+
+    import pytest
+    from pydantic_ai.usage import RequestUsage
+    from evals.harness.runner import extract_usage
+
+    messages = [
+        ModelResponse(parts=[TextPart(content="a")],
+                      usage=RequestUsage(input_tokens=100, output_tokens=10),
+                      provider_details={"cost": 0.01}),
+        ModelResponse(parts=[TextPart(content="b")],
+                      usage=RequestUsage(input_tokens=200, output_tokens=20,
+                                         cost=Decimal("0.02"))),  # fallback path
+    ]
+    _, _, cost = extract_usage(messages)
+    assert isinstance(cost, float)
+    assert cost == pytest.approx(0.03)
+
+
 def test_usage_model_settings_openrouter_enables_cost_accounting():
     from evals.harness.runner import usage_model_settings
 

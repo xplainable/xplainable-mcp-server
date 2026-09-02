@@ -197,7 +197,8 @@ def extract_usage(messages) -> Tuple[int, int, Optional[float]]:
         if message_cost is None:
             message_cost = getattr(usage, "cost", None)
         if message_cost is not None:
-            cost = (cost or 0.0) + message_cost
+            # usage.cost is Decimal | None; provider_details cost is float.
+            cost = (cost or 0.0) + float(message_cost)
     return input_tokens, output_tokens, cost
 
 
