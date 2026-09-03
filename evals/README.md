@@ -123,8 +123,13 @@ One summary row per result file:
 - **`cost`** — total USD across cases that reported a cost; `-` for result
   files that predate cost capture (they stay comparable on everything else).
 
-With `--png-dir`, also emits `pass_at_k.png`, `stage_pass.png` and
-`step_count_hist.png`.
+With `--png-dir`, also emits `pass_at_k.png`, `stage_pass.png`,
+`step_count_hist.png` and `call_timeline.png`. The timeline draws one
+strip per case — every tool call in order, gray for success, red for
+errors, dark for the run's most-called tool (named in the legend) — so
+budget sinks like polling loops show up as a smear that no summary
+statistic conveys. Cases from result files that predate tool-call
+capture render as empty strips.
 
 ## Smoke tests
 

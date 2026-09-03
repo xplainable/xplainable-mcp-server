@@ -223,7 +223,8 @@ def test_cli_main_prints_table_and_emits_plots(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "data_prep" in out and "pass@k" in out
     pngs = sorted(p.name for p in png_dir.glob("*.png"))
-    assert pngs == ["pass_at_k.png", "stage_pass.png", "step_count_hist.png"]
+    assert pngs == ["call_timeline.png", "pass_at_k.png", "stage_pass.png",
+                    "step_count_hist.png"]
     assert all((png_dir / p).stat().st_size > 0 for p in pngs)
 
 
@@ -247,6 +248,42 @@ def test_step_count_hist_creates_png(tmp_path):
     out = tmp_path / "steps.png"
     step_count_hist([result_a(), result_b()], out)
     assert out.exists() and out.stat().st_size > 0
+
+
+def _with_tool_calls(result):
+    """Give every case a call sequence where one tool dominates."""
+    for case in result["cases"]:
+        case["tool_calls"] = (
+            [{"name": "models_train_model", "error": False}]
+            + [{"name": "reports_get_job_status", "error": False}] * 3
+            + [{"name": "reports_get_job_status", "error": True}]
+        )
+    return result
+
+
+def test_call_timeline_creates_png(tmp_path):
+    from evals.reporting.plots import call_timeline
+
+    out = tmp_path / "timeline.png"
+    call_timeline([_with_tool_calls(result_a()), _with_tool_calls(result_b())], out)
+    assert out.exists() and out.stat().st_size > 0
+
+
+def test_call_timeline_tolerates_missing_tool_calls(tmp_path):
+    from evals.reporting.plots import call_timeline
+
+    # Fixtures predate tool-call capture: no "tool_calls" key anywhere.
+    out = tmp_path / "timeline.png"
+    call_timeline([result_a()], out)
+    assert out.exists() and out.stat().st_size > 0
+
+
+def test_call_timeline_dominant_tool_is_most_called():
+    from evals.reporting.plots import dominant_tool
+
+    results = [_with_tool_calls(result_a())]
+    assert dominant_tool(results) == "reports_get_job_status"
+    assert dominant_tool([result_a()]) is None  # no tool_calls captured
 
 
 def test_pass_at_k_estimate_known_values():

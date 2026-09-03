@@ -7,9 +7,10 @@ import matplotlib
 
 matplotlib.use("Agg")
 
+from collections import Counter
 from math import comb
 from pathlib import Path
-from typing import List, Sequence, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 import matplotlib.pyplot as plt  # noqa: E402  (must follow matplotlib.use)
 
@@ -108,6 +109,75 @@ def stage_pass_bars(results: Sequence[dict], out_png: Union[str, Path]) -> None:
     _style(ax)
     fig.tight_layout()
     fig.savefig(out_png, dpi=150)
+    plt.close(fig)
+
+
+_TIMELINE_OK = "#d0d4dc"
+_TIMELINE_DOMINANT = "#1f2437"
+_TIMELINE_ERR = "#cf222e"
+
+
+def dominant_tool(results: Sequence[dict]) -> Optional[str]:
+    """Most-called tool name across all cases; None if none captured."""
+    counts = Counter(
+        call["name"]
+        for result in results
+        for case in result["cases"]
+        for call in case.get("tool_calls", [])
+    )
+    return counts.most_common(1)[0][0] if counts else None
+
+
+def call_timeline(results: Sequence[dict], out_png: Union[str, Path]) -> None:
+    """One strip per case: every tool call in order, left to right.
+
+    Gray = successful call, red = errored call, dark = the run's
+    most-called tool (named in the legend). Budget sinks like polling
+    loops show up as a dark/red smear no summary statistic conveys.
+    Cases without captured tool_calls (older result files) render empty.
+    """
+    highlight = dominant_tool(results)
+    rows: List[Tuple[str, List[dict]]] = []
+    for result, label in zip(results, dedupe_labels([r["label"] for r in results])):
+        for case in result["cases"]:
+            rows.append((f"{label} · {case['name']}", case.get("tool_calls", [])))
+
+    max_len = max((len(calls) for _, calls in rows), default=0)
+    fig, axes = plt.subplots(
+        len(rows), 1, figsize=(10, 0.5 * len(rows) + 1.3),
+        sharex=True, squeeze=False,
+    )
+    for ax, (row_label, calls) in zip(axes[:, 0], rows):
+        n_hl = 0
+        for x, call in enumerate(calls):
+            if call.get("error"):
+                color = _TIMELINE_ERR
+            elif call["name"] == highlight:
+                color = _TIMELINE_DOMINANT
+            else:
+                color = _TIMELINE_OK
+            n_hl += call["name"] == highlight
+            ax.add_patch(plt.Rectangle((x, 0), 0.88, 1, color=color))
+        ax.set_xlim(0, max(max_len, 1) * 1.04)
+        ax.set_ylim(0, 1)
+        ax.set_yticks([])
+        ax.set_ylabel(row_label, rotation=0, ha="right", va="center", fontsize=9)
+        if highlight and calls:
+            ax.text(len(calls) + 0.4, 0.5, f"{n_hl}/{len(calls)}",
+                    va="center", fontsize=8.5, color=_TIMELINE_DOMINANT)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+    axes[-1, 0].set_xlabel("tool calls in order")
+    handles = [plt.Rectangle((0, 0), 1, 1, color=_TIMELINE_OK, label="call ok")]
+    if highlight:
+        handles.append(plt.Rectangle(
+            (0, 0), 1, 1, color=_TIMELINE_DOMINANT, label=highlight))
+    handles.append(plt.Rectangle(
+        (0, 0), 1, 1, color=_TIMELINE_ERR, label="errored"))
+    fig.legend(handles=handles, loc="upper center", ncol=len(handles),
+               frameon=False, fontsize=9, bbox_to_anchor=(0.5, 1.0))
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    fig.savefig(out_png, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
 
