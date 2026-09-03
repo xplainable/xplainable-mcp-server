@@ -16,7 +16,8 @@ evals.harness.runner_dataset.write_result) and computes, per result:
   these as "flags:<detector>" columns so a non-zero count reads as bad.
 
 CLI: python -m evals.reporting.compare results/a.json results/b.json
-     [--png-dir DIR]   # also emit stage_pass.png + step_count_hist.png
+     [--png-dir DIR]   # also emit pass_at_k / stage_pass /
+                       # step_count_hist / call_timeline PNGs
 """
 import argparse
 import json
@@ -168,7 +169,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser.add_argument("paths", nargs="+", help="result JSON files to compare")
     parser.add_argument(
         "--png-dir", default=None,
-        help="also write stage_pass.png and step_count_hist.png here",
+        help="also write pass_at_k, stage_pass, step_count_hist and "
+             "call_timeline PNGs here",
     )
     args = parser.parse_args(argv)
 
@@ -177,6 +179,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     if args.png_dir:
         from evals.reporting.plots import (
+            call_timeline,
             pass_at_k_curve,
             stage_pass_bars,
             step_count_hist,
@@ -187,6 +190,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         pass_at_k_curve(results, png_dir / "pass_at_k.png")
         stage_pass_bars(results, png_dir / "stage_pass.png")
         step_count_hist(results, png_dir / "step_count_hist.png")
+        call_timeline(results, png_dir / "call_timeline.png")
 
 
 if __name__ == "__main__":
