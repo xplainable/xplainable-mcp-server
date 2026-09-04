@@ -43,10 +43,10 @@ class TestFlatSurface:
         assert surface == expected
 
     def test_registry_count(self):
-        assert len(list(iter_registry_entries())) == 37
+        assert len(list(iter_registry_entries())) == 38
 
     def test_total_count(self, surface):
-        assert len(surface) == 43  # 37 registry + 6 server-native
+        assert len(surface) == 44  # 38 registry + 6 server-native
 
     def test_training_loop_tools_present(self, surface):
         for name in (
