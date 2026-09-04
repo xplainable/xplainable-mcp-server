@@ -5,6 +5,13 @@ All notable changes to the Xplainable MCP Server will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+- Tool surface 43 → 44: `preprocessing_preview_spec` (xplainable-client 1.18.0) dry-runs a
+  PipelineSpec against a dataset and returns per-step deltas plus the platform's safety
+  verdict, so a spec is checked before `preprocessing_create_preprocessor_from_spec`.
+
 ## [Unreleased]
 
 ### Added
