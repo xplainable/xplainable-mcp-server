@@ -37,18 +37,29 @@ class ServerConfig:
 config = ServerConfig()
 
 
+def _with_inference_host(client):
+    """Point the client's session at XPLAINABLE_INFERENCE_HOST when set.
+
+    The facade constructor does not take inference_hostname (only Session
+    does), so it is applied after construction; None keeps the client's
+    production default.
+    """
+    if config.inference_hostname:
+        client.session.inference_hostname = config.inference_hostname
+    return client
+
+
 def _get_static_client():
     """Get or create the singleton client (API key mode)."""
     global _static_client
     if _static_client is None:
         from xplainable_client.client.client import XplainableClient
-        _static_client = XplainableClient(
+        _static_client = _with_inference_host(XplainableClient(
             api_key=config.api_key,
             hostname=config.hostname,
-            inference_hostname=config.inference_hostname,
             org_id=config.org_id,
             team_id=config.team_id,
-        )
+        ))
         logger.info("Static XplainableClient initialized (API key mode)")
     return _static_client
 
@@ -62,12 +73,11 @@ def _get_user_client(user_id: str, token: str):
     with _clients_lock:
         if user_id not in _clients:
             from xplainable_client.client.client import XplainableClient
-            _clients[user_id] = XplainableClient(
+            _clients[user_id] = _with_inference_host(XplainableClient(
                 bearer_token=token,
                 hostname=config.hostname,
-                inference_hostname=config.inference_hostname,
                 team_id=config.team_id,
-            )
+            ))
             logger.info(f"Per-user XplainableClient created for user {user_id[:12]}...")
         else:
             # Update token on existing client (handles reconnects / token refresh)
@@ -111,12 +121,11 @@ def set_active_team(team_id: str):
             else:
                 # Create new client with team_id
                 from xplainable_client.client.client import XplainableClient
-                _clients[user_id] = XplainableClient(
+                _clients[user_id] = _with_inference_host(XplainableClient(
                     bearer_token=token,
                     hostname=config.hostname,
-                    inference_hostname=config.inference_hostname,
                     team_id=team_id,
-                )
+                ))
                 logger.info(f"Created client with team {team_id} for user {user_id[:12]}...")
     else:
         # Stdio mode: update or recreate static client
@@ -127,13 +136,12 @@ def set_active_team(team_id: str):
             logger.info(f"Updated static client team_id to {team_id}")
         else:
             from xplainable_client.client.client import XplainableClient
-            _static_client = XplainableClient(
+            _static_client = _with_inference_host(XplainableClient(
                 api_key=config.api_key,
                 hostname=config.hostname,
-                inference_hostname=config.inference_hostname,
                 org_id=config.org_id,
                 team_id=team_id,
-            )
+            ))
             logger.info(f"Created static client with team {team_id}")
 
 
