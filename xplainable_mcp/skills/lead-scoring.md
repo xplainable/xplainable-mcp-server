@@ -1,53 +1,49 @@
 # Lead Scoring
 
-> **Prerequisite:** Read and follow [xplainable Best Practices](xplainable-best-practices.md). It defines core rules (no scaling, explainability-first preprocessing, evaluation standards) that apply to every xplainable skill. This skill adds lead scoring-specific guidance on top.
+> **Prerequisite:** Read and follow [xplainable Best Practices](xplainable-best-practices.md). It defines the core rules (no scaling, explainability-first preprocessing, the v2 iteration loop, evaluation standards) that apply to every xplainable skill. This skill adds lead-scoring-specific guidance on top.
 
-You are an ML engineer building a lead scoring model using the xplainable platform. You have access to MCP tools that let you preprocess data, train explainable models, evaluate results, deploy, and monitor. The goal is to predict which leads are most likely to convert, so the sales team can prioritise their outreach.
+You are an ML engineer building a lead scoring model on the xplainable platform. The goal is to predict which leads are most likely to convert so the sales team can prioritise outreach -- and to hand them a ranked, explained list, not just a model.
 
 ## Getting Started
 
 Ask the user:
 
 > How would you like to work?
-> - **Auto** -- I'll analyse your data, build preprocessing, train, and deploy. You can redirect me anytime.
+> - **Auto** -- I'll analyse your data, build preprocessing, train, iterate and deploy. You can redirect me anytime.
 > - **Assisted** -- I'll explain my reasoning at each step and wait for your approval before proceeding.
 
-Then ask: **What CSV file should I use?** (get the file path)
+Then find the data on the platform:
+```
+datasets_list_team_datasets()                                  → pick the dataset_id
+datasets_upload_dataset(name, records=[...row dicts...])       → small tables given inline; large exports go through the platform UI
+```
 
 ---
 
 ## Phase 1: Understand the Data
 
-**If the user provides a local CSV file** (Claude Code / local MCP):
-- Read the CSV directly and examine it
-
-**If the user's data is on the platform** (hosted MCP / Claude Desktop):
 ```
-datasets_list_team_datasets()                    → find the dataset ID
-autotrain_summarize_by_dataset_id(dataset_id)    → get column statistics
+autotrain_summarize_by_dataset_id(dataset_id)                        → column statistics, types, missingness
+datasets_preview_dataset_json(dataset_id, rows=100, sample=True)      → a RANDOM sample (CRM exports are often sorted by status)
 ```
 
-From the summary or direct read, identify:
-- Column names and types (numeric, categorical, datetime, text, ID)
-- Look for a conversion target column: "converted", "won", "is_customer", "deal_status", "closed_won", "qualified", etc.
-- Row and column counts
-
-Analyse and note:
-- **Missing values**: lead data is often sparse -- many fields left blank by sales reps or incomplete form fills
-- **Class balance**: conversion rates are typically 5-25%. Flag severe imbalance (<5%)
-- **High cardinality categoricals**: company industry, job title, lead source -- may have dozens of values
-- **ID/irrelevant columns**: lead ID, contact name, email, phone, rep name -- must be dropped
-- **Datetime columns**: created date, first touch, last activity, demo date -- need feature extraction
-- **Text columns**: notes, company description, lead source detail -- may contain signal
-- **Numeric columns**: revenue, employee count, engagement score, page views, email opens
+Identify:
+- The conversion target: "converted", "won", "is_customer", "deal_status", "closed_won", "qualified", etc.
+- **Missing values**: lead data is sparse -- many fields left blank by reps or incomplete form fills. A blank is often a signal (no demo booked), not noise.
+- **Class balance**: conversion rates are typically 5-25%. Flag severe imbalance (<5%).
+- **High cardinality categoricals**: industry, job title, lead source, country
+- **ID / irrelevant columns**: lead ID, contact name, email, phone, rep name -- must be dropped
+- **Leakage**: deal value, close date, won date, an existing CRM lead score -- known only after or because of conversion; must be dropped
+- **Datetime columns**: created date, first touch, last activity, demo date -- recency features come from these
+- **Engagement metrics**: page views, email opens/clicks, form submissions -- usually the strongest signals
 
 **If Assisted**: Present your analysis:
 > Here's what I see in your data:
 > - [X rows, Y columns]
 > - Target: [column name] ([Z% conversion rate])
 > - Key features: [list notable columns]
-> - Issues to address: [missing values, high cardinality, etc.]
-> - Columns I'll drop: [IDs, irrelevant]
+> - Issues to address: [missing values, high cardinality, leakage suspects]
+> - Columns I'll drop: [IDs, leakage]
 >
 > Does this look right? Should I adjust anything?
 
@@ -55,78 +51,52 @@ Analyse and note:
 
 ## Phase 2: Build Preprocessing
 
-First, get the transformer catalog:
 ```
-preprocessing_list_available_transformers()
+preprocessing_list_available_transformers()          → catalogue + parameter names; never guess them
 ```
-
-Design a PipelineSpec based on what you found in Phase 1. Follow these lead scoring-specific guidelines:
 
 ### Lead Scoring Preprocessing Playbook
 
 **Always do:**
 - Drop ID columns, contact names, email, phone, rep assignments (DropColumnsTransformer)
-- Fill missing numeric values with median (FillMissingTransformer with strategy "median") -- lead data has many blanks
-- Fill missing categoricals with "Unknown" (FillMissingTransformer with constant value "Unknown")
+- Flag informative blanks before filling (MissingFlagTransformer on demo_date, phone, company size)
+- Fill missing numerics with median, missing categoricals with "Unknown" (FillMissingTransformer)
 
 **Datetime columns** (created_date, first_touch, last_activity, demo_date):
-- Extract: month, dayofweek, quarter (DateTimeExtractTransformer)
-- Critical feature: **recency** -- compute days between key dates using ExpressionTransformer if possible
-- Days since last activity is often the strongest predictor
+- **Recency is the strongest feature you can build**: days since last activity, days from creation to first touch (ExpressionTransformer)
+- Extract month / quarter for seasonality (DateTimeExtractTransformer)
 
-**High cardinality categoricals** (industry, job_title, lead_source, country):
-- Condense job titles to top 15 (CategoryCondenseTransformer, max_categories=15)
-- Condense industry to top 12 (CategoryCondenseTransformer, max_categories=12)
-- Lead source usually has fewer values -- condense to top 10
+**High cardinality categoricals**:
+- Job titles → top 15, industry → top 12, lead source → top 10 (CategoryCondenseTransformer)
 
-**Company-level aggregation** (if data has multiple contacts per company):
-- Consider GroupByAggTransformer on company_id to create:
-  - total_contacts (count), total_engagement (sum), avg_engagement (mean)
-- Only do this if the data has duplicate company entries
+**Company-level aggregation** (multiple contacts per company): GroupByAggTransformer on company_id for contact counts and total engagement -- only if the data actually has duplicate companies.
 
-**Text columns** (notes, company_description):
-- Clean: lowercase, strip, remove_extra_whitespace, remove_html (TextCleanTransformer)
-- Then drop -- free text is rarely useful for tabular models without NLP
-- Exception: if notes contain structured tags or categories, keep them
+**Text columns** (notes, company_description): clean (TextCleanTransformer), then drop unless they carry structured tags.
 
-**Engagement metrics** (page_views, email_opens, email_clicks, form_submissions):
-- These are usually strong signals -- keep all of them
-- Do NOT scale -- xplainable needs raw values for explainability ("page_views = 23 adds +0.12" is meaningful)
+**Engagement metrics and firmographics** (page_views, email_opens, annual_revenue, employee_count): keep them all, raw. "page_views = 23 adds +0.12" is what the sales team needs to hear.
 
-**Revenue / company size** (annual_revenue, employee_count):
-- Do NOT scale these either -- the model handles raw values natively
-- Explainability requires original units ("annual_revenue = 5M adds +0.08" is actionable for sales)
-
-### Build the pipeline
+### Dry-run, then create
 
 ```
-preprocessing_create_preprocessor_from_spec(
-    name="Lead Scoring Preprocessing v1",
-    description="Preprocessing for lead conversion prediction",
-    spec={
-        "version": "2.0",
-        "steps": [
-            {"id": "drop_ids", "type": "DropColumnsTransformer", "params": {"columns": ["lead_id", "contact_name", "email", ...]}},
-            {"id": "fill_numeric", "type": "FillMissingTransformer", "columns": ["annual_revenue", "employee_count", "page_views", ...], "params": {"strategies": {"annual_revenue": "median", "employee_count": "median", "page_views": 0}}},
-            {"id": "fill_categorical", "type": "FillMissingTransformer", "columns": ["industry", "job_title", ...], "params": {"default": "Unknown"}},
-            {"id": "extract_dates", "type": "DateTimeExtractTransformer", "columns": ["created_date", "last_activity"], "params": {"components": ["month", "dayofweek", "quarter"], "drop_original": true}},
-            {"id": "condense_title", "type": "CategoryCondenseTransformer", "columns": ["job_title"], "params": {"max_categories": 15}},
-            {"id": "condense_industry", "type": "CategoryCondenseTransformer", "columns": ["industry"], "params": {"max_categories": 12}},
-            {"id": "condense_source", "type": "CategoryCondenseTransformer", "columns": ["lead_source"], "params": {"max_categories": 10}},
-            {"id": "clean_notes", "type": "TextCleanTransformer", "columns": ["notes"], "params": {"operations": ["lowercase", "strip", "remove_extra_whitespace", "remove_html"]}},
-            {"id": "drop_text", "type": "DropColumnsTransformer", "params": {"columns": ["notes", "company_description"]}}
-        ]
-    },
-    sample_data=[first 5-10 rows as dicts]
-)
+preprocessing_preview_spec(dataset_id, spec={
+    "version": "2.0",
+    "steps": [
+        {"id": "drop_ids", "type": "DropColumnsTransformer", "params": {"columns": ["lead_id", "contact_name", "email", "phone", "rep_name", "deal_value", "close_date"]}},
+        {"id": "flag_demo", "type": "MissingFlagTransformer", "columns": ["demo_date"], "params": {"suffix": "_missing"}},
+        {"id": "fill_numeric", "type": "FillMissingTransformer", "columns": ["annual_revenue", "employee_count", "page_views"], "params": {"strategies": {"annual_revenue": "median", "employee_count": "median", "page_views": 0}}},
+        {"id": "fill_categorical", "type": "FillMissingTransformer", "columns": ["industry", "job_title", "lead_source"], "params": {"default": "Unknown"}},
+        {"id": "condense_title", "type": "CategoryCondenseTransformer", "columns": ["job_title"], "params": {"max_categories": 15}},
+        {"id": "condense_industry", "type": "CategoryCondenseTransformer", "columns": ["industry"], "params": {"max_categories": 12}},
+        {"id": "extract_dates", "type": "DateTimeExtractTransformer", "columns": ["created_date"], "params": {"components": ["month", "quarter"], "drop_original": true}}
+    ]
+}, target_column="converted")
 ```
-
-Then preview:
+Read the deltas and safety findings, then:
 ```
+preprocessing_create_preprocessor_from_spec(name="Lead Scoring Preprocessing v1", description=..., spec=spec)   → preprocessor_id, version_id
 preprocessing_preview_from_data(version_id, sample_data=[rows as dicts])
 ```
-
-Review the preview. Check that engagement metrics survived, categoricals are condensed sensibly, and no important columns were dropped.
+Confirm engagement metrics survived, categoricals condensed sensibly, nothing important was dropped.
 
 **If Assisted**: Show the plan and preview. Ask for approval.
 
@@ -135,27 +105,20 @@ Review the preview. Check that engagement metrics survived, categoricals are con
 ## Phase 3: Train the Model
 
 ```
-train_model(
-    file_path="path/to/leads.csv",
+models_train_model(
+    dataset_id="<dataset_id>",
     target_column="converted",
     model_name="Lead Scoring Model",
     model_description="Binary classifier predicting lead conversion likelihood",
-    model_type="classifier",
-    preprocessor_version_id="<from phase 2>",
-    drop_columns=["lead_id", "contact_name", "email", ...],
-    max_depth=8,
-    min_info_gain=0.0001
+    model_type="classification",
+    preprocessor_version_id="<from Phase 2>",
+    drop_columns=["lead_id", "contact_name", "email", "phone", "rep_name", "deal_value", "close_date"],
+    monotonic_features={"page_views": "increasing", "email_opens": "increasing", "days_since_last_activity": "decreasing"},
+    test_size=0.2
 )
+→ model_id, version_id, run_id, train_metrics, test_metrics, feature_importances, n_train, n_test
 ```
-
-### Starting hyperparameters for lead scoring:
-- `max_depth=8` -- good default
-- `min_info_gain=0.0001` -- keep low initially
-- `min_leaf_size=0.001` -- slightly higher than default since lead data can be noisy
-- `weight=1.0` -- default
-- `tail_sensitivity=1.0` -- default
-
-Note: if the dataset is small (<2000 rows), reduce `max_depth` to 5-6 and increase `min_leaf_size` to 0.01 to prevent overfitting.
+Small datasets (<2000 rows) are common in lead scoring: use `test_size=0.3`. Monotonic constraints on engagement and recency keep the model from learning that more engagement lowers conversion because of a few noisy rows.
 
 ---
 
@@ -163,184 +126,122 @@ Note: if the dataset is small (<2000 rows), reduce `max_depth` to 5-6 and increa
 
 ### Read the results
 
-From `train_model` output, examine:
+**Overfitting check:** lead scoring overfits easily on small, noisy data -- watch the train/test gap closely; 3-5% is normal, more needs action.
 
-**Overfitting check:**
-- Compare train accuracy vs test accuracy
-- Compare train AUC vs test AUC
-- Lead scoring models are prone to overfitting on small datasets -- watch this closely
+**Benchmarks:** test AUC > 0.75 good, > 0.82 very good, < 0.65 means the data lacks signal or needs better recency features. Ignore accuracy at typical conversion rates.
 
-**Performance benchmarks for lead scoring:**
-- Test AUC > 0.75 is good
-- Test AUC > 0.82 is very good
-- Test AUC < 0.65 suggests the data lacks predictive signal or needs better features
-- Note: accuracy is misleading with imbalanced conversion rates. Focus on AUC and precision/recall.
+**Feature importances:** engagement and recency should lead. If "rep_name" or "assigned_to" ranks high, you are scoring rep skill, not lead quality -- drop it.
 
-**Feature importances:**
-- Engagement metrics (page_views, email_opens) should rank high -- these are direct signals of interest
-- Recency (days since last activity) is usually top 3
-- Company size/revenue often matters -- larger companies have different conversion patterns
-- Lead source matters -- referrals convert better than cold outbound
-- If "rep_name" or "assigned_to" is important, it's likely leakage (rep skill ≠ lead quality)
-
-### Deeper inspection
+### Inspect
 
 ```
-get_model_profile(version_id)       # See how each feature value affects conversion probability
-get_model_evaluation(partition_id)  # Precision, recall, F1 at different thresholds
-get_feature_info(version_id)        # Feature health
+models_get_model_profile(version_id)        # how each feature value moves conversion probability -- the sales team's favourite view
+models_get_feature_info(version_id)
+gpt_explain_model(model_id, version_id)
+models_list_model_versions(model_id)        # versions + parameters per feature
 ```
 
-The model profile is especially valuable for lead scoring -- it shows exactly how a feature like "page_views=15" changes the conversion probability vs the baseline. Share this with the sales team.
+### Iterate
 
-### Iteration strategies
-
-**If overfitting (common with lead data) -- use rapid refit:**
+**Refit the features that overfit** -- typically the sparse numerics -- with the same `drop_columns`, `test_size`, `seed`:
 ```
-refit_model(
-    model_id="<model_id>",
-    version_id="<version_id>",
-    file_path="path/to/leads.csv",
-    target_column="converted",
-    model_type="classifier",
-    preprocessor_version_id="<if used>",
-    drop_columns=["lead_id", ...],
-    max_depth=5        # reduce from 8
+models_refit_features(
+    version_id="<version_id>", dataset_id="<dataset_id>", target_column="converted",
+    drop_columns=[...as training...], test_size=0.3,
+    feature_params={
+        "annual_revenue": {"l2": 50, "num_splines": 8},     # a handful of huge companies were driving a spike
+        "page_views":     {"l2": 10},                         # wiggly tail
+        "job_title":      {"l2": 30}                          # rare titles with extreme effects
+    }
 )
 ```
-1. Reduce `max_depth` to 5 or 6 via `refit_model()` -- instant
-2. Increase `min_leaf_size` to 0.01 or 0.05 via `refit_model()` -- instant
-3. Try combinations rapidly -- each refit is instant, creates a new version to compare
-4. Lead data is noisy -- some overfitting gap (3-5%) is normal
-5. If still overfitting after refit, drop noisy columns and do a full `train_model()`
+Compare test AUC and gap with the previous version; keep the better one.
 
-**If low performance -- refit first, then retrain:**
-1. Try `refit_model()` with higher `max_depth` (10, 12) -- instant
-2. Adjust `weight` or `tail_sensitivity` via refit
-3. If refit can't improve it: check features, add datetime features, full `train_model()`
-4. Consider whether the target is well-defined (some CRMs have messy conversion flags)
+**Retrain** when you add a recency feature, change condensing thresholds, or find leakage.
 
-**If suspicious features:**
-- "deal_value" or "contract_amount" predicting conversion = leakage (known after conversion)
-- "close_date" or "won_date" = definite leakage
-- "lead_score" from another system = circular (you're rebuilding this)
-- Drop the suspicious column and do a full `train_model()` (feature set changed, can't refit)
+**If low performance:** the fix is almost always a better recency/engagement feature, not a knob.
 
-**If Assisted**: Present analysis and recommendations. Let the user decide whether to iterate or deploy.
+**If Assisted**: Present versions side by side with concrete numbers and let the user pick.
 
 ---
 
 ## Phase 5: Deploy
 
 ```
-# 1. Deploy
-deployments_deploy(model_version_id="<version_id>")
-→ deployment_id
-
-# 2. Activate
+preprocessing_check_signature(preprocessor_version_id="<pp version>", model_version_id="<best version>")
+models_link_preprocessor(model_version_id, preprocessor_version_id)          # if not linked
+deployments_deploy(model_version_id="<best version>")                         → deployment_id
 deployments_activate_deployment(deployment_id)
-
-# 3. API key
 deployments_generate_deploy_key(deployment_id, description="Lead scoring API key", days_until_expiry=90)
-→ deploy_key
 ```
 
 ---
 
-## Phase 6: Report & Monitor
-
-### Create a report
+## Phase 6: Score the Pipeline
 
 ```
-reports_create_report_sync(
-    run_id="<run_id>",
-    report_name="Lead Scoring Model Report",
-    report_description="Performance report for lead conversion prediction",
-    widgets=["confusionMatrix", "thresholdPlot", "prCurveRocCurve", "waterfallplot", "featureImportance"],
-    mode="dynamic",
-    max_features=15
-)
+inference_score_dataset(dataset_id="<open leads dataset>", version_id="<deployed version>", top_n=100)
 ```
-
-The threshold plot is especially important for lead scoring -- the sales team needs to choose a score cutoff that balances volume (more leads to work) vs quality (higher conversion rate per lead).
-
-### Set up monitoring
-
-```
-monitors_create_monitor(
-    model_id="<model_id>",
-    model_version_id="<version_id>",
-    name="Lead Scoring Monitor",
-    description="Monitors lead scoring model for drift and degradation"
-)
-→ monitor_id
-
-monitors_create_alert_rule(
-    monitor_id="<monitor_id>",
-    metric="prediction_drift",
-    threshold=0.15,
-    condition="greater_than",
-    name="Lead Score Drift Alert"
-)
-```
-
-Note: lead scoring models degrade faster than most -- marketing campaigns change lead mix, seasonal patterns shift. Monitor closely and retrain quarterly.
+This is the deliverable: the top-N leads with their source columns and conversion probability, plus deciles with observed conversion counts. Turn the deciles into tiers the team can work:
+- **Hot** (decile 1-2): route to senior reps today
+- **Warm** (decile 3-5): nurture with targeted content
+- **Cold** (rest): automated nurture only
+Set the cut-offs from the decile table, not from a fixed 0.7/0.4 -- the right threshold depends on how many leads the team can actually work. Pass the RAW dataset; the linked preprocessor runs server-side. For ad-hoc rows, `inference_predict(records, model_id, version_id)`.
 
 ---
 
-## Phase 7: Summary
+## Phase 7: Report
+
+```
+reports_create_report(run_id="<run_id from training>", report_name="Lead Scoring Model Report",
+                      widgets=["binaryoverview", "metrics", "thresholdPlot", "prCurveRocCurve", "waterfallplot", "health"],
+                      mode="dynamic", max_features=15)          → job_id
+reports_get_job_status(job_id)                                  → poll until 'done'
+```
+The threshold plot matters most here: it is the volume-vs-quality trade-off the sales lead has to choose.
+
+---
+
+## Phase 8: Summary
 
 > **Lead Scoring Model Complete**
 >
-> **Performance:**
-> - Test AUC: X
-> - Test Precision (at 50% threshold): X%
-> - Test Recall (at 50% threshold): X%
-> - Top predictors: [list top 3-5 features]
+> **Performance (version [id]):**
+> - Test AUC: X (train X, gap Y%)
+> - Top predictors: [top 3-5 features]
 >
 > **What was built:**
-> - Preprocessor: [name] (version: [id])
-> - Model: [name] (version: [id])
-> - Deployment: [id] (active)
-> - API Key: [key] (expires: [date])
-> - Report: [link/id]
-> - Monitor: [name] with drift alerting
+> - Preprocessor: [name] (version [id])
+> - Model: [name] (model [id], deployed version [id])
+> - Deployment: [id] (active), key expires [date]
+> - Report: [id]
 >
-> **How to use the scores:**
-> - Scores range from 0 to 1 (probability of conversion)
-> - Suggested tiers:
->   - **Hot** (>0.7): High priority, route to senior reps
->   - **Warm** (0.4-0.7): Nurture with targeted content
->   - **Cold** (<0.4): Low priority, automated nurture only
-> - Adjust thresholds based on your team's capacity
+> **Scored pipeline:** [N leads scored; Hot/Warm/Cold counts and cut-offs; top-10 with the feature that put each there]
 >
-> **To iterate:**
-> Ask me to adjust preprocessing or retrain with different parameters.
+> **To iterate:** ask me to refit a feature, add a recency feature, or retrain. Lead mix shifts with campaigns -- plan to retrain quarterly.
 
 ---
 
 ## Lead Scoring Domain Knowledge
 
-### Common lead scoring predictors (high to low importance typically):
-1. **Engagement recency** -- days since last website visit, email open, or form submission
-2. **Engagement volume** -- total page views, email clicks, content downloads
+### Common predictors (high to low importance typically):
+1. **Engagement recency** -- days since last visit, email open or form submission (build it explicitly)
+2. **Engagement volume** -- page views, email clicks, content downloads
 3. **Lead source** -- referrals and inbound convert 3-5x better than cold outbound
-4. **Company fit** -- revenue, employee count, industry alignment with ICP
-5. **Job title / seniority** -- decision-makers convert differently than researchers
-6. **Firmographic match** -- company size, industry, geography matching ideal customer profile
-7. **Behavioural signals** -- pricing page visits, demo requests, case study downloads
+4. **Company fit** -- revenue, employee count, industry alignment with the ICP
+5. **Job title / seniority** -- decision-makers convert differently from researchers
+6. **Behavioural signals** -- pricing page visits, demo requests, case-study downloads
 
-### Red flags in lead scoring data:
-- **Deal amount/value** as a feature = leakage (known only after conversion)
+### Red flags:
+- **Deal amount / value** as a feature = leakage (known only after conversion)
 - **Close date / won date** = definite leakage
-- **Existing lead score** from CRM = circular, remove it
-- **Rep name** having high importance = you're scoring rep performance, not lead quality
-- **Very high AUC (>0.95)** on lead data almost always means leakage somewhere
+- **Existing CRM lead score** = circular; remove it
+- **Rep name** with high importance = you are scoring rep performance, not lead quality
+- **Test AUC > 0.95** on lead data almost always means leakage somewhere
 
-### Preprocessing priorities for lead scoring:
-- Engagement metrics are gold -- never drop them, handle missing values carefully (0 is meaningful, not just "missing")
-- NEVER scale numeric columns -- xplainable models need raw values for explainability
+### Preprocessing priorities:
+- Engagement metrics are gold -- never drop them; a missing count is usually 0, not "unknown"
+- NEVER scale numeric columns
 - Job titles have extreme cardinality -- always condense
-- Lead source is critical context -- keep it clean but don't over-condense
-- Date features should focus on recency, not absolute dates
-- Missing values in lead data are informative -- a blank "demo_date" means no demo was booked, which itself is a signal. Consider filling with a sentinel value rather than imputing.
+- Date features should express recency, not absolute dates
+- Blank `demo_date` means no demo was booked -- flag it, don't impute it

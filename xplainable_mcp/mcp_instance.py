@@ -67,7 +67,9 @@ Returns model_id, version_id, train/test metrics, and feature importances.
 `models_get_feature_info(version_id)` for feature health and \
 `gpt_explain_model` for the importance/profile digest.
 6. Iterate:
-   - Hyperparameter tuning → `models_refit_model` (cheap, same structure).
+   - Per-feature tuning → `models_refit_features` (v2/XGM knobs per
+     feature: l2, num_splines, monotonic...; read current values from
+     `models_list_model_versions` parameters first).
    - Different features / preprocessing / target → `models_train_model` again.
    Narrate what you changed and why; show the user the metric movement.
 7. `deployments_deploy(version_id)` — deploy once satisfied (then \

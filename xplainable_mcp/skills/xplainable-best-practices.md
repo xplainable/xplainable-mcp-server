@@ -1,12 +1,15 @@
 # xplainable Best Practices
 
-This document defines the core principles for building models with xplainable. All skills inherit these rules. If a skill-specific instruction conflicts with this document, this document wins.
+This document defines the core principles for building models with xplainable through the MCP tools. All skills inherit these rules. If a skill-specific instruction conflicts with this document, this document wins.
+
+Every model you train through these tools is an **XGM (v2) model**: an additive model of per-feature shape functions (Gaussian-basis splines for numeric features, per-level effects for categorical features, plus a few automatically selected pairwise interactions). Two consequences shape everything below:
+
+- There are **no training hyperparameters**. `models_train_model` takes data, features, preprocessing and constraints — nothing else. You improve a model by changing what it sees (features, preprocessing), what it must respect (monotonic constraints), and, after training, by refitting individual features with `models_refit_features`.
+- Every feature's effect is a curve you can read (`models_get_model_profile`). Preserve that.
 
 ---
 
 ## Explainability First
-
-xplainable models are inherently explainable. Every design decision should preserve this.
 
 ### Never scale numeric features
 
@@ -16,7 +19,7 @@ Do NOT use StandardScaler, MinMaxScaler, RobustScaler, PowerTransformer, Quantil
 
 ### Never use encoding that obscures categories
 
-Do NOT use OrdinalEncoder on nominal categories (it implies false ordering). OneHotEncoder is acceptable when needed but prefer keeping categories as-is when possible -- xplainable handles categorical features natively.
+Do NOT ordinal-encode nominal categories (it implies false ordering). Do NOT one-hot encode -- the model handles categorical features natively, one effect per level.
 
 ### Preserve original column names
 
@@ -26,172 +29,156 @@ When creating derived features (datetime extraction, expressions), use descripti
 
 ## Preprocessing Rules
 
+Preprocessing is a **PipelineSpec**: `{"version": "2.0", "steps": [{"id", "type", "columns", "params"}, ...]}`. Get the catalogue and parameter names from `preprocessing_list_available_transformers()` -- never guess parameters.
+
 ### What to do:
 - **Drop irrelevant columns**: IDs, names, emails, phone numbers, row indices (DropColumnsTransformer)
-- **Fill missing values**: median for numeric, mode or "Unknown" for categorical (FillMissingTransformer)
-- **Extract datetime components**: year, month, dayofweek, quarter, is_weekend (DateTimeExtractTransformer)
-- **Condense high cardinality categoricals**: columns with >15 unique values (CategoryCondenseTransformer)
-- **Clean text before dropping**: lowercase, strip whitespace, remove HTML (TextCleanTransformer)
-- **Create meaningful derived features**: ratios, differences, days-between using ExpressionTransformer
+- **Fill missing values**: median for numeric, mode or "Unknown" for categorical (FillMissingTransformer, `strategies` per column)
+- **Flag informative missingness** before filling when a blank means something (MissingFlagTransformer)
+- **Extract datetime components**: year, month, dayofweek, quarter (DateTimeExtractTransformer, `components`)
+- **Condense high cardinality categoricals**: columns with >15 unique values (CategoryCondenseTransformer, `max_categories`)
+- **Clean text before dropping**: lowercase, strip whitespace, remove HTML (TextCleanTransformer, `operations`)
+- **Create meaningful derived features**: ratios, differences, days-between (ExpressionTransformer, `expression` + `output_column`; wrap column names containing spaces in backticks)
 - **Aggregate when appropriate**: GroupByAggTransformer for multi-row-per-entity data
+
+### Dry-run before creating
+
+`preprocessing_preview_spec(dataset_id, spec, target_column)` runs the spec against the real dataset **without persisting anything** and reports per-step column deltas plus safety findings (steps that collapse rows, steps that touch the target). Use it first; only then `preprocessing_create_preprocessor_from_spec`. To revise, `preprocessing_add_version_from_spec` on the same preprocessor rather than creating a new one.
 
 ### What NOT to do:
 - Do NOT scale or normalise numeric columns
-- Do NOT one-hot encode unless the model specifically requires it (xplainable handles categories natively)
-- Do NOT impute values that are meaningfully missing (e.g., blank "demo_date" means no demo -- fill with a sentinel, not the mean)
-- Do NOT over-engineer features before training -- train first, iterate based on results
-- Do NOT transform the target column in preprocessing -- handle it via the `target_column` parameter in `train_model`
+- Do NOT one-hot encode
+- Do NOT impute values that are meaningfully missing (a blank "demo_date" means no demo -- flag it or fill with a sentinel, not the median)
+- Do NOT touch the target column in preprocessing -- it is selected via `target_column` in `models_train_model`
+- Do NOT over-engineer before the first model -- train, read the results, then iterate
 
 ---
 
 ## Training Rules
 
-### Start simple, iterate based on evidence:
-1. Train with default hyperparameters first (`max_depth=8`)
-2. Look at train vs test metrics before adjusting anything
-3. Only change one thing at a time so you can attribute improvement
+`models_train_model(dataset_id, target_column, model_name, model_type, preprocessor_version_id, drop_columns, monotonic_features, test_size, seed)`
 
-### Hyperparameter guidance:
-- `max_depth`: Controls model complexity. Lower = simpler, less overfitting. Higher = more complex, risk of overfitting.
-  - Start at 8. Reduce to 5-6 if overfitting. Increase to 10-12 if underfitting.
-- `min_leaf_size`: Minimum fraction of data in a leaf. Higher = more conservative.
-  - Start at 0.0001. Increase to 0.01-0.05 if overfitting on small datasets.
-- `min_info_gain`: Minimum information gain to justify a split. Higher = fewer splits.
-  - Start at 0.0001. Usually doesn't need adjustment.
+- `model_type` is `"classification"` or `"regression"`.
+- Training is synchronous and server-side (a minute or two on real data). It returns `model_id`, `version_id`, `run_id`, `train_metrics`, `test_metrics`, `feature_importances`, `n_train`, `n_test`. Keep the `run_id` -- reports hang off it.
+- **What you control at train time**: the feature set (`drop_columns` / `feature_columns`), the preprocessor, monotonic constraints, and the split (`test_size`, `seed`). Nothing else. There is no `max_depth`.
+
+### Monotonic constraints
+
+`monotonic_features={"Tenure": "decreasing", "Monthly Charges": "increasing"}` forces a numeric feature's effect to move in one direction. Use them when the domain relationship is known and a model that violated it would be wrong, not just surprising -- price should not lower churn, tenure should not raise it. They are hard constraints (a monotone QP), so they also stop the optimiser prescribing nonsense like "raise the price to reduce churn". Constraints on non-numeric features are ignored.
+
+### Start simple, iterate based on evidence:
+1. Train with all sensible features and the constraints you are sure of.
+2. Read train vs test metrics and the importances **before** changing anything.
+3. Change one thing at a time so you can attribute the improvement.
+4. Keep `seed` and `test_size` fixed across iterations so metrics are comparable.
 
 ### Train/test split:
-- Default 80/20 split is good for most datasets
-- For small datasets (<2000 rows): consider 70/30 and reduce max_depth
-- Always check BOTH train and test metrics
+- Default 80/20 is right for most datasets. For small datasets (<2000 rows) use 70/30.
+- Always check BOTH train and test metrics.
 
 ---
 
 ## Evaluation Rules
 
 ### Overfitting detection:
-- Compare train metric vs test metric (accuracy, AUC, R2)
-- Gap > 5-8% = overfitting. Reduce complexity.
+- Compare train metric vs test metric (AUC, R2)
+- Gap > 5-8% = overfitting. Simplify: stronger `l2` or fewer `num_splines` on the wiggliest high-importance features (see Iteration), or drop noisy features.
 - Gap < 2% = good generalisation
 
 ### For classifiers:
 - Primary metric: **AUC** (robust to class imbalance)
 - Secondary: precision, recall, F1 (depend on threshold choice)
 - Accuracy is misleading with imbalanced classes -- do not rely on it alone
-- Always inspect the confusion matrix
+- Probabilities are calibrated on a holdout at train time. Check they are usable, not just ranked: `inference_score_dataset` returns deciles with observed positive counts -- decile 1 should carry far more positives than decile 10, and probabilities should not pile up on a handful of values.
 
 ### For regressors:
 - Primary metric: **R2** (explained variance)
 - Secondary: RMSE, MAE
-- Check if errors are systematic (model consistently over/under-predicts in certain ranges)
+- Check if errors are systematic (consistently over/under-predicting in certain ranges)
 
 ### Feature importance sanity check:
 - Top features should make domain sense
 - Any single feature >40% importance = investigate for leakage
 - ID-like columns should never appear = model memorising
 - Post-outcome features appearing = data leakage (drop and retrain)
+- Keys shaped `a_&_b` are automatically selected interactions -- read them as "the effect of a depends on b"
 
 ---
 
 ## Iteration Loop
 
-The core iteration pattern for any xplainable skill:
-
 ```
-Train → Evaluate → Inspect → Decide → (Refit or Adjust Preprocessing) → Evaluate → Deploy
+Train → Evaluate → Inspect → Decide → (Refit features  |  Retrain) → Evaluate → Deploy
 ```
 
-### Rapid Refit vs Full Retrain
+### Inspect
 
-xplainable models support **rapid refit** via `refit_model()`. This is orders of magnitude faster than retraining because it reuses the pre-computed feature partitions (tree splits) and only recomputes scores.
+- `models_get_feature_info(version_id)` -- per-feature health (missingness, cardinality, drift-prone columns)
+- `models_get_model_profile(version_id)` -- the shape of every feature's effect; look for wiggles that are noise, not signal, and for directions that contradict the domain
+- `gpt_explain_model(model_id, version_id)` -- a narrative digest of importances and profile
+- `models_list_model_versions(model_id)` -- every version with its `parameters`: `{feature: {model_class, num_splines, l2, d2, spacing, monotonic, ...}}`. **Read these before changing them.**
 
-**Use `refit_model()` when changing hyperparameters:**
-- max_depth, min_leaf_size, min_info_gain
-- weight, power_degree, sigmoid_exponent, tail_sensitivity
-- This is instant -- Claude can try dozens of parameter combinations in seconds
-- Each refit returns fresh train/test metrics for comparison
+### Refit features vs retrain
 
-**Use `train_model()` (full retrain) only when:**
-- Changing the feature set (dropping/adding columns)
-- Changing the preprocessing pipeline
-- Using different training data
+**`models_refit_features(version_id, dataset_id, target_column, feature_params, drop_columns, test_size, seed)`** re-solves the named features against the residual of everything else and produces a **new version** with fresh train/test metrics, importances and profile. Everything you do not name is untouched. Pass the same `drop_columns`, `test_size` and `seed` you trained with so the metrics are comparable. It costs roughly half a training run (probabilities are recalibrated), not seconds.
+
+`feature_params` is `{feature: {knob: value}}`. Knobs:
+
+| Feature type | Knob | Effect | Reach for it when |
+|---|---|---|---|
+| numeric | `l2` | shrinkage toward zero effect | the feature overfits (wiggly, high importance, big train/test gap) -- raise it (x5 to x50) |
+| numeric | `num_splines` | number of basis functions | the curve is jagged with no domain reason -- lower it (default 20; try 8-12) |
+| numeric | `d2` | second-derivative (smoothness) penalty | you want the curve smoother without flattening it |
+| numeric | `spacing` | spacing penalty | rarely -- leave alone |
+| numeric | `monotonic` | `"increasing"` / `"decreasing"` / `null` | the domain direction is known and the profile violates it (or to remove a constraint) |
+| numeric | `monotonic_penalty` | strength of the monotone constraint | rarely -- leave alone |
+| categorical | `l2` | shrinkage of level effects | rare levels get extreme effects (noisy "Other" buckets, tiny categories) |
+
+Interaction features (`a_&_b`) cannot be refitted; refit their component features instead.
+
+**Use `models_refit_features` when** a specific feature's curve is the problem: overfitting, noise, a wrong direction, an extreme rare category.
+
+**Use `models_train_model` again when** the feature set, preprocessing, target or training constraints change, or the data changed.
 
 ### Typical iteration flow:
 ```
-1. train_model(max_depth=8)                        → baseline metrics
-2. refit_model(max_depth=6)                        → global reduction, less overfitting?
-3. refit_model(feature_params={...per-feature...})  → targeted tuning
-4. Compare versions → deploy the best
+1. models_train_model(...)                                          → baseline, note version_id + run_id
+2. models_get_model_profile / models_get_feature_info               → which curves look wrong?
+3. models_list_model_versions(model_id)                             → current knobs per feature
+4. models_refit_features(version_id, ..., feature_params={
+       "Tenure Months":   {"l2": 20, "monotonic": "decreasing"},
+       "Monthly Charges": {"l2": 10, "monotonic": "increasing"},
+       "City":            {"l2": 50}})                              → new version; compare test AUC and gap
+5. Repeat with one change at a time, or retrain if the fix is a feature/preprocessing change
+6. Deploy the best version
 ```
-
-### Per-feature tuning (use `feature_params`)
-
-Use `feature_params` to tune multiple features with different settings in ONE refit call. This avoids repeated data loads and lets you give each feature only the complexity it needs.
-
-**Numeric features** -- tune `max_depth`, `min_leaf_size`:
-- These control the number of splits. Fewer splits = less overfitting.
-- High importance, clear signal: depth 4-6
-- Medium importance: depth 3-5
-- Low importance (<3%): depth 2, or reduce `weight` to dampen influence
-
-**Categorical features** -- tune `weight`, `tail_sensitivity` (NOT depth):
-- `max_depth` has little effect on categoricals. A feature with 3 unique values has at most 3 splits regardless of depth.
-- `weight`: controls how strongly the feature affects the score. Reduce to 0.5-0.8 for noisy or low-importance categoricals.
-- `tail_sensitivity`: controls emphasis on rare categories. Reduce for condensed categoricals where the "Other" bucket is noisy.
-- Binary features (Yes/No): weight 0.8-1.0, leave depth alone.
-
-**Example:**
-```
-refit_model(
-    version_id="<version_id>",
-    dataset_id="<dataset_id>",
-    target_column="<target>",
-    drop_columns=[...],
-    feature_params={
-        # Numeric: reduce splits
-        "tenure": {"max_depth": 4},
-        "monthly_charges": {"max_depth": 5},
-        "low_importance_numeric": {"max_depth": 2, "weight": 0.5},
-        # Categorical: adjust influence
-        "contract": {"tail_sensitivity": 0.8},
-        "streaming_tv": {"weight": 0.5},
-    }
-)
-```
-
-**Goal: minimise splits while maintaining AUC.** Fewer splits = simpler model = less overfitting = more explainable.
-
-### When to iterate preprocessing (requires full retrain):
-- Missing value strategy isn't working (too many rows dropped, imputation distorting)
-- Important datetime features not extracted
-- High cardinality column needs different condensing threshold
-- Derived feature could capture a known domain relationship
-
-### When to iterate hyperparameters (use rapid refit):
-- Overfitting: reduce max_depth (numeric), reduce weight (categorical)
-- Underfitting: increase max_depth, increase weight
-- Calibration: adjust weight, power_degree, sigmoid_exponent
-- Tail behaviour: adjust tail_sensitivity on condensed categoricals
 
 ### When to stop iterating:
-- Test metrics are stable across multiple refits
+- Test metrics are stable across versions
 - Train/test gap is small (<5%)
-- Feature importances make domain sense
-- Further adjustments show diminishing returns
+- Feature importances and profile curves make domain sense
+- Further changes show diminishing returns
 
 ---
 
 ## Deployment Rules
 
-### Always link the preprocessor before deploying:
+### Confirm the preprocessor travels with the model:
 ```
-models_link_preprocessor(model_version_id, preprocessor_version_id)
+preprocessing_check_signature(preprocessor_version_id, model_version_id)   → {"signatures_match": true}
+models_link_preprocessor(model_version_id, preprocessor_version_id)        # if not already linked
 ```
-This ensures incoming prediction data is transformed identically to training data.
+Inference applies the linked preprocessor to incoming raw rows, so predictions see exactly the transform the model was trained on.
 
-### Always set up monitoring:
-- Prediction drift: detects when the model's output distribution changes
-- Set alert thresholds appropriate to the domain (tighter for high-stakes, looser for exploratory)
-- Plan to retrain periodically -- most models degrade over time as data distributions shift
+### Deploy, activate, key:
+```
+deployments_deploy(model_version_id)              → deployment_id
+deployments_activate_deployment(deployment_id)
+deployments_generate_deploy_key(deployment_id, description=..., days_until_expiry=90)
+```
+
+### Monitoring:
+There are no monitoring tools on this surface; drift alerts are configured in the platform UI. Recommend a retrain cadence (quarterly for most business data, faster when the input mix changes) and say why.
 
 ---
 
@@ -204,10 +191,11 @@ This ensures incoming prediction data is transformed identically to training dat
 ### In Assisted mode:
 - Explain your reasoning at each step before executing
 - Show data analysis, preprocessing plan, metrics, and iteration rationale
-- Use concrete numbers, not vague language ("AUC improved from 0.78 to 0.83" not "performance got better")
-- When presenting feature contributions from the model profile, translate them into business language
+- Use concrete numbers ("AUC improved from 0.78 to 0.83", not "performance got better")
+- Translate profile curves into business language
 
 ### Always:
 - Present feature contributions in original units (not scaled, not encoded)
 - When recommending actions, explain WHY using the model's explainability
-- Flag any data quality issues or potential leakage immediately
+- Flag any data quality issue or potential leakage immediately
+- Say which version_id every number came from

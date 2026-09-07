@@ -87,7 +87,7 @@ The tool surface puts the agent in control of every training decision:
    train/test metrics, and feature importances
 5. Inspect: `models_get_feature_info` / `gpt_explain_model`; compare
    train vs test metrics
-6. Iterate: `models_refit_model` for hyperparameter tuning, or train
+6. Iterate: `models_refit_features` for per-feature tuning, or train
    again with different features / preprocessing
 7. `deployments_deploy(version_id)` — deploy once satisfied (then
    `deployments_activate_deployment`)

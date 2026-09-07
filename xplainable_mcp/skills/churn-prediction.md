@@ -1,52 +1,51 @@
 # Churn Prediction
 
-> **Prerequisite:** Read and follow [xplainable Best Practices](xplainable-best-practices.md). It defines core rules (no scaling, explainability-first preprocessing, evaluation standards) that apply to every xplainable skill. This skill adds churn-specific guidance on top.
+> **Prerequisite:** Read and follow [xplainable Best Practices](xplainable-best-practices.md). It defines the core rules (no scaling, explainability-first preprocessing, the v2 iteration loop, evaluation standards) that apply to every xplainable skill. This skill adds churn-specific guidance on top.
 
-You are an ML engineer building a customer churn prediction model using the xplainable platform. You have access to MCP tools that let you preprocess data, train explainable models, evaluate results, deploy, and monitor.
+You are an ML engineer building a customer churn prediction model on the xplainable platform. You have MCP tools to inspect data, preprocess, train explainable models, evaluate, refit, deploy, score a whole customer book, and prescribe retention actions.
 
 ## Getting Started
 
 Ask the user:
 
 > How would you like to work?
-> - **Auto** -- I'll analyse your data, build preprocessing, train, and deploy. You can redirect me anytime.
+> - **Auto** -- I'll analyse your data, build preprocessing, train, iterate and deploy. You can redirect me anytime.
 > - **Assisted** -- I'll explain my reasoning at each step and wait for your approval before proceeding.
 
-Then ask: **What CSV file should I use?** (get the file path)
+Then find the data. All training runs on the platform, so the dataset must be there:
+```
+datasets_list_team_datasets()                                  → pick the dataset_id
+datasets_upload_dataset(name, records=[...row dicts...])       → if the user gives you rows inline
+```
+Large files should be uploaded through the platform UI; `datasets_upload_dataset` takes inline records and is for small tables.
 
 ---
 
 ## Phase 1: Understand the Data
 
-**If the user provides a local CSV file** (Claude Code / local MCP):
-- Read the CSV directly and examine it
-
-**If the user's data is on the platform** (hosted MCP / Claude Desktop):
 ```
-datasets_list_team_datasets()                    → find the dataset ID
-autotrain_summarize_by_dataset_id(dataset_id)    → get column statistics
+autotrain_summarize_by_dataset_id(dataset_id)                        → column statistics, types, missingness
+datasets_preview_dataset_json(dataset_id, rows=100, sample=True)      → a RANDOM sample of rows
 ```
+Datasets are often ordered by the target -- the default head window can be all churners. Always use `sample=True` to judge class balance, and `offset` to page if you need a specific slice.
 
-From the summary or direct read, identify:
+From the summary and sample, identify:
 - Column names and types (numeric, categorical, datetime, text, ID)
-- Look for a churn-related target column: "Churn", "churned", "is_churned", "churn_flag", "attrition", etc.
-- Row and column counts
-
-Analyse and note:
+- The churn target: "Churn", "churned", "is_churned", "churn_flag", "attrition", etc.
 - **Missing values**: which columns, what percentage
-- **Class balance**: what % churned vs retained (flag if heavily imbalanced)
-- **High cardinality categoricals**: columns with many unique values (>20 categories)
-- **ID/irrelevant columns**: customer ID, row number, name, email -- these must be dropped
+- **Class balance**: % churned vs retained (flag if heavily imbalanced)
+- **High cardinality categoricals**: >20 unique values (cities, plan names, reasons)
+- **ID / irrelevant columns**: customer ID, row number, name, email -- these must be dropped
+- **Leakage**: anything recorded after the churn decision (cancellation date, exit survey, churn reason, "Churn Score") -- must be dropped
 - **Datetime columns**: signup date, last activity, last payment -- these need feature extraction
-- **Numeric distributions**: look for skewed columns or outliers
 
 **If Assisted**: Present your analysis:
 > Here's what I see in your data:
 > - [X rows, Y columns]
 > - Target: [column name] ([Z% churn rate])
 > - Key features: [list notable columns]
-> - Issues to address: [missing values, high cardinality, etc.]
-> - Columns I'll drop: [IDs, irrelevant]
+> - Issues to address: [missing values, high cardinality, leakage suspects]
+> - Columns I'll drop: [IDs, leakage]
 >
 > Does this look right? Should I adjust anything?
 
@@ -54,108 +53,73 @@ Analyse and note:
 
 ## Phase 2: Build Preprocessing
 
-First, get the transformer catalog:
+Get the catalogue and parameter names first -- never guess them:
 ```
 preprocessing_list_available_transformers()
 ```
 
-Design a PipelineSpec based on what you found in Phase 1. Follow these churn-specific guidelines:
-
 ### Churn Preprocessing Playbook
 
 **Always do:**
-- Drop ID columns, customer name, email, phone number (DropColumnsTransformer)
-- Fill missing numeric values with median (FillMissingTransformer with strategy "median")
-- Fill missing categorical values with mode (FillMissingTransformer with strategy "mode")
+- Drop ID columns, customer name, email, phone (DropColumnsTransformer)
+- Fill missing numeric values with median, categoricals with mode or "Unknown" (FillMissingTransformer)
 
 **Datetime columns** (signup_date, last_login, last_payment, contract_start):
-- Extract: year, month, dayofweek, is_weekend (DateTimeExtractTransformer)
-- Consider: "days since" features if you can compute them via ExpressionTransformer
+- Extract year, month, dayofweek (DateTimeExtractTransformer)
+- Tenure-style "days since" features are usually stronger than raw dates (ExpressionTransformer)
 
 **High cardinality categoricals** (>15 unique values):
-- Condense to top 10 categories (CategoryCondenseTransformer, max_categories=10)
+- Condense to the top 10 (CategoryCondenseTransformer, `max_categories`)
 
 **Text columns** (notes, comments, reason):
-- Clean: lowercase, strip, remove_extra_whitespace (TextCleanTransformer)
-- Then consider dropping if not useful for prediction
+- Clean (TextCleanTransformer), then usually drop -- and never keep a churn *reason* column, it is leakage
 
 **Numeric columns:**
-- Do NOT scale numeric columns (no StandardScaler, MinMaxScaler, etc.)
-- xplainable models are inherently explainable -- scaling destroys interpretability
-- Feature contributions like "monthly_charges = 72.50 adds +0.15 to churn probability" are meaningful to stakeholders
-- After scaling this becomes "monthly_charges = 1.23 adds +0.15" which is meaningless
-- The model handles raw numeric values natively
+- Do NOT scale. "monthly_charges = 72.50 adds +0.15 to churn probability" is the whole point.
 
-### Build the pipeline
+### Dry-run, then create
 
 ```
-preprocessing_create_preprocessor_from_spec(
-    name="Churn Preprocessing v1",
-    description="Preprocessing for churn prediction model",
-    spec={
-        "version": "2.0",
-        "steps": [
-            {"id": "drop_ids", "type": "DropColumnsTransformer", "params": {"columns": ["customer_id", ...]}},
-            {"id": "fill_numeric", "type": "FillMissingTransformer", "columns": ["tenure", "monthly_charges", ...], "params": {"strategies": {"tenure": "median", "monthly_charges": "median"}}},
-            {"id": "fill_categorical", "type": "FillMissingTransformer", "columns": ["contract", ...], "params": {"strategies": {"contract": "mode"}}},
-            {"id": "extract_dates", "type": "DateTimeExtractTransformer", "columns": ["signup_date"], "params": {"components": ["year", "month", "dayofweek"], "drop_original": true}},
-            {"id": "condense_cats", "type": "CategoryCondenseTransformer", "columns": ["plan_name"], "params": {"max_categories": 10}}
-        ]
-    },
-    sample_data=[first 5-10 rows as dicts]
-)
+preprocessing_preview_spec(dataset_id, spec={
+    "version": "2.0",
+    "steps": [
+        {"id": "drop_ids", "type": "DropColumnsTransformer", "params": {"columns": ["CustomerID", "Churn Reason"]}},
+        {"id": "fill_numeric", "type": "FillMissingTransformer", "columns": ["Total Charges"], "params": {"strategies": {"Total Charges": "median"}}},
+        {"id": "fill_categorical", "type": "FillMissingTransformer", "columns": ["Internet Service"], "params": {"strategies": {"Internet Service": "mode"}}},
+        {"id": "condense_city", "type": "CategoryCondenseTransformer", "columns": ["City"], "params": {"max_categories": 10}}
+    ]
+}, target_column="Churn")
 ```
-
-Then preview the transformation:
+Read the per-step deltas and safety findings (row-collapsing steps, steps touching the target). When it is clean:
 ```
-preprocessing_preview_from_data(version_id, sample_data=[rows as dicts])
+preprocessing_create_preprocessor_from_spec(name="Churn Preprocessing v1", description=..., spec=spec)   → preprocessor_id, version_id
+preprocessing_preview_from_data(version_id, sample_data=[rows as dicts])                                 → confirm the transformed rows
 ```
+To revise later: `preprocessing_add_version_from_spec(preprocessor_id, spec)`.
 
-Review the preview output. Check:
-- No unexpected column drops
-- Datetime features extracted correctly
-- Categorical condensing looks reasonable
-- Numeric columns retain their original values (no scaling)
-
-**If Assisted**: Show the preprocessing plan and preview results. Ask for approval.
-
-**If issues**: Update with `preprocessing_update_version_from_spec()` and preview again.
+**If Assisted**: Show the plan and the preview. Ask for approval.
 
 ---
 
 ## Phase 3: Train the Model
 
 ```
-# If data is on the platform (hosted MCP):
-train_model(
-    dataset_id="<dataset_id from Phase 1>",
+models_train_model(
+    dataset_id="<dataset_id>",
     target_column="Churn",
     model_name="Churn Predictor",
     model_description="Binary classifier predicting customer churn",
-    model_type="classifier",
-    preprocessor_version_id="<from phase 2>",
-    drop_columns=["customer_id", ...],
-    max_depth=8,
-    min_info_gain=0.0001
+    model_type="classification",
+    preprocessor_version_id="<from Phase 2>",
+    drop_columns=["CustomerID", "Churn Reason"],
+    monotonic_features={"Tenure Months": "decreasing", "Monthly Charges": "increasing"}
 )
-
-# If data is a local CSV (Claude Code):
-train_model(
-    file_path="path/to/data.csv",
-    target_column="Churn",
-    ...
-)
-```
+→ model_id, version_id, run_id, train_metrics, test_metrics, feature_importances, n_train, n_test
 ```
 
-### Starting hyperparameters for churn:
-- `max_depth=8` -- good default, increase if underfitting, decrease if overfitting
-- `min_info_gain=0.0001` -- keep low initially
-- `min_leaf_size=0.0001` -- keep low initially
-- `weight=1.0` -- default
-- `tail_sensitivity=1.0` -- default
-
-The tool returns train/test metrics and feature importances. Analyse them immediately.
+There are no hyperparameters to set. What matters here:
+- **Monotonic constraints** encode what you know: longer tenure should not raise churn; a higher price should not lower it. Besides making the curves honest, they stop the optimiser later prescribing price rises as a retention lever.
+- Keep the returned `run_id` -- the report in Phase 7 needs it.
 
 ---
 
@@ -163,199 +127,137 @@ The tool returns train/test metrics and feature importances. Analyse them immedi
 
 ### Read the results
 
-From `train_model` output, examine:
+**Overfitting check:** train AUC vs test AUC. Gap > 5-8% = overfitting.
 
-**Overfitting check:**
-- Compare train accuracy vs test accuracy
-- Compare train AUC vs test AUC
-- If train >> test (gap > 5-8%), the model is overfitting
+**Performance check:** test AUC > 0.80 is good for churn, > 0.85 very good, < 0.70 needs work.
 
-**Performance check:**
-- Test AUC > 0.80 is good for churn
-- Test AUC > 0.85 is very good
-- Test AUC < 0.70 suggests the model needs work
+**Feature importances:** tenure, contract type and monthly charges are typical leaders. A single feature > 40%, or a feature that should not be predictive, means leakage -- drop it and retrain.
 
-**Feature importances:**
-- Are the top features sensible for churn? (tenure, contract type, monthly charges are typical)
-- Is any single feature dominating (>40% importance)? May indicate data leakage
-- Are there features that shouldn't be predictive? (could be leakage)
-
-### Deeper inspection
+### Inspect
 
 ```
-get_model_profile(version_id)       # Feature contribution curves
-get_model_evaluation(partition_id)  # Detailed metrics
-get_feature_info(version_id)        # Feature health
+models_get_model_profile(version_id)        # every feature's effect curve
+models_get_feature_info(version_id)         # per-feature health
+gpt_explain_model(model_id, version_id)     # narrative digest
+models_list_model_versions(model_id)        # versions + current parameters per feature
 ```
+Read the profile as a stakeholder would: does churn fall with tenure and rise with monthly charges? Is any curve jagged for no reason? Are rare `City` levels getting extreme effects?
 
-Use these to understand WHY the model makes its predictions. This is the power of xplainable -- you can see the contribution of each feature value.
+### Iterate
 
-### Iteration strategies
-
-Follow the per-feature tuning strategy from Best Practices. Here's the churn-specific application:
-
-**Step 1: Global refit** -- reduce depth across all features to see if overfitting shrinks:
+**Refit the features whose curves are wrong** -- one change at a time, same `drop_columns`, `test_size`, `seed` as training:
 ```
-refit_model(
+models_refit_features(
     version_id="<version_id>",
     dataset_id="<dataset_id>",
     target_column="Churn",
-    drop_columns=["customer_id", ...],
-    max_depth=6
-)
-```
-
-**Step 2: Per-feature tuning** -- churn-specific recommendations:
-```
-refit_model(
-    version_id="<version_id>",
-    dataset_id="<dataset_id>",
-    target_column="Churn",
-    drop_columns=["customer_id", ...],
+    drop_columns=["CustomerID", "Churn Reason"],
     feature_params={
-        # Numeric: these carry the model, reduce depth to limit overfitting
-        "Tenure Months": {"max_depth": 4},
-        "Monthly Charges": {"max_depth": 5},
-        # Categorical: tune weight, not depth
-        "Contract": {"tail_sensitivity": 0.8},
-        "Streaming TV": {"weight": 0.5},
-        "Streaming Movies": {"weight": 0.5},
+        "Tenure Months":   {"l2": 20},                       # jagged, high importance → shrink
+        "Monthly Charges": {"l2": 10, "num_splines": 12},    # smoother curve
+        "City":            {"l2": 50}                        # rare cities getting wild effects
     }
 )
+→ new version_id, train/test metrics, feature_importances, changed, parameters
 ```
+Compare test AUC and the train/test gap against the previous version. Keep whichever version is better; every refit is its own version, so nothing is lost.
 
-**Step 3: Compare** -- if AUC holds and train/test gap shrinks, deploy the simpler model.
+**Retrain** (`models_train_model`) when the fix is a different feature set, preprocessing change, new derived feature, or a constraint you should have set at train time.
 
-**Step 4: When to fall back to full retrain**
+**If suspicious feature (possible leakage):** drop it, retrain, and if performance falls dramatically, confirm it was leakage.
 
-Only use `train_model()` when:
-- Dropping features entirely (feature set changed)
-- Changing preprocessing pipeline
-- Adding new derived features
-
-**If suspicious feature (possible leakage):**
-1. Drop the suspicious column
-2. Full `train_model()` (feature set changed, can't refit)
-3. If performance drops dramatically, confirm it was leakage
-
-**If Assisted**: Present your analysis:
-> **Model Results:**
-> - Train accuracy: X% | Test accuracy: Y%
-> - Train AUC: X | Test AUC: Y
-> - Top features: [ranked list with depth used]
->
-> **Assessment:** [overfitting/good/needs work]
-> **Recommendation:** [per-feature tuning plan or proceed to deployment]
-
-**Iterate until satisfied**, then proceed to deployment.
+**If Assisted**: present versions side by side:
+> **v1 → v2:** test AUC 0.83 → 0.84, train/test gap 6% → 3%. Changed: Tenure Months l2 20. Recommendation: deploy v2.
 
 ---
 
 ## Phase 5: Deploy
 
-Once you're happy with model performance:
-
 ```
-# 1. Deploy the model version
-deployments_deploy(model_version_id="<version_id>")
-→ deployment_id
-
-# 2. Activate it
+preprocessing_check_signature(preprocessor_version_id="<pp version>", model_version_id="<best version>")   → signatures_match
+models_link_preprocessor(model_version_id, preprocessor_version_id)                                       # if not linked
+deployments_deploy(model_version_id="<best version>")                                                      → deployment_id
 deployments_activate_deployment(deployment_id)
-
-# 3. Generate an API key
 deployments_generate_deploy_key(deployment_id, description="Churn prediction API key", days_until_expiry=90)
-→ deploy_key
 ```
 
 ---
 
-## Phase 6: Report & Monitor
+## Phase 6: Score the Book and Prescribe
 
-### Create a report
-
-```
-reports_create_report_sync(
-    run_id="<run_id>",
-    report_name="Churn Model Report",
-    report_description="Performance report for customer churn prediction model",
-    widgets=["confusionMatrix", "thresholdPlot", "prCurveRocCurve", "waterfallplot", "featureImportance"],
-    mode="dynamic",
-    max_features=15
-)
-```
-
-### Set up monitoring
+### Who is at risk?
 
 ```
-# Create a monitor for the model
-monitors_create_monitor(
-    model_id="<model_id>",
-    model_version_id="<version_id>",
-    name="Churn Model Monitor",
-    description="Monitors churn prediction drift and performance"
-)
-→ monitor_id
+inference_score_dataset(dataset_id="<dataset_id>", version_id="<deployed version>", top_n=50)
+```
+Returns the 50 highest-risk customers with their source columns and probabilities, plus a summary: positive rate at the threshold, probability quantiles, and deciles with observed churn counts. Use the deciles to sanity-check calibration (decile 1 should hold far more churners than decile 10) and to pick a threshold the retention team can act on. Pass the RAW dataset -- the linked preprocessor is applied server-side.
 
-# Set alert rules
-monitors_create_alert_rule(
-    monitor_id="<monitor_id>",
-    metric="prediction_drift",
-    threshold=0.1,
-    condition="greater_than",
-    name="Churn Drift Alert"
-)
+### What should we do about it?
+
+Prescriptive optimisation works over the model's mutable levers (contract, add-ons, discounts):
+```
+optimisers_create_optimiser(model_id, model_version_id, name="Retention levers")                   → optimiser_id
+optimisers_create_optimiser_version(optimiser_id, data={
+    "mutable_features": ["Contract", "Tech Support", "Online Security", "Monthly Charges"],
+    "cost_structure": {"Tech Support": 5.0, "Online Security": 4.0, "Monthly Charges": 1.0}
+})                                                                                                 → version_id
+optimisers_run_optimiser(optimiser_id, dataset_id, version_id=<policy>,
+                         params={"objective": "budget", "budget": 20.0})                           → per-row prescriptions (per-row budget)
+optimisers_run_portfolio(model_id, optimiser_id, dataset_id, total_budget=5000.0,
+                         value_column="Monthly Charges", policy_version_id=<policy>)               → ONE shared budget, funded customers ranked by (value-weighted) improvement
+```
+`run_portfolio` is the business question -- "with $5,000 this month, who do we contact and with what offer?" -- and beats a flat per-customer cap by a wide margin. Note the prescriptive routes take rows in the model's **fitted** signature: if the model was trained with a preprocessor, the dataset you pass must already be in the transformed shape, otherwise the run returns a structured `feature_not_found` error. Check that levers make sense together (no "Device Protection" for customers without internet service) before handing prescriptions to a team.
+
+---
+
+## Phase 7: Report
+
+```
+reports_create_report(run_id="<run_id from training>", report_name="Churn Model Report",
+                      widgets=["binaryoverview", "metrics", "confusionMatrix", "thresholdPlot", "prCurveRocCurve", "waterfallplot", "health"],
+                      mode="dynamic", max_features=15)                                             → job_id
+reports_get_job_status(job_id)                                                                     → poll until status is 'done' (or 'error')
 ```
 
 ---
 
-## Phase 7: Summary
-
-Present the user with everything they need:
+## Phase 8: Summary
 
 > **Churn Model Complete**
 >
-> **Performance:**
-> - Test Accuracy: X%
-> - Test AUC: X
-> - Top predictors: [list top 3-5 features with importance %]
+> **Performance (version [id]):**
+> - Test AUC: X (train X, gap Y%)
+> - Top predictors: [top 3-5 features with importance %]
+> - Constraints: tenure decreasing, monthly charges increasing
 >
 > **What was built:**
-> - Preprocessor: [name] (version: [id])
-> - Model: [name] (version: [id])
-> - Deployment: [id] (active)
-> - API Key: [key] (expires: [date])
-> - Report: [link/id]
-> - Monitor: [name] with drift alerting
+> - Preprocessor: [name] (version [id])
+> - Model: [name] (model [id], versions v1..vN -- deployed vN)
+> - Deployment: [id] (active), key expires [date]
+> - Report: [id]
 >
-> **To make predictions:**
-> Use `inference_predict()` or `inference_stream_predictions()` with your deploy key.
+> **Who is at risk:** [top-N summary, decile table, chosen threshold]
+> **What to do:** [portfolio allocation: n funded, expected churn reduction, top offers]
 >
-> **To iterate:**
-> Ask me to adjust preprocessing or retrain with different parameters. I'll compare the new results against this baseline.
+> **To iterate:** ask me to refit a feature, change preprocessing, or retrain. Every change becomes a new version compared against this one.
 
 ---
 
 ## Churn Domain Knowledge
 
-Use this knowledge when reasoning about the data and results:
-
 ### Common churn predictors (high to low importance typically):
 1. **Contract type** -- month-to-month customers churn far more than annual/two-year
-2. **Tenure** -- new customers (<6 months) and very long customers have different patterns
-3. **Monthly charges** -- higher charges correlate with churn, especially without matching value
-4. **Internet service type** -- fiber optic users churn more (often due to competition/price)
+2. **Tenure** -- new customers (<6 months) churn most; make it monotonic decreasing
+3. **Monthly charges** -- higher charges correlate with churn; make it monotonic increasing
+4. **Internet service type** -- fibre optic users churn more (competition/price)
 5. **Payment method** -- electronic check users churn more (less friction to leave)
-6. **Tech support / Online security** -- customers without these add-ons churn more
-7. **Total charges** -- low total charges often means short tenure (early churners)
+6. **Tech support / Online security** -- customers without these add-ons churn more; they are also the natural retention levers
+7. **Total charges** -- low total charges usually means short tenure (early churners)
 
 ### Red flags in churn data:
-- A column that perfectly predicts churn = data leakage (e.g., "cancellation_date" or "exit_survey_score")
-- Customer ID having high importance = model is memorising, not generalising
-- Very high accuracy (>98%) on imbalanced data = model predicts majority class
+- A column that perfectly predicts churn = leakage ("cancellation_date", "Churn Reason", "exit_survey_score", a vendor "Churn Score")
+- Customer ID with high importance = the model is memorising
+- Very high accuracy (>98%) on imbalanced data = it predicts the majority class; look at AUC and the deciles instead
 
-### Preprocessing priorities for churn:
-- Tenure is critical -- keep it, don't over-transform it
-- Contract type needs proper encoding, not just label encoding
-- NEVER scale numeric columns -- xplainable models need raw values for explainability
-- Date features (account age, days since last activity) are often more useful than raw dates
+### Feasibility of prescriptions:
+- Add-on services depend on an internet plan; "No internet service" is not a free level the optimiser may pick for a fibre customer. Encode such rules as `infeasible` on the optimiser policy where supported, and review prescriptions before acting.
