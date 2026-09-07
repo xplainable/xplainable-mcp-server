@@ -1,4 +1,4 @@
-"""Local target must expose the full 44-tool surface in-process."""
+"""Local target must expose the full 46-tool surface in-process."""
 
 import pytest
 
@@ -6,11 +6,11 @@ from evals.harness.targets import local_toolset
 
 
 @pytest.mark.smoke
-async def test_local_toolset_exposes_44_tools():
+async def test_local_toolset_exposes_46_tools():
     toolset = local_toolset()
     async with toolset:
         tools = await toolset.list_tools()
-    assert len(tools) == 44
+    assert len(tools) == 46
 
 
 def test_local_toolset_requires_api_key(monkeypatch):

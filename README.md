@@ -87,7 +87,7 @@ The tool surface puts the agent in control of every training decision:
    train/test metrics, and feature importances
 5. Inspect: `models_get_feature_info` / `gpt_explain_model`; compare
    train vs test metrics
-6. Iterate: `models_refit_model` for hyperparameter tuning, or train
+6. Iterate: `models_refit_features` for per-feature tuning, or train
    again with different features / preprocessing
 7. `deployments_deploy(version_id)` — deploy once satisfied (then
    `deployments_activate_deployment`)
@@ -109,6 +109,7 @@ category (`read` → read-only hint, `write` → destructive hint).
 |---|---|---|
 | `XPLAINABLE_API_KEY` | yes (local) | API key from platform.xplainable.io |
 | `XPLAINABLE_HOST` / `XPLAINABLE_HOSTNAME` | no | Platform host override (defaults to `https://platform.xplainable.io`). Set **both** to the same value. |
+| `XPLAINABLE_INFERENCE_HOST` | no | Inference server override for the direct-to-inference tools (`inference_score_dataset`, `optimisers_run_portfolio`); defaults to `https://inference.xplainable.io`. Set it whenever the platform host is non-prod. |
 | `XPLAINABLE_ORG_ID` / `XPLAINABLE_TEAM_ID` | no | Org/team binding, if your API key is not bound to a team |
 | `MCP_TRANSPORT` | no | `stdio` (default) or `streamable-http` |
 | `LOG_LEVEL` | no | `DEBUG`, `INFO` (default), `WARNING`, `ERROR` |

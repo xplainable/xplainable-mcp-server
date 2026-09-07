@@ -43,10 +43,10 @@ class TestFlatSurface:
         assert surface == expected
 
     def test_registry_count(self):
-        assert len(list(iter_registry_entries())) == 38
+        assert len(list(iter_registry_entries())) == 40
 
     def test_total_count(self, surface):
-        assert len(surface) == 44  # 38 registry + 6 server-native
+        assert len(surface) == 46  # 40 registry + 6 server-native
 
     def test_training_loop_tools_present(self, surface):
         for name in (
@@ -56,7 +56,7 @@ class TestFlatSurface:
             "preprocessing_create_preprocessor_from_spec",
             "preprocessing_preview_from_data",
             "models_train_model",
-            "models_refit_model",
+            "models_refit_features",
             "models_get_feature_info",
             "gpt_explain_model",
             "deployments_deploy",
