@@ -109,6 +109,7 @@ category (`read` → read-only hint, `write` → destructive hint).
 |---|---|---|
 | `XPLAINABLE_API_KEY` | yes (local) | API key from platform.xplainable.io |
 | `XPLAINABLE_HOST` / `XPLAINABLE_HOSTNAME` | no | Platform host override (defaults to `https://platform.xplainable.io`). Set **both** to the same value. |
+| `XPLAINABLE_INFERENCE_HOST` | no | Inference server override for the direct-to-inference tools (`inference_score_dataset`, `optimisers_run_portfolio`); defaults to `https://inference.xplainable.io`. Set it whenever the platform host is non-prod. |
 | `XPLAINABLE_ORG_ID` / `XPLAINABLE_TEAM_ID` | no | Org/team binding, if your API key is not bound to a team |
 | `MCP_TRANSPORT` | no | `stdio` (default) or `streamable-http` |
 | `LOG_LEVEL` | no | `DEBUG`, `INFO` (default), `WARNING`, `ERROR` |

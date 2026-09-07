@@ -27,6 +27,9 @@ class ServerConfig:
     """Simple config for client initialization."""
     api_key: str = os.getenv("XPLAINABLE_API_KEY", "")
     hostname: str = os.getenv("XPLAINABLE_HOSTNAME", "https://platform.xplainable.io")
+    # Where the direct-to-inference tools POST rows; None -> the client's
+    # production default. Set alongside XPLAINABLE_HOSTNAME for non-prod.
+    inference_hostname: Optional[str] = os.getenv("XPLAINABLE_INFERENCE_HOST")
     org_id: Optional[str] = os.getenv("XPLAINABLE_ORG_ID")
     team_id: Optional[str] = os.getenv("XPLAINABLE_TEAM_ID")
 
@@ -42,6 +45,7 @@ def _get_static_client():
         _static_client = XplainableClient(
             api_key=config.api_key,
             hostname=config.hostname,
+            inference_hostname=config.inference_hostname,
             org_id=config.org_id,
             team_id=config.team_id,
         )
@@ -61,6 +65,7 @@ def _get_user_client(user_id: str, token: str):
             _clients[user_id] = XplainableClient(
                 bearer_token=token,
                 hostname=config.hostname,
+                inference_hostname=config.inference_hostname,
                 team_id=config.team_id,
             )
             logger.info(f"Per-user XplainableClient created for user {user_id[:12]}...")
@@ -109,6 +114,7 @@ def set_active_team(team_id: str):
                 _clients[user_id] = XplainableClient(
                     bearer_token=token,
                     hostname=config.hostname,
+                    inference_hostname=config.inference_hostname,
                     team_id=team_id,
                 )
                 logger.info(f"Created client with team {team_id} for user {user_id[:12]}...")
@@ -124,6 +130,7 @@ def set_active_team(team_id: str):
             _static_client = XplainableClient(
                 api_key=config.api_key,
                 hostname=config.hostname,
+                inference_hostname=config.inference_hostname,
                 org_id=config.org_id,
                 team_id=team_id,
             )
