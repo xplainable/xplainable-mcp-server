@@ -51,7 +51,7 @@ READ_TOOLS: Set[str] = _REGISTRY_READS | _SERVER_NATIVE_READS
 WRITE_TOOLS: Set[str] = set(_REGISTRY_WRITES)
 
 # Training tools, derived from the registry: write tools whose name suggests
-# fitting a model (models_train_model, models_refit_model).
+# fitting a model (models_train_model, models_refit_features).
 TRAIN_TOOLS: Set[str] = {
     name for name in _REGISTRY_WRITES if "train" in name or "refit" in name
 }

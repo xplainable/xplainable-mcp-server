@@ -80,7 +80,7 @@ class TestReadWriteSets:
     def test_train_and_predict_sets_match_registry_exactly(self):
         """Drift guard: the name-based heuristics must yield exactly these
         tools; a registry change that breaks them should fail loudly here."""
-        assert TRAIN_TOOLS == {"models_train_model", "models_refit_model"}
+        assert TRAIN_TOOLS == {"models_train_model", "models_refit_features"}
         assert PREDICT_TOOLS == {"inference_predict"}
 
 

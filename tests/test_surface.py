@@ -56,7 +56,7 @@ class TestFlatSurface:
             "preprocessing_create_preprocessor_from_spec",
             "preprocessing_preview_from_data",
             "models_train_model",
-            "models_refit_model",
+            "models_refit_features",
             "models_get_feature_info",
             "gpt_explain_model",
             "deployments_deploy",
