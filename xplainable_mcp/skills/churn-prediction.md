@@ -101,6 +101,34 @@ To revise later: `preprocessing_add_version_from_spec(preprocessor_id, spec)`.
 
 ---
 
+## Phase 2b: Declare Feature Relationships
+
+Telco data is full of relationships the model cannot see feature by feature: no internet plan means no Online Security / Backup / Tech Support / streaming; `EstimatedLifetimeCharges` (if you derived it) is `Tenure Months × Monthly Charges`. Undeclared, the optimiser later prescribes add-ons to customers with no internet and lifetime-charges values that contradict the tenure it moved.
+
+```
+datasets_infer_relationships(dataset_id="<dataset_id>", target_column="Churn")
+→ implies (never-co-occurring category pairs, with support), derived (exact arithmetic identities), monotonic_hints
+```
+
+Review the candidates as a domain expert, then commit the true ones:
+
+```
+datasets_set_relationships(
+    dataset_id="<dataset_id>",
+    implies=[{"when": {"Internet Service": ["No"]},
+              "then": {"Online Security": ["No"], "Online Backup": ["No"], "Tech Support": ["No"],
+                       "Streaming TV": ["No"], "Streaming Movies": ["No"]}}],
+    derived={"EstimatedLifetimeCharges": "`Tenure Months` * `Monthly Charges`"},
+    monotonic={"Tenure Months": "decreasing", "Monthly Charges": "increasing"},
+    notes={"implies[0]": "add-ons require an internet plan"}
+)
+→ relationships (revision), compiled rules, warnings
+```
+
+Every model trained from here carries these rules. Skip this only if the dataset has no such dependencies.
+
+---
+
 ## Phase 3: Train the Model
 
 ```

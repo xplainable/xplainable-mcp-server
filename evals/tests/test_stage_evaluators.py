@@ -28,6 +28,12 @@ def full_pass_outcome() -> RunOutcome:
                 args={"spec": {"steps": ["fill_missing"]}},
             ),
             ToolCall(
+                name="datasets_set_relationships",
+                args={"dataset_id": "ds-1",
+                      "implies": [{"when": {"InternetService": ["No"]},
+                                   "then": {"OnlineSecurity": ["No"]}}]},
+            ),
+            ToolCall(
                 name="models_train_model",
                 args={
                     "dataset_id": "ds-1",
@@ -107,9 +113,24 @@ class TestStageEvaluator:
         assert result[Stage.TRAIN.value] is False
         assert result[Stage.DATA_PREP.value] is False
         assert result[Stage.PERSIST_PREP.value] is False
+        assert result[Stage.RELATIONSHIPS.value] is False  # never declared
         # explore + select_label still pass on this transcript
         assert result[Stage.EXPLORE.value] is True
         assert result[Stage.SELECT_LABEL.value] is True
+
+    def test_relationships_declared_after_training_do_not_count(self):
+        outcome = RunOutcome(
+            final_text="Trained a model on Churn.",
+            tool_calls=[
+                ToolCall(name="models_train_model",
+                         args={"dataset_id": "ds-1", "target_column": "Churn"}),
+                ToolCall(name="datasets_set_relationships",
+                         args={"dataset_id": "ds-1", "monotonic": {"tenure": "decreasing"}}),
+            ],
+            created=CreatedArtifacts(models=["m-1"]),
+        )
+        result = StageEvaluator(expected_stages=[Stage.RELATIONSHIPS]).evaluate(make_ctx(outcome))
+        assert result == {Stage.RELATIONSHIPS.value: False}
 
     def test_train_fails_when_version_arg_matches_no_created_preprocessor(self):
         """Train call references a version id belonging to no created preprocessor."""

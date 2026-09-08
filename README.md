@@ -82,6 +82,11 @@ The tool surface puts the agent in control of every training decision:
 3. (Optional) `preprocessing_list_available_transformers` →
    `preprocessing_create_preprocessor_from_spec` →
    `preprocessing_preview_from_data` to verify transformed output
+3b. Declare feature relationships once per dataset:
+   `datasets_infer_relationships` proposes derived columns, implications
+   and monotonic hints with evidence; commit with
+   `datasets_set_relationships` (re-apply to old versions with
+   `models_apply_relationships`)
 4. `models_train_model(dataset_id, target_column, model_name, ...)` —
    synchronous server-side training; returns model/version IDs,
    train/test metrics, and feature importances

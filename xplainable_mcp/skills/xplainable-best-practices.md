@@ -60,11 +60,23 @@ Preprocessing is a **PipelineSpec**: `{"version": "2.0", "steps": [{"id", "type"
 
 - `model_type` is `"classification"` or `"regression"`.
 - Training is synchronous and server-side (a minute or two on real data). It returns `model_id`, `version_id`, `run_id`, `train_metrics`, `test_metrics`, `feature_importances`, `n_train`, `n_test`. Keep the `run_id` -- reports hang off it.
-- **What you control at train time**: the feature set (`drop_columns` / `feature_columns`), the preprocessor, monotonic constraints, and the split (`test_size`, `seed`). Nothing else. There is no `max_depth`.
+- **What you control at train time**: the feature set (`drop_columns` / `feature_columns`), the preprocessor, monotonic constraints, the dataset's declared feature relationships, and the split (`test_size`, `seed`). Nothing else. There is no `max_depth`.
+- Read the response's `warnings`: relationship entries that were skipped (a column you dropped) and monotonic constraints the fitted effect still violates.
+
+### Feature relationships (declare BEFORE training)
+
+The model sees features one at a time; it has no idea that `EstimatedLifetimeCharges` is `Tenure × Monthly Charges`, or that a customer with `Internet Service = No` cannot have `Online Security = Yes`. Left undeclared, the optimiser will happily prescribe a lifetime-charges value that contradicts the tenure it also changed, or sell an add-on to someone with no internet. Relationships are declared once per dataset and copied into every model trained on it afterwards:
+
+1. `datasets_infer_relationships(dataset_id, target_column)` scans the data and proposes candidates with evidence: `implies` (category pairs that never co-occur, with support counts), `derived` (numeric columns that are exactly an arithmetic combination of two others), `monotonic_hints` (Spearman sign with the target -- hints, not facts).
+2. Review them like a domain expert. Keep the ones that are true by construction or by policy; drop coincidences (a never-seen pair in 500 rows can be luck -- the support count tells you).
+3. `datasets_set_relationships(dataset_id, derived={...}, implies=[...], monotonic={...}, notes={...})`. It validates against the data (columns, categories, expressions) and returns the compiled rules and a new `revision`.
+4. Train. The version records the revision it was trained under (`__relationships__` in `models_list_model_versions` parameters). For versions trained earlier, `models_apply_relationships(version_id)` re-applies the current declaration -- then re-deploy, because a deployed model is cached.
+
+Shapes: `derived={"EstimatedLifetimeCharges": "`Tenure Months` * `Monthly Charges`"}` (pandas-eval, backticks for names with spaces); `implies=[{"when": {"Internet Service": ["No"]}, "then": {"Online Security": ["No"], "Tech Support": ["No"]}}]` (compiled to forbidden combinations, so it holds in both directions); `infeasible=[{"Contract": ["Month-to-month"], "Payment Method": ["Annual invoice"]}]` for combinations that are not implications. Optimiser policies do not take feasibility rules -- they come from the dataset.
 
 ### Monotonic constraints
 
-`monotonic_features={"Tenure": "decreasing", "Monthly Charges": "increasing"}` forces a numeric feature's effect to move in one direction. Use them when the domain relationship is known and a model that violated it would be wrong, not just surprising -- price should not lower churn, tenure should not raise it. They are hard constraints (a monotone QP), so they also stop the optimiser prescribing nonsense like "raise the price to reduce churn". Constraints on non-numeric features are ignored.
+`monotonic_features={"Tenure": "decreasing", "Monthly Charges": "increasing"}` forces a numeric feature's effect to move in one direction. Use them when the domain relationship is known and a model that violated it would be wrong, not just surprising -- price should not lower churn, tenure should not raise it. The constraint applies to the feature's whole effect, interactions included, so it also stops the optimiser prescribing nonsense like "raise the price to reduce churn". The dataset's declared `monotonic` relationships are merged in (explicit `monotonic_features` wins per feature). Constraints on non-numeric features are ignored.
 
 ### Start simple, iterate based on evidence:
 1. Train with all sensible features and the constraints you are sure of.
