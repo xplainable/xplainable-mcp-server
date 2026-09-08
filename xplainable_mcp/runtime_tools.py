@@ -70,8 +70,21 @@ def _dump(result: Any) -> Any:
 def _build_wrapper(entry: Dict[str, Any], tool_name: str, module_attr: str):
     method_name = entry["name"]
 
+    # Every registry tool except the gateway diagnostics is team-scoped.
+    needs_team = module_attr != "misc"
+
     async def wrapper(**kwargs):
         client = get_client()
+        if needs_team and getattr(client.session, "team_id", None) is None:
+            # Fail fast with the platform's error shape. Forwarding
+            # team_id=None reaches the API as an INTERNAL_ERROR pydantic trace,
+            # which tells the agent nothing. Session state (the active team)
+            # is lost when the server restarts in HTTP mode.
+            raise ToolError(
+                "[NO_TEAM] No active team for this session (the selection is "
+                "reset when the server restarts). — Suggestion: call "
+                "list_user_teams, then set_active_team(team_id), and retry."
+            )
         method = getattr(getattr(client, module_attr), method_name)
         # Offload the blocking client call to a worker thread. Sync tools run
         # directly on the event loop, so a long call (e.g. train, ~70s) starves
