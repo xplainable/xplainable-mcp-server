@@ -11,9 +11,11 @@ TELCO_FULL = Scenario(
     prompt=(
         "Analyse the '{dataset_name}' dataset: explore it, pick the right "
         "churn label, prepare the data and engineer useful features, persist "
-        "that preprocessing, train a churn model on the prepared data, deploy "
-        "it, score 20 held-out customers, create a report I can open, and "
-        "then optimise retention offers for the 20 customers (budget-aware)."
+        "that preprocessing, declare the feature relationships the optimiser "
+        "must respect (add-ons need an internet plan; any derived columns), "
+        "train a churn model on the prepared data, deploy it, score 20 "
+        "held-out customers, create a report I can open, and then optimise "
+        "retention offers for the 20 customers (budget-aware)."
     ),
     fixture="telco_churn_500.csv",
     expected_stages=list(Stage),

@@ -10,7 +10,8 @@ from evals.harness.models import (
 def test_stage_enum_covers_full_analyst_flow():
     assert [s.name for s in Stage] == [
         "EXPLORE", "SELECT_LABEL", "DATA_PREP", "FEATURE_ENG",
-        "PERSIST_PREP", "TRAIN", "DEPLOY", "PREDICT", "REPORT", "OPTIMISE",
+        "PERSIST_PREP", "RELATIONSHIPS", "TRAIN", "DEPLOY", "PREDICT", "REPORT",
+        "OPTIMISE",
     ]
 
 

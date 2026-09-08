@@ -91,6 +91,16 @@ def _check_persist_prep(out: RunOutcome, label: str) -> bool:
     return bool(out.created.preprocessors)
 
 
+def _check_relationships(out: RunOutcome, label: str) -> bool:
+    """The agent declared feature relationships on the dataset (a successful
+    datasets_set_relationships) before training, so the model it trains
+    carries feasibility rules / derived columns for the optimiser."""
+    first_train = next(
+        (i for i, c in enumerate(out.tool_calls) if c.name in TRAIN_TOOLS), None)
+    calls = out.tool_calls if first_train is None else out.tool_calls[:first_train]
+    return any(c.name == "datasets_set_relationships" and _successful(c) for c in calls)
+
+
 def _leaf_values(obj):
     """Yield all leaf values from a nested args structure."""
     if isinstance(obj, dict):
@@ -153,6 +163,7 @@ _STAGE_CHECKS = {
     Stage.DATA_PREP: _check_prep,
     Stage.FEATURE_ENG: _check_prep,
     Stage.PERSIST_PREP: _check_persist_prep,
+    Stage.RELATIONSHIPS: _check_relationships,
     Stage.TRAIN: _check_train,
     Stage.DEPLOY: _check_deploy,
     Stage.PREDICT: _check_predict,

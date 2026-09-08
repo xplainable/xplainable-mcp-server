@@ -11,6 +11,7 @@ class Stage(str, Enum):
     DATA_PREP = "data_prep"
     FEATURE_ENG = "feature_eng"
     PERSIST_PREP = "persist_prep"
+    RELATIONSHIPS = "relationships"
     TRAIN = "train"
     DEPLOY = "deploy"
     PREDICT = "predict"
