@@ -17,8 +17,10 @@ dependencies = [
     # 1.17.0 adds reports_delete_report (the only agent-visible delete;
     # reports are cheap to recreate and agents need to remove drafts),
     # growing the tool surface to 43; 1.18.0 preview_spec (44); 1.19.0 contract
-    # re-sync; 1.20.0 direct-to-inference score_dataset + run_portfolio (46)
-    "xplainable-client[parquet]>=1.21.0",
+    # re-sync; 1.20.0 direct-to-inference score_dataset + run_portfolio (46);
+    # 1.22.0 feature relationships: datasets get/infer/set_relationships +
+    # models_apply_relationships (50)
+    "xplainable-client[parquet]>=1.22.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
     "httpx>=0.24.0",

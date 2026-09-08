@@ -61,9 +61,19 @@ and whether preprocessing is needed.
 `preprocessing_create_preprocessor_from_spec(name, spec, sample_data)` → \
 `preprocessing_preview_from_data(version_id, sample_data)` to verify the \
 transformed output before training.
+3b. Declare feature relationships once per dataset, before training: \
+`datasets_infer_relationships(dataset_id, target_column)` proposes derived \
+columns (e.g. lifetime = tenure × monthly), implications between \
+categorical features (no internet ⇒ no add-ons) and monotonic hints with \
+evidence; review, then commit with `datasets_set_relationships`. They are \
+copied into every model trained afterwards so the optimiser never \
+prescribes an infeasible or inconsistent row. `models_apply_relationships` \
+re-applies a changed declaration to an existing version (then re-deploy).
 4. `models_train_model(dataset_id, target_column, model_name, ...)` — \
 synchronous server-side training (may take up to a couple of minutes). \
-Returns model_id, version_id, train/test metrics, and feature importances.
+Returns model_id, version_id, train/test metrics, feature importances and \
+`warnings` (read them: skipped relationship entries, constraints the fitted \
+effect still violates).
 5. Inspect: compare train vs test metrics (a large gap = overfitting). Use \
 `models_get_feature_info(version_id)` for feature health and \
 `gpt_explain_model` for the importance/profile digest.
