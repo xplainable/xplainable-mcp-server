@@ -288,4 +288,5 @@ reports_get_job_status(job_id)                                                  
 - Very high accuracy (>98%) on imbalanced data = it predicts the majority class; look at AUC and the deciles instead
 
 ### Feasibility of prescriptions:
-- Add-on services depend on an internet plan; "No internet service" is not a free level the optimiser may pick for a fibre customer. Encode such rules as `infeasible` on the optimiser policy where supported, and review prescriptions before acting.
+- Add-on services depend on an internet plan; "No internet service" is not a free level the optimiser may pick for a fibre customer, and a no-internet customer cannot be sold Online Security. These rules live on the dataset (Phase 2b, `datasets_set_relationships`) and are baked into every version trained afterwards; the optimiser policy does not take them (`infeasible` on a policy is rejected). For a version trained before the declaration, run `models_apply_relationships(version_id)` and re-deploy.
+- Derived columns (e.g. `EstimatedLifetimeCharges`) declared in Phase 2b are recomputed from their parents in every prescription, so a tenure change never comes with a stale lifetime value. Still review prescriptions before acting.
