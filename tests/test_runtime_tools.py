@@ -153,3 +153,36 @@ class TestRegistration:
         ):
             with pytest.raises(RuntimeError, match="Duplicate"):
                 register_client_tools(FastMCP(name="dupe"))
+
+
+class TestNoTeamGuard:
+    """A session whose client has no team must fail fast with a structured
+    error, not forward team_id=None to the platform (which surfaces as an
+    INTERNAL_ERROR pydantic trace). Session state is lost on server restarts
+    in HTTP mode, so this is the agent's cue to call set_active_team again.
+    """
+
+    def _client(self, team_id):
+        mock_client = MagicMock()
+        mock_client.session.team_id = team_id
+        mock_client.models.get_model.return_value = {"model_id": "m1"}
+        mock_client.misc.ping_gateway.return_value = "pong"
+        return mock_client
+
+    def test_team_scoped_tool_without_team_raises_no_team(self, tool_map):
+        from fastmcp.exceptions import ToolError
+        mock_client = self._client(None)
+        with patch("xplainable_mcp.runtime_tools.get_client", return_value=mock_client):
+            with pytest.raises(ToolError, match=r"^\[NO_TEAM\].*set_active_team"):
+                asyncio.run(tool_map["models_get_model"].fn(model_id="m1"))
+        mock_client.models.get_model.assert_not_called()
+
+    def test_team_scoped_tool_with_team_passes_through(self, tool_map):
+        mock_client = self._client("team-1")
+        with patch("xplainable_mcp.runtime_tools.get_client", return_value=mock_client):
+            assert asyncio.run(tool_map["models_get_model"].fn(model_id="m1")) == {"model_id": "m1"}
+
+    def test_misc_tools_do_not_need_a_team(self, tool_map):
+        mock_client = self._client(None)
+        with patch("xplainable_mcp.runtime_tools.get_client", return_value=mock_client):
+            assert asyncio.run(tool_map["misc_ping_gateway"].fn()) == "pong"

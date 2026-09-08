@@ -45,9 +45,10 @@ orchestrator: analyse the data, decide the preprocessing and features, \
 train, inspect, and iterate. Compute always runs on the Xplainable \
 platform — never train locally.
 
-If a tool returns 'No team selected', an active team must be set first \
-(select_team / set_active_team, or the XPLAINABLE_TEAM_ID environment \
-variable).
+If a tool returns '[NO_TEAM]' or 'No team selected', an active team must be \
+set first (list_user_teams then set_active_team, or the XPLAINABLE_TEAM_ID \
+environment variable). The selection is per session and is reset when the \
+server restarts — just set it again and retry the call.
 
 ## The Iterate Loop
 
