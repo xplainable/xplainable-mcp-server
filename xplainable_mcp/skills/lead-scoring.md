@@ -102,6 +102,31 @@ Confirm engagement metrics survived, categoricals condensed sensibly, nothing im
 
 ---
 
+## Phase 2b: Declare Feature Relationships
+
+Lead data usually carries columns that are functions of other columns (an engagement score summed from opens and clicks, a rate computed from two counts) and a few structural implications (no email on file ⇒ zero opens; a lead source of "referral" ⇒ campaign fields empty). Declared once on the dataset, they stop the optimiser prescribing "more opens" without the emails that produce them.
+
+```
+datasets_infer_relationships(dataset_id="<dataset_id>", target_column="converted")
+→ implies (never-co-occurring category pairs, with support), derived (exact arithmetic identities), monotonic_hints
+```
+
+Keep what is true by construction, drop coincidences (check the support), then commit:
+
+```
+datasets_set_relationships(
+    dataset_id="<dataset_id>",
+    derived={"engagement_score": "email_opens + link_clicks"},
+    monotonic={"page_views": "increasing", "email_opens": "increasing", "days_since_last_activity": "decreasing"},
+    notes={"derived": "score is the CRM sum of opens and clicks"}
+)
+→ relationships (revision), compiled rules, warnings
+```
+
+Declared `monotonic` directions are merged into training (explicit `monotonic_features` wins). Skip this phase if inference proposes nothing and you know of no dependencies.
+
+---
+
 ## Phase 3: Train the Model
 
 ```
