@@ -60,6 +60,7 @@ Preprocessing is a **PipelineSpec**: `{"version": "2.0", "steps": [{"id", "type"
 
 - `model_type` is `"classification"` or `"regression"`.
 - Training is synchronous and server-side (a minute or two on real data). It returns `model_id`, `version_id`, `run_id`, `train_metrics`, `test_metrics`, `feature_importances`, `n_train`, `n_test`. Keep the `run_id` -- reports hang off it.
+- Lost the `run_id`? `runs_list_team_runs(team_id, model_id="<model_id>")` returns that model's runs, newest first. Look it up -- do NOT retrain or refit to manufacture a fresh one.
 - **What you control at train time**: the feature set (`drop_columns` / `feature_columns`), the preprocessor, monotonic constraints, the dataset's declared feature relationships, and the split (`test_size`, `seed`). Nothing else. There is no `max_depth`.
 - Read the response's `warnings`: relationship entries that were skipped (a column you dropped) and monotonic constraints the fitted effect still violates.
 

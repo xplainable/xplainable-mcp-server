@@ -19,8 +19,8 @@ dependencies = [
     # growing the tool surface to 43; 1.18.0 preview_spec (44); 1.19.0 contract
     # re-sync; 1.20.0 direct-to-inference score_dataset + run_portfolio (46);
     # 1.22.0 feature relationships: datasets get/infer/set_relationships +
-    # models_apply_relationships (50)
-    "xplainable-client[parquet]>=1.22.0",
+    # models_apply_relationships (50); 1.23.0 runs_list_team_runs (51)
+    "xplainable-client[parquet]>=1.23.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
     "httpx>=0.24.0",
