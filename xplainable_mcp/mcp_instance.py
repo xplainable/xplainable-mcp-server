@@ -89,9 +89,12 @@ effect still violates).
    - `inference_predict` — score rows against a deployment.
    - `optimisers_run_optimiser` — prescriptive optimisation toward an \
 objective (create one first via `optimisers_create_optimiser`).
-   - `reports_create_report` — starts report generation and returns a \
-job_id; poll `reports_get_job_status(job_id)` until status is 'done' \
-(or 'error').
+   - `reports_create_from_run` — asks the training agent to write a report. \
+Choose audience and sections; mode=version updates the run's report. \
+Poll `reports_get_creation_status(run_id)` until status is ready (id and \
+version_id) or failed (error). For an existing document use `reports_create`; \
+read with `reports_get_version` and save with `reports_create_version` \
+including base_version_id to protect concurrent edits.
 
 Read tools (datasets_*, models_*, deployments_*, optimisers_*, \
 preprocessing_*) are available for inspecting assets at any point.

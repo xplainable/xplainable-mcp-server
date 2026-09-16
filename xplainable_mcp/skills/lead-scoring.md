@@ -217,11 +217,15 @@ Set the cut-offs from the decile table, not from a fixed 0.7/0.4 -- the right th
 
 ## Phase 7: Report
 
+For training-service runs, the agent can change the audience and section selection below.
+For legacy runs, author an `xplainable.report/2` document and store it with
+`reports_create(run_id, name, document)`; the generation endpoint requires a training-service run.
+
 ```
-reports_create_report(run_id="<run_id from training>", report_name="Lead Scoring Model Report",
-                      widgets=["binaryoverview", "metrics", "thresholdPlot", "prCurveRocCurve", "waterfallplot", "health"],
-                      mode="dynamic", max_features=15)          → job_id
-reports_get_job_status(job_id)                                  → poll until 'done'
+reports_create_from_run(run_id="<completed training-service run_id>", name="Lead Scoring Model Report",
+                        audience="Sales leadership", sections=["overview", "insights", "model", "next_steps", "summary"])
+reports_get_creation_status(run_id)  → poll until status is ready (id, version_id) or failed (error)
+reports_get_version(report_id=id, version_id=version_id)  → inspect the report document
 ```
 The threshold plot matters most here: it is the volume-vs-quality trade-off the sales lead has to choose.
 

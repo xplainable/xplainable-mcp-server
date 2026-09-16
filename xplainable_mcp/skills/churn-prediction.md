@@ -240,11 +240,15 @@ optimisers_run_portfolio(model_id, optimiser_id, dataset_id, total_budget=5000.0
 
 ## Phase 7: Report
 
+For training-service runs, the agent can change the audience and section selection below.
+For legacy runs, author an `xplainable.report/2` document and store it with
+`reports_create(run_id, name, document)`; the generation endpoint requires a training-service run.
+
 ```
-reports_create_report(run_id="<run_id from training>", report_name="Churn Model Report",
-                      widgets=["binaryoverview", "metrics", "confusionMatrix", "thresholdPlot", "prCurveRocCurve", "waterfallplot", "health"],
-                      mode="dynamic", max_features=15)                                             → job_id
-reports_get_job_status(job_id)                                                                     → poll until status is 'done' (or 'error')
+reports_create_from_run(run_id="<completed training-service run_id>", name="Churn Model Report",
+                        audience="Customer retention leadership", sections=["overview", "insights", "model", "next_steps", "summary"])
+reports_get_creation_status(run_id)  → poll until status is ready (id, version_id) or failed (error)
+reports_get_version(report_id=id, version_id=version_id)  → inspect the report document
 ```
 
 ---

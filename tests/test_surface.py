@@ -43,10 +43,10 @@ class TestFlatSurface:
         assert surface == expected
 
     def test_registry_count(self):
-        assert len(list(iter_registry_entries())) == 45
+        assert len(list(iter_registry_entries())) == 49
 
     def test_total_count(self, surface):
-        assert len(surface) == 51  # 45 registry + 6 server-native
+        assert len(surface) == 55  # 49 registry + 6 server-native
 
     def test_training_loop_tools_present(self, surface):
         for name in (
@@ -62,8 +62,12 @@ class TestFlatSurface:
             "deployments_deploy",
             "inference_predict",
             "optimisers_run_optimiser",
-            "reports_create_report",
-            "reports_get_job_status",
+            "reports_create",
+            "reports_create_from_run",
+            "reports_get_creation_status",
+            "reports_list_versions",
+            "reports_get_version",
+            "reports_create_version",
         ):
             assert name in surface, name
 
@@ -73,6 +77,8 @@ class TestFlatSurface:
 
     def test_removed_tools_absent(self, surface):
         for name in (
+            "reports_create_report",
+            "reports_get_job_status",
             # workflow wrappers (WorkflowClient deleted from the client)
             "workflow_list_assets",
             "workflow_train_model",
