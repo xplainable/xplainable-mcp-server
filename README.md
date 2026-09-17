@@ -97,8 +97,10 @@ The tool surface puts the agent in control of every training decision:
 7. `deployments_deploy(version_id)` — deploy once satisfied (then
    `deployments_activate_deployment`)
 8. Act on the model: `inference_predict` /
-   `optimisers_run_optimiser` / `reports_create_report` (+ poll
-   `reports_get_job_status`)
+   `optimisers_run_optimiser` / `reports_create_from_run` (+ poll
+   `reports_get_creation_status(run_id)` until `ready` or `failed`).
+   Use `reports_create` to store a complete report document and
+   `reports_create_version` to save edits with `base_version_id`.
 
 ## Tool Surface
 
