@@ -1,0 +1,16 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.xplainable/xplainable-mcp-server",
+  "description": "Train, explain, optimise and deploy transparent glass-box ML models via workflow tools.",
+  "repository": {
+    "url": "https://github.com/xplainable/xplainable-mcp-server",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.xplainable.io/mcp"
+    }
+  ]
+}
